@@ -4,12 +4,26 @@
 
 - 初始创建项目时，遵循用户定义的任务管理流程。
 
+## 🔴 核心教训：数据源可信度优先级 (2026-02-26)
+
+**犯的错误**: 在做 OID 映射和模拟器时，没有首先要求并阅读 KVM 产品的 MIB 说明书（权威文件），而是依赖了用户自写的模拟器代码（不完全可信）。这导致了可能有基于错误假设的 OID 映射。
+
+**正确做法**:
+1. **永远先确认数据源可信度等级**:
+   - 🟢 L1 最高: MIB 规范文件、厂商官方文档
+   - 🟢 L2 高: 真实设备的原始日志
+   - 🟡 L3 中: 官方使用教程
+   - 🔴 L4 低: 自编模拟器代码
+2. **有冲突时，以高优先级数据源为准**
+3. **在开始任何 OID 相关工作前，先阅读完所有 MIB 文件**
+4. **模拟器必须严格基于 MIB 定义，不能自行推测**
+
 ## pysnmp v6 迁移关键差异 (2026-02-26)
 
 1. **`pysnmp.carrier.asyncore` 已移除** → 用 `pysnmp.carrier.asyncio` 或 socket 替代
 2. **`bulkCmd` 不再是 async iterator** → 是单次 `async` 调用，返回 `tuple`，需手动循环实现 WALK
 3. **`bulkCmd` 返回结构**: `var_bind_table` 是 `list[list[ObjectType]]`（嵌套一层 list）
-4. **`ObjectType[0]` 是 `ObjectIdentity`**，`str()` 返回 MIB 名称（如 `SNMPv2-SMI::enterprises.32828...`），**不是数字 OID**。用 `ObjectIdentity.getOid()` 获取 `ObjectName`，再 `tuple()` 转数字元组
+4. **`ObjectType[0]` 是 `ObjectIdentity`**，`str()` 返回 MIB 名称，**不是数字 OID**。用 `ObjectIdentity.getOid()` 获取 `ObjectName`，再 `tuple()` 转数字元组
 5. **`endOfMibView` → `EndOfMibView`**, **`noSuchObject` → `NoSuchObject`** (大写)
 6. **这些是类而不是实例**，需要 `EndOfMibView()` 和 `NoSuchObject()` 加括号实例化
 7. **`passlib` + `bcrypt>=5.0` 不兼容**，需要 pin `bcrypt==4.0.1`
