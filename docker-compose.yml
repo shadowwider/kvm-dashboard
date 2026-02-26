@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL + TimescaleDB ──────────────────────────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: kvm_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kvm_monitor}
+      POSTGRES_USER: ${POSTGRES_USER:-kvm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"          # 仅开发时暴露，生产可注释掉
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kvm_user} -d ${POSTGRES_DB:-kvm_monitor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI 后端 ───────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kvm_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+    # Trap 接收需要监听 UDP:162（需要宿主机网络或端口映射）
+    # 注意：162 端口需要 root 或 CAP_NET_BIND_SERVICE
+    # 如使用宿主机网络：network_mode: "host"
+    # 或使用端口映射（源端口 > 1024 转发到 162）
+
+  # ── Nginx + 前端静态文件 ────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kvm_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"    # 如需 HTTPS，挂载证书
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: kvm_network
