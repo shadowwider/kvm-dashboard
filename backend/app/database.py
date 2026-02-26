@@ -12,9 +12,10 @@ if settings.is_sqlite:
     # SQLite 不支持 pool_size / max_overflow
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    engine_kwargs["pool_size"] = 10
-    engine_kwargs["max_overflow"] = 20
+    engine_kwargs["pool_size"] = 20
+    engine_kwargs["max_overflow"] = 40
     engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = 1800  # 30 分钟回收连接
 
 engine = create_async_engine(settings.database_url, **engine_kwargs)
 

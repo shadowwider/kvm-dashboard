@@ -164,7 +164,30 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(api_router, prefix="/api/v1")
+
+    # 健康检查 (无需认证, Docker/LB 用)
+    @app.get("/health", tags=["运维"])
+    async def health():
+        return {"status": "ok"}
+
+    @app.get("/api/v1/health", tags=["运维"])
+    async def health_detailed():
+        """带数据库连通性校验的健康检查"""
+        db_ok = False
+        try:
+            async with AsyncSessionLocal() as db:
+                await db.execute(text("SELECT 1"))
+                db_ok = True
+        except Exception:
+            pass
+        return {
+            "status": "ok" if db_ok else "degraded",
+            "database": "connected" if db_ok else "disconnected",
+            "scheduler": scheduler.running,
+        }
+
     return app
 
 
 app = create_app()
+
