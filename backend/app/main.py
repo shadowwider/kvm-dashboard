@@ -40,27 +40,28 @@ async def _init_database():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-        # 创建 TimescaleDB 超表（如果还不是超表）
-        try:
-            await conn.execute(text(
-                "SELECT create_hypertable('status_metrics', 'time', "
-                "if_not_exists => TRUE, migrate_data => TRUE);"
-            ))
-            # 压缩策略：7 天后压缩
-            await conn.execute(text(
-                "SELECT add_compression_policy('status_metrics', "
-                "INTERVAL '7 days', if_not_exists => TRUE);"
-            ))
-            # 数据保留策略：保留 90 天（可通过 API 修改）
-            await conn.execute(text(
-                "SELECT add_retention_policy('status_metrics', "
-                "INTERVAL '90 days', if_not_exists => TRUE);"
-            ))
-            logger.info("TimescaleDB 超表配置完成")
-        except Exception as e:
-            logger.warning(f"TimescaleDB 配置跳过（可能未安装扩展）: {e}")
+        # TimescaleDB 超表配置（仅 PostgreSQL 模式）
+        if not settings.is_sqlite:
+            try:
+                await conn.execute(text(
+                    "SELECT create_hypertable('status_metrics', 'time', "
+                    "if_not_exists => TRUE, migrate_data => TRUE);"
+                ))
+                await conn.execute(text(
+                    "SELECT add_compression_policy('status_metrics', "
+                    "INTERVAL '7 days', if_not_exists => TRUE);"
+                ))
+                await conn.execute(text(
+                    "SELECT add_retention_policy('status_metrics', "
+                    "INTERVAL '90 days', if_not_exists => TRUE);"
+                ))
+                logger.info("TimescaleDB 超表配置完成")
+            except Exception as e:
+                logger.warning(f"TimescaleDB 配置跳过: {e}")
+        else:
+            logger.info("SQLite 测试模式，跳过 TimescaleDB 配置")
 
-    logger.info("数据库表初始化完成")
+    logger.info(f"数据库初始化完成 (模式: {settings.db_mode})")
 
 
 async def _seed_data():

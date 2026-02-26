@@ -51,33 +51,69 @@ async def _snmp_get(host: str, port: int, community: str, oid: str) -> tuple[str
 
 
 async def _snmp_walk(host: str, port: int, community: str, base_oid: str) -> dict[str, any]:
-    """SNMP WALK 查询（用于终端模块表），返回 {full_oid: raw_value}"""
+    """SNMP WALK via pysnmp v6 bulkCmd (single-call, manual iteration)."""
     engine = SnmpEngine()
     results = {}
+    next_oid = base_oid
+    base_tuple = tuple(int(x) for x in base_oid.lstrip(".").split("."))
     try:
-        async for error_indication, error_status, _, var_bind_table in bulkCmd(
-            engine,
-            CommunityData(community, mpModel=1),
-            UdpTransportTarget((host, port), timeout=5, retries=1),
-            ContextData(),
-            0, 50,  # nonRepeaters=0, maxRepetitions=50
-            ObjectType(ObjectIdentity(base_oid)),
-            lexicographicMode=False,
-        ):
-            if error_indication or error_status:
+        for iteration in range(100):
+            error_indication, error_status, error_index, var_bind_table = await bulkCmd(
+                engine,
+                CommunityData(community, mpModel=1),
+                UdpTransportTarget((host, port), timeout=5, retries=1),
+                ContextData(),
+                0, 25,
+                ObjectType(ObjectIdentity(next_oid)),
+            )
+            if error_indication or error_status or not var_bind_table:
                 break
-            for var_bind in var_bind_table:
-                oid_str = str(var_bind[0])
-                if not oid_str.startswith(base_oid):
-                    return results
-                results[oid_str] = var_bind[1]
+
+            # pysnmp v6: var_bind_table = list[list[ObjectType]] or list[ObjectType]
+            flat_binds = []
+            for item in var_bind_table:
+                if isinstance(item, list):
+                    flat_binds.extend(item)
+                else:
+                    flat_binds.append(item)
+
+            out_of_scope = False
+            for obj_type in flat_binds:
+                oid_identity = obj_type[0]  # ObjectIdentity
+                value = obj_type[1]
+
+                # Get numeric OID tuple
+                if hasattr(oid_identity, 'getOid'):
+                    oid_name = oid_identity.getOid()
+                    oid_tuple = tuple(int(x) for x in oid_name)
+                else:
+                    oid_tuple = tuple(int(x) for x in oid_identity)
+                oid_str = ".".join(str(x) for x in oid_tuple)
+
+                # Check endOfMibView
+                from pysnmp.proto.rfc1905 import EndOfMibView
+                if hasattr(value, 'tagSet') and value.tagSet == EndOfMibView.tagSet:
+                    out_of_scope = True
+                    break
+
+                # Check scope
+                if len(oid_tuple) <= len(base_tuple) or oid_tuple[:len(base_tuple)] != base_tuple:
+                    out_of_scope = True
+                    break
+
+                results[oid_str] = value
+                next_oid = oid_str
+
+            if out_of_scope:
+                break
     except Exception as e:
-        logger.warning(f"SNMP WALK {host}:{base_oid} 失败: {e}")
+        logger.warning(f"SNMP WALK {host}:{base_oid} failed: {e}")
     finally:
         try:
             engine.transportDispatcher.closeDispatcher()
         except Exception:
             pass
+    logger.debug(f"WALK {base_oid}: {len(results)} results")
     return results
 
 
@@ -86,9 +122,9 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
     logger.info(f"开始轮询设备: {device.id} ({device.host})")
     now = datetime.now(timezone.utc)
 
-    # 分离设备级 OID 和终端表 OID
-    device_oids = [o for o in oid_configs if o.category == "device" and o.poll_enabled]
-    endpoint_oid_configs = [o for o in oid_configs if o.category == "endpoint" and o.poll_enabled and o.is_table]
+    # 分离设备级 OID 和表类型 OID（endpoint + port）
+    device_oids = [o for o in oid_configs if o.category == "device" and o.poll_enabled and not o.is_table]
+    table_oid_configs = [o for o in oid_configs if o.poll_enabled and o.is_table]
 
     metrics_to_insert: list[dict] = []
     alerts_to_create: list[dict] = []
@@ -123,12 +159,12 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                 "raw_value": str(raw_value),
             })
 
-    # ── 轮询终端模块表 ────────────────────────────────────────────────
-    if endpoint_oid_configs:
+    # ── 轮询表类型 OID（终端模块表 + 端口表）─────────────────────────
+    if table_oid_configs:
         # 按列分组 WALK（同列一次 WALK 获取所有行）
         endpoint_data: dict[int, dict[str, tuple]] = {}  # {row_index: {oid_name: (value_str, value_num)}}
 
-        for ep_cfg in endpoint_oid_configs:
+        for ep_cfg in table_oid_configs:
             col_oid = f"{ep_cfg.table_base_oid}.{ep_cfg.table_column}"
             walk_results = await _snmp_walk(device.host, device.port, device.community, col_oid)
 

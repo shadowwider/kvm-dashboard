@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, DateTime, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import String, Boolean, Integer, DateTime, Float, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -27,7 +26,7 @@ class OIDRegistry(Base):
     # 数据类型
     data_type: Mapped[str] = mapped_column(String(16), default="string")  # integer|float|string|enum
     unit: Mapped[str | None] = mapped_column(String(16), nullable=True)   # '°C','RPM','V','A'
-    enum_map: Mapped[dict | None] = mapped_column(JSONB, nullable=True)   # {0:"off",1:"on"}
+    enum_map: Mapped[dict | None] = mapped_column(JSON, nullable=True)   # {0:"off",1:"on"}
 
     # SNMP 表支持（终端模块是 SNMP Table）
     is_table: Mapped[bool] = mapped_column(Boolean, default=False)
