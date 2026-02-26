@@ -33,6 +33,7 @@ class OIDOut(BaseModel):
     alert_ne_str: Optional[str]
     alert_severity: str
     poll_enabled: bool
+    archive_enabled: bool
     display_enabled: bool
     display_order: int
     created_at: datetime
@@ -59,6 +60,7 @@ class OIDCreate(BaseModel):
     alert_ne_str: Optional[str] = None
     alert_severity: str = "warning"
     poll_enabled: bool = True
+    archive_enabled: bool = True
     display_enabled: bool = True
     display_order: int = 0
 
@@ -75,6 +77,7 @@ class OIDUpdate(BaseModel):
     alert_ne_str: Optional[str] = None
     alert_severity: Optional[str] = None
     poll_enabled: Optional[bool] = None
+    archive_enabled: Optional[bool] = None
     display_enabled: Optional[bool] = None
     display_order: Optional[int] = None
 

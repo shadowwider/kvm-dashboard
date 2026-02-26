@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, desc
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+import csv
+import io
 
 from app.database import get_db
 from app.models.alert import Alert
@@ -48,6 +51,50 @@ async def list_alerts(
     return result.scalars().all()
 
 
+@router.get("/export")
+async def export_alerts_csv(
+    device_id: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    limit: int = Query(5000, le=50000),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """导出告警日志为 CSV 文件（Admin 下载用）"""
+    stmt = select(Alert).order_by(desc(Alert.created_at)).limit(limit)
+    if device_id:
+        stmt = stmt.where(Alert.device_id == device_id)
+    if severity:
+        stmt = stmt.where(Alert.severity == severity)
+    result = await db.execute(stmt)
+    alerts = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "时间", "设备ID", "终端ID", "指标", "级别", "告警类型", "消息", "原始值", "是否已处理", "处理时间"])
+    for a in alerts:
+        writer.writerow([
+            a.id,
+            a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else "",
+            a.device_id,
+            a.endpoint_id or "",
+            a.oid_name or "",
+            a.severity,
+            a.alert_type,
+            a.message,
+            a.raw_value or "",
+            "是" if a.is_resolved else "否",
+            a.resolved_at.strftime("%Y-%m-%d %H:%M:%S") if a.resolved_at else "",
+        ])
+
+    output.seek(0)
+    filename = f"alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter(["\ufeff" + output.getvalue()]),  # BOM for Excel 中文兼容
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @router.patch("/{alert_id}/resolve", response_model=AlertOut)
 async def resolve_alert(
     alert_id: int,
@@ -79,3 +126,4 @@ async def resolve_all_alerts(
     await db.execute(stmt)
     await db.commit()
     return {"message": "已批量确认所有告警"}
+

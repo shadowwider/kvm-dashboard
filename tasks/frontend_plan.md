@@ -221,30 +221,106 @@
 
 ## 六、后端待补充（前端开始前）
 
-1. **aliases 表 + API** — 设备/终端别名映射
-2. **用户管理 API** — `GET/POST/PATCH /users`（目前只有 login/me）
-3. **stats API 增强** — 返回总数/在线/离线/告警的汇总数字
+1. ~~**aliases 表 + API** — 设备/终端别名映射~~ ✅ 已完成
+2. ~~**用户管理 API** — `GET/POST/PATCH /users`~~ ✅ 已有 (auth.py)
+3. ~~**stats API 增强** — 返回总数/在线/离线/告警的汇总数字~~ ✅ 已有 (stats.py)
+4. ~~**日志导出 API** — `GET /alerts/export` CSV 下载~~ ✅ 已完成
+5. ~~**OIDUpdate archive_enabled** — 补齐字段~~ ✅ 已完成
 
 ---
 
-## 七、开发顺序
+## 七、500-2000 节点的拓扑图策略
+
+**不能把 2000 个节点塞进一张图。** 采用分层下钻设计：
+
+### 第一层：全局总览（设备健康矩阵）
+- 所有 KVM 交换机 = 色块网格（类似热力图）
+- 每个色块 = 1 台 KVM，颜色 = 健康状态（绿/黄/红）
+- 支持 500 台设备一屏展示（25×20 网格）
+- 悬浮：显示设备名、在线终端数、告警数
+- **这是领导一眼看的：全绿=一切正常**
+
+### 第二层：单设备拓扑（React Flow）
+- 点击某台 KVM → 下钻到该设备的终端拓扑
+- 中心大节点 = KVM 交换机
+- 放射连线 → 该 KVM 下的 8-16 个终端
+- 每次只渲染十几个节点，性能完美
+
+### 第三层：终端详情面板
+- 点击某个终端节点 → 侧边抽屉显示完整字段
+- 温度历史趋势（ECharts 迷你折线图）
+
+---
+
+## 八、国际化 (i18n) 方案
+
+采用标准的 key-value 方案，默认只写中文，但架构支持多语言：
+
+```
+frontend/src/i18n/
+├── index.js          # useTranslation hook
+├── zh-CN.json        # 中文（默认）
+└── en-US.json        # 英文（预留空文件，后续填充）
+```
+
+所有前端可见文字用 `t('dashboard.online_count')` 取值。
+
+---
+
+## 九、VIP 大屏增强（省长视察级别）
+
+### 顶部正中央：全局健康率大数字
+```
+         ╔══════════════════════╗
+         ║     系统健康率        ║
+         ║      99.8%           ║  ← 发光数字，绿色=正常，红色<95%
+         ║   ■■■■■■■■■■□        ║  ← 进度条动画
+         ╚══════════════════════╝
+```
+
+### 核心 KPI 一排
+- **设备在线率** | **终端在线率** | **今日告警** | **平均温度** | **网络可用率**
+- 每个数字带 countUp 动画 + 微型趋势箭头（↑↓）
+
+### 动态效果
+- 数据刷新时的波纹动画
+- 告警时屏幕边缘红色闪光
+- 拓扑图连线上的流光粒子
+- 状态变更的平滑过渡动画
+
+---
+
+## 十、Admin 面板补充
+
+### Tab 6: 日志导出 ⭐ 新需求
+- 按设备、级别、时间范围筛选
+- 点击"导出 CSV"按钮下载
+- API: `GET /api/v1/alerts/export?device_id=xxx&severity=warning`
+
+---
+
+## 十一、开发顺序
 
 ### Phase 2.1 — 脚手架
 - [ ] `npx create-vite frontend --template react`
 - [ ] 安装依赖：react-router-dom, zustand, axios, echarts, echarts-for-react, @xyflow/react, lucide-react
 - [ ] 搭建 CSS 设计系统（index.css + theme tokens）
 - [ ] 配置 vite.config.js（proxy → backend）
+- [ ] 搭建 i18n 框架
 
 ### Phase 2.2 — 核心组件
 - [ ] Login 页（动效 + JWT）
 - [ ] Dashboard 布局框架（顶栏 + 三栏 + 底栏）
-- [ ] StatsBar 组件（4 个统计数字）
+- [ ] HealthRate 组件（正中央大数字健康率）
+- [ ] StatsBar 组件（KPI 一排统计）
 - [ ] DeviceCard 组件（KVM 设备状态卡片）
+- [ ] DeviceMatrix 组件（全局色块热力网格 — 第一层）
 - [ ] EndpointGrid 组件（终端点阵矩阵）
 
 ### Phase 2.3 — 高级可视化
-- [ ] TopologyView 组件（React Flow 拓扑图）
-- [ ] AlertPanel 组件（实时告警流）
+- [ ] TopologyView 组件（React Flow 拓扑图 — 第二层）
+- [ ] EndpointDetail 组件（侧边抽屉 — 第三层）
+- [ ] AlertPanel 组件（实时告警流 + 边缘闪光）
 - [ ] MetricChart 组件（ECharts 历史图表）
 - [ ] WebSocket 实时数据集成
 
@@ -252,11 +328,13 @@
 - [ ] Admin 路由保护
 - [ ] DevicesTab（设备 CRUD）
 - [ ] AliasesTab（inline 编辑别名）
-- [ ] OIDRegistryTab（指标配置 toggle）
-- [ ] AlertsTab（告警确认/筛选）
+- [ ] OIDRegistryTab（指标配置 toggle，含 archive_enabled）
+- [ ] AlertsTab（告警确认/筛选 + CSV 导出按钮）
 - [ ] UsersTab（用户管理）
 
 ### Phase 2.5 — 抛光
 - [ ] 响应式适配（1080p/2K/4K 分辨率）
 - [ ] 全局 loading / error 兜底
-- [ ] 微动画打磨
+- [ ] 微动画打磨（countUp / 波纹 / 流光）
+- [ ] 中文文案校对
+
