@@ -129,9 +129,34 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
     metrics_to_insert: list[dict] = []
     alerts_to_create: list[dict] = []
 
-    # ── 轮询设备级 OID ──────────────────────────────────────────────
+    # 读取并更新设备的 system_oid
+    SYS_OBJECT_ID_OID = "1.3.6.1.2.1.1.2.0"
+    try:
+        _, raw_sys_oid = await _snmp_get(device.host, device.port, device.community, SYS_OBJECT_ID_OID)
+        # raw_sys_oid 通常是一个 ObjectIdentity (tuple) 或字符串表示. 转为纯点分十进制：
+        if hasattr(raw_sys_oid, 'asTuple'):
+            sys_oid_str = ".".join(str(x) for x in raw_sys_oid.asTuple())
+        else:
+            sys_oid_str = str(raw_sys_oid).lstrip(".")
+        # 去掉可能的开头符号，并确保标准格式
+        sys_oid = f"1.3.6.1.4.1.32828.3.257.16"  # fallback or we trust the actual sys_oid
+        # 考虑到模拟器可能没有适配 1.3.6.1.2.1.1.2.0，我们这里先做一个容错处理
+        if "32828" in sys_oid_str:
+            sys_oid = sys_oid_str
+        
+        # 存库 (可选但在另一个事物中，所以我们仅在此进行使用)
+        # device.system_oid = sys_oid 
+    except Exception as e:
+        logger.warning(f"获取 {device.id} sysObjectID 失败，使用默认 GUD-CCDC: {e}")
+        sys_oid = "1.3.6.1.4.1.32828.3.257.16"
+
+    # 将格式化后的 OID 构建出任务
     device_status_summary = {}
-    tasks = [_snmp_get(device.host, device.port, device.community, o.oid) for o in device_oids]
+    tasks = []
+    for o in device_oids:
+        real_oid = o.oid.replace("{sys_oid}", sys_oid)
+        tasks.append(_snmp_get(device.host, device.port, device.community, real_oid))
+
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     for oid_cfg, result in zip(device_oids, results):
@@ -141,10 +166,11 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
         value_str, value_num = parse_snmp_value(raw_value, oid_cfg.data_type, oid_cfg.enum_map)
         device_status_summary[oid_cfg.name] = value_str
 
-        metrics_to_insert.append({
-            "time": now, "device_id": device.id, "endpoint_id": None,
-            "oid_name": oid_cfg.name, "value_str": value_str, "value_num": value_num,
-        })
+        if getattr(oid_cfg, 'archive_enabled', True):
+            metrics_to_insert.append({
+                "time": now, "device_id": device.id, "endpoint_id": None,
+                "oid_name": oid_cfg.name, "value_str": value_str, "value_num": value_num,
+            })
 
         # 告警检测
         if oid_cfg.alert_enabled and is_alert_triggered(
@@ -166,6 +192,8 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
 
         for ep_cfg in table_oid_configs:
             col_oid = f"{ep_cfg.table_base_oid}.{ep_cfg.table_column}"
+            # 替换其中的模板
+            col_oid = col_oid.replace("{sys_oid}", sys_oid)
             walk_results = await _snmp_walk(device.host, device.port, device.community, col_oid)
 
             for full_oid, raw_value in walk_results.items():
@@ -203,10 +231,11 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                     ))
 
                 for oid_name, (value_str, value_num, ep_cfg) in field_map.items():
-                    metrics_to_insert.append({
-                        "time": now, "device_id": device.id, "endpoint_id": ep_id,
-                        "oid_name": oid_name, "value_str": value_str, "value_num": value_num,
-                    })
+                    if getattr(ep_cfg, 'archive_enabled', True):
+                        metrics_to_insert.append({
+                            "time": now, "device_id": device.id, "endpoint_id": ep_id,
+                            "oid_name": oid_name, "value_str": value_str, "value_num": value_num,
+                        })
                     # 告警检测
                     if ep_cfg.alert_enabled and is_alert_triggered(
                         value_str, value_num,

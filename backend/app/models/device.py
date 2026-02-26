@@ -15,6 +15,8 @@ class Device(Base):
     community: Mapped[str] = mapped_column(String(64), default="public")
     location: Mapped[str | None] = mapped_column(String(128), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    system_oid: Mapped[str | None] = mapped_column(String(256), nullable=True)  # 例如: 1.3.6.1.4.1.32828.3.257.16
+    model_name: Mapped[str | None] = mapped_column(String(128), nullable=True)  # 例如: ControlCenter-Compact-8C
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     poll_interval: Mapped[int] = mapped_column(Integer, default=60)  # 秒
     last_poll: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

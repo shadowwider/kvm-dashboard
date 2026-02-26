@@ -5,6 +5,9 @@
 - [x] 兼容 SQLite（测试用）和 TimescaleDB（生产用）
 - [x] 重写 SNMP 模拟器兼容 pysnmp v6 (剥离 asyncore，改用 pure socket + rfc1905 PDU)
 - [x] **查阅官方 MIB / 日志验证 OID 树权威性，修正映射和测试**
+- [x] 重构 oid_map 消除 Hardcode，实现 sysObjectID 探测
+- [x] 拓展 OID 模型，增加自由存档标志(archive_enabled)
+- [x] 新增端点 /api/topology 用于渲染动态拓扑图结构
 - [ ] 完善定时轮询任务的健壮度
 - [ ] 开发前端管理界面（基础配置、验证）
 

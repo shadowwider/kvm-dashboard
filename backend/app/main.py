@@ -104,6 +104,7 @@ async def _seed_data():
                 alert_ne_str=seed.get("alert_ne_str"),
                 alert_severity=seed.get("alert_severity", "warning"),
                 poll_enabled=seed.get("poll_enabled", True),
+                archive_enabled=seed.get("archive_enabled", True),
                 display_enabled=seed.get("display_enabled", True),
                 display_order=seed.get("display_order", 0),
             ))

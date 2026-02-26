@@ -15,49 +15,47 @@ G&D CCDC KVM 系列 OID 定义基础库。
 
 # 企业根 OID
 GUD_ENTERPRISE = "1.3.6.1.4.1.32828"
-GUD_CCDC_BASE = f"{GUD_ENTERPRISE}.3.257.16"
 
 # -------------------------------------------------------------------
 # 设备基础信息 (GUD-CCDC-MIB: objects.identify = gudCCDC.2.1)
 # -------------------------------------------------------------------
-DEVICE_IDENTIFY_BASE = f"{GUD_CCDC_BASE}.2.1"
-DEVICE_VERSION_BASE = f"{GUD_CCDC_BASE}.2.2"
+DEVICE_IDENTIFY_BASE = "{sys_oid}.2.1"
+DEVICE_VERSION_BASE = "{sys_oid}.2.2"
 
 DEVICE_OIDS = {
     # 基础信息 (gudCCDC.2.1.x.0)
     "device_id":        f"{DEVICE_IDENTIFY_BASE}.1.0",   # deviceId
-    "device_class":     f"{DEVICE_IDENTIFY_BASE}.2.0",   # deviceCl (类别编号 257)
-    "device_type":      f"{DEVICE_IDENTIFY_BASE}.3.0",   # deviceType (ControlCenter-Compact-8C)
-    "device_serial":    f"{DEVICE_IDENTIFY_BASE}.4.0",   # serialNumber (GD03217157)
+    "device_class":     f"{DEVICE_IDENTIFY_BASE}.2.0",   # deviceCl
+    "device_type":      f"{DEVICE_IDENTIFY_BASE}.3.0",   # deviceType
+    "device_serial":    f"{DEVICE_IDENTIFY_BASE}.4.0",   # serialNumber
     "device_mac0":      f"{DEVICE_IDENTIFY_BASE}.5.0",   # etherAddress0
     "device_mac1":      f"{DEVICE_IDENTIFY_BASE}.6.0",   # etherAddress1
 
     # 固件版本 (gudCCDC.2.2.x.0)
-    "device_firmware":  f"{DEVICE_VERSION_BASE}.1.0",    # firmwareVersion (1.7.000)
+    "device_firmware":  f"{DEVICE_VERSION_BASE}.1.0",    # firmwareVersion
 
-    # 设备状态 (gudCCDC.2.3.x.0)  ⚠️ 编号是稀疏的！
-    "main_power":       f"{GUD_CCDC_BASE}.2.3.1.0",     # mainPower
-    "redundant_power":  f"{GUD_CCDC_BASE}.2.3.2.0",     # redundantPower
-    "temperature":      f"{GUD_CCDC_BASE}.2.3.3.0",     # temperature1
-    "power_current":    f"{GUD_CCDC_BASE}.2.3.500.0",   # powerCurrent
-    "power_voltage":    f"{GUD_CCDC_BASE}.2.3.501.0",   # powerVoltage
-    "fan1":             f"{GUD_CCDC_BASE}.2.3.502.0",   # fan1
-    "fan2":             f"{GUD_CCDC_BASE}.2.3.503.0",   # fan2
-    "fan3":             f"{GUD_CCDC_BASE}.2.3.504.0",   # fan3
-    "fan4":             f"{GUD_CCDC_BASE}.2.3.505.0",   # fan4
-    "fan5":             f"{GUD_CCDC_BASE}.2.3.508.0",   # fan5 (注: 跳过了506/507)
-    "fan6":             f"{GUD_CCDC_BASE}.2.3.509.0",   # fan6
-    "net_if0":          f"{GUD_CCDC_BASE}.2.3.506.0",   # networkInterface0
-    "net_if1":          f"{GUD_CCDC_BASE}.2.3.507.0",   # networkInterface1
+    # 设备状态 (gudCCDC.2.3.x.0)
+    "main_power":       "{sys_oid}.2.3.1.0",     # mainPower
+    "redundant_power":  "{sys_oid}.2.3.2.0",     # redundantPower
+    "temperature":      "{sys_oid}.2.3.3.0",     # temperature1
+    "power_current":    "{sys_oid}.2.3.500.0",   # powerCurrent
+    "power_voltage":    "{sys_oid}.2.3.501.0",   # powerVoltage
+    "fan1":             "{sys_oid}.2.3.502.0",   # fan1
+    "fan2":             "{sys_oid}.2.3.503.0",   # fan2
+    "fan3":             "{sys_oid}.2.3.504.0",   # fan3
+    "fan4":             "{sys_oid}.2.3.505.0",   # fan4
+    "fan5":             "{sys_oid}.2.3.508.0",   # fan5
+    "fan6":             "{sys_oid}.2.3.509.0",   # fan6
+    "net_if0":          "{sys_oid}.2.3.506.0",   # networkInterface0
+    "net_if1":          "{sys_oid}.2.3.507.0",   # networkInterface1
 }
 
 # -------------------------------------------------------------------
-# 终端模块表 (GUD-CCDCCPU-MIB: targetModuleTable)
-# gudCCDCCPU.2.3.1000.1 = gudCCDC.1.2.2.3.1000.1
-# OID: ...1000.1.{column}.{row}
-# 列号来源: help/config.py 和 help/snmp_simulator.py 已验证
+# 终端模块表
+# 这里使用了 .1.2.2.3.1000.1 为基础 (对应 CPU 终端表)
+# 如果支持其他模型可根据情况在后续按需扩充。
 # -------------------------------------------------------------------
-ENDPOINT_TABLE_ENTRY = f"{GUD_ENTERPRISE}.3.257.16.1.2.2.3.1000.1"
+ENDPOINT_TABLE_ENTRY = "{sys_oid}.1.2.2.3.1000.1"
 
 ENDPOINT_COLUMNS = {
     "ep_id":                  2,   # id (设备 hex ID)
@@ -87,9 +85,9 @@ ENDPOINT_COLUMNS = {
 
 # -------------------------------------------------------------------
 # 端口表 (GUD-CCDC-MIB: portTable)
-# gudCCDC.2.3.1000.1.{column}.{row}
+# {sys_oid}.2.3.1000.1.{column}.{row}
 # -------------------------------------------------------------------
-PORT_TABLE_ENTRY = f"{GUD_CCDC_BASE}.2.3.1000.1"
+PORT_TABLE_ENTRY = "{sys_oid}.2.3.1000.1"
 
 PORT_COLUMNS = {
     "port_status":         2,    # portStatus (0=noModule,1=deactivated,2=down,3=up)

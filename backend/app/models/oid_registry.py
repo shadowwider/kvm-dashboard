@@ -41,8 +41,9 @@ class OIDRegistry(Base):
     alert_ne_str: Mapped[str | None] = mapped_column(String(64), nullable=True) # 不等于此枚举值告警（用于"非正常"）
     alert_severity: Mapped[str] = mapped_column(String(16), default="warning")  # info|warning|critical
 
-    # 显示配置
+    # 显示与归档配置
     poll_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    archive_enabled: Mapped[bool] = mapped_column(Boolean, default=True) # 是否记录到时序表
     display_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0)
 
