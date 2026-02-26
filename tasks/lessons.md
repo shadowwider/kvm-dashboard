@@ -33,3 +33,23 @@
 - PostgreSQL 的 `JSONB` → 通用 `JSON`
 - 复合主键在 SQLite 中不支持 nullable → 改用自增 `id`
 - TimescaleDB hypertable 必须条件跳过
+
+## 生产级架构教训 (2026-02-26)
+
+### 1. 并发轮询必须限流
+500 台设备 `asyncio.gather(*)` 会瞬间打爆 SNMP 和数据库连接。**必须用 `asyncio.Semaphore` 限制并发上限（20-30 台/批）**。
+
+### 2. SnmpEngine 不能每次创建
+`SnmpEngine()` 创建开销很大（初始化 MIB Controller + Transport Dispatcher）。**必须用对象池复用**。
+
+### 3. 数据库写入必须批量
+`for m in list: db.add(Model(**m))` 在 1 万条时极慢。**必须用 `insert(Table).values(list)` 批量插入**。
+
+### 4. 告警必须去重
+没有去重 → 同一个异常每分钟产生一条告警 → 一小时 60 条。**查询最近 N 分钟内同设备同指标未解决告警，存在则跳过**。
+
+### 5. APScheduler + Uvicorn multi-worker = 灾难
+多 worker 时，每个 worker 各自启动一个 APScheduler 实例 → 重复轮询。**单 worker 或独立轮询进程**。
+
+### 6. 数据库连接池要匹配并发量
+`pool_size=10` 在 500 设备场景下不够。**推荐 pool_size=20, max_overflow=40, pool_recycle=1800s**。
