@@ -41,6 +41,9 @@ def build_oid_map():
     """构建 OID → value 映射（模拟真机数据）"""
     base = OID_BASE
     oid_map = {
+        # 标准 MIB-2 节点
+        "1.3.6.1.2.1.1.2.0": OID_BASE,                         # sysObjectID
+
         # 设备基础信息
         f"{base}.2.1.1.0": "4675",                             # deviceId
         f"{base}.2.1.2.0": "257",                              # deviceCl
