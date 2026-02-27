@@ -8,9 +8,15 @@
 - [x] 重构 oid_map 消除 Hardcode，实现 sysObjectID 探测
 - [x] 拓展 OID 模型，增加自由存档标志(archive_enabled)
 - [x] 新增端点 /api/topology 用于渲染动态拓扑图结构
-- [ ] 提交当前重构及前端脚手架代码 (backend & frontend)
-- [ ] 完善定时轮询任务的健壮度
-- [ ] 开发前端管理界面（基础配置、验证）
+- [x] 提交当前重构及前端脚手架代码 (backend & frontend)
+- [x] 完善定时轮询任务的健壮度
+- [ ] 开发前端管理界面（Admin Dashboard：基础配置、验证、开关）
+
+## Phase 3 — 生产级 Docker 部署与交付 (Production Deployment)
+- [ ] 编写前端多阶段构建的 `frontend/Dockerfile` (Node.js Build + Nginx)
+- [ ] 编写 `frontend/nginx.conf` 支撑 SPA 路由 fallback 并反代 `/api` 和 `/ws`
+- [ ] 补全并调优根目录的 `docker-compose.yml` (时区 TZ、依赖关系、挂载点)
+- [ ] 制作用于最终交付运维人员的部署手册 `docs/DEPLOYMENT.md`
 
 ## Phase 2.1 — 脚手架 (Frontend Scaffold)
 - [x] 初始化 React Vite 项目: `npx create-vite frontend --template react`
@@ -35,6 +41,12 @@
 - [x] WebSocket 实时数据推送集成 (Zustand 派发更新)
 
 # 任务回顾 (Review)
+
+- `2026-02-27`:
+  - 成功解决了在 SNMP 通讯、React 流中遭遇的各种 "Invalid date" 及 Canvas 染色越界 BUG。全面排查并重置了后端多台超规模模拟器的吞吐限制，保证系统安全起飞。
+  - 完成并整理工作移交手册 `docs/HANDOVER.md`，交接剩余的管理后台 (Admin Panel) 页面开发任务给下一任。
+  - 整理并提交了后端的生产级 SNMP 轮询器重构（含复用引擎池、批量写入、告警去重）、Metrics API、以及前端 React Vite 脚手架源码至 `feat/full-refactor` 分支。
+  - 保持了 `tasks/todo.md` 和 `tasks/lessons.md` 的同步更新。
 
 - `2026-02-26 (Phase 2.3)`:
   - 成功开发 `TopologyView` (`@xyflow/react`) 拓扑视图。解析了后端的节点和连线对象，并构建了一套**基于数学运算的弧形 Radial Layout** 算法，动态计算并散开终端节点，不再依赖后端坐标或手动拖拽。

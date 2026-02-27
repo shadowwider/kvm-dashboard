@@ -26,13 +26,19 @@ const useSystemWebSocket = () => {
         if (type === 'device_update') {
             updateDeviceState(lastJsonMessage);
         } else if (type === 'new_alerts' || type === 'trap_received') {
-            const alerts = lastJsonMessage.alerts || [{
+            const now = new Date().toISOString();
+            const rawAlerts = lastJsonMessage.alerts || [{
                 id: Date.now(),
-                severity: 'warning',
-                message: lastJsonMessage.message,
-                device_id: lastJsonMessage.source_ip,
-                created_at: lastJsonMessage.timestamp
+                severity: lastJsonMessage.severity || 'warning',
+                message: lastJsonMessage.message || 'TRAP 告警',
+                device_id: lastJsonMessage.device_id || lastJsonMessage.source_ip || '未知设备',
+                created_at: lastJsonMessage.timestamp || now,
             }];
+            // 确保每条告警都有 created_at
+            const alerts = rawAlerts.map(a => ({
+                ...a,
+                created_at: a.created_at || now,
+            }));
             prependNewAlerts(alerts);
         } else if (type === 'metric_update') {
             // Optionally dispatch to update stats block

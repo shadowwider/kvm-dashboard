@@ -5,7 +5,7 @@ export const useStore = create((set, get) => ({
     // 数据集
     stats: null,
     devices: [],
-    endpoints: [],
+    endpoints: [],   // 合并所有已拉取设备的终端，key by id
     alerts: [],
     topology: null,
 
@@ -45,14 +45,34 @@ export const useStore = create((set, get) => ({
         }
     },
 
-    // Action：获取指定设备的终端数据 (主网格图)
+    // Action：获取指定设备的终端数据 —— 合并到全局 endpoints 数组（不覆盖其他设备）
     fetchEndpoints: async (deviceId) => {
         if (!deviceId) return;
         try {
             const res = await api.get(`/endpoints?device_id=${deviceId}`);
-            set({ endpoints: res.data });
+            const newEps = res.data || [];
+            set((state) => {
+                // 保留其他设备的终端，更新/追加当前设备的终端
+                const otherEps = state.endpoints.filter(ep => ep.device_id !== deviceId);
+                return { endpoints: [...otherEps, ...newEps] };
+            });
         } catch (err) {
             console.error('Failed to fetch endpoints', err);
+        }
+    },
+
+    // Action：拉取全部设备的终端（矩阵全部模式用）
+    fetchAllEndpoints: async () => {
+        const { devices } = get();
+        if (!devices.length) return;
+        try {
+            const results = await Promise.allSettled(
+                devices.map(d => api.get(`/endpoints?device_id=${d.id}`).then(r => r.data || []))
+            );
+            const all = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+            set({ endpoints: all });
+        } catch (err) {
+            console.error('Failed to fetch all endpoints', err);
         }
     },
 
@@ -66,7 +86,7 @@ export const useStore = create((set, get) => ({
         }
     },
 
-    // Action: 拉取第二层详细的拓扑连线结构
+    // Action: 拉取拓扑连线结构
     fetchTopology: async (deviceId) => {
         if (!deviceId) return;
         try {
@@ -77,24 +97,25 @@ export const useStore = create((set, get) => ({
         }
     },
 
-    // 综合批量拉取大屏数据 (定时或最初始执行)
+    // 综合批量拉取大屏数据
     fetchAll: async () => {
-        const { fetchStats, fetchDevices, fetchAlerts, selectedDeviceId, fetchEndpoints } = get();
+        const { fetchStats, fetchDevices, fetchAlerts, fetchAllEndpoints } = get();
         await Promise.all([
             fetchStats(),
             fetchDevices(),
-            fetchAlerts()
+            fetchAlerts(),
         ]);
-        if (selectedDeviceId) {
-            await fetchEndpoints(selectedDeviceId);
-        }
+        // devices 拉完后立刻拉所有终端
+        await fetchAllEndpoints();
     },
 
     // Websocket Action: 处理单点刷新
     updateDeviceState: (deviceUpdate) => {
         set((state) => {
             const updatedDevices = state.devices.map(d =>
-                d.id === deviceUpdate.device_id ? { ...d, last_status: deviceUpdate.online_status || 'online', updated_at: deviceUpdate.timestamp } : d
+                d.id === deviceUpdate.device_id
+                    ? { ...d, last_status: deviceUpdate.online_status || 'online', updated_at: deviceUpdate.timestamp }
+                    : d
             );
             return { devices: updatedDevices };
         });
@@ -102,9 +123,8 @@ export const useStore = create((set, get) => ({
 
     // Websocket Action: 收到新的告警
     prependNewAlerts: (newAlerts) => {
-        set((state) => {
-            // Put it at beginning, limit array to 50
-            return { alerts: [...newAlerts, ...state.alerts].slice(0, 50) };
-        });
-    }
+        set((state) => ({
+            alerts: [...newAlerts, ...state.alerts].slice(0, 50)
+        }));
+    },
 }));

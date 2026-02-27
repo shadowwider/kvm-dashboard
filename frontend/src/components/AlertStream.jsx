@@ -1,58 +1,72 @@
 import React from 'react';
-import { format, isValid } from 'date-fns';
-import { AlertTriangle, Info, ShieldAlert } from 'lucide-react';
 import { useStore } from '../store/mainStore';
 
-const AlertStream = () => {
-    const { alerts } = useStore();
+const SEVERITY_LABEL = {
+    critical: '紧急',
+    warning: '警告',
+    info: '信息',
+};
 
-    if (!alerts || alerts.length === 0) {
+// 健壮的时间格式化：兼容 ISO8601、无 T/Z 的字符串、数字时间戳
+function safeFormatTime(raw) {
+    if (!raw) return '--:--:--';
+    try {
+        // 处理没有 T/Z 的格式（如 '2026-02-27 10:07:00'）
+        const normalized = typeof raw === 'string' ? raw.replace(' ', 'T') : raw;
+        const dt = new Date(normalized);
+        if (isNaN(dt.getTime())) return '--:--:--';
+        const h = String(dt.getHours()).padStart(2, '0');
+        const m = String(dt.getMinutes()).padStart(2, '0');
+        const s = String(dt.getSeconds()).padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    } catch {
+        return '--:--:--';
+    }
+}
+
+const AlertStream = () => {
+    const alerts = useStore(state => state.alerts);
+
+    if (alerts.length === 0) {
         return (
-            <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                No Active Alerts
+            <div style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-dim)',
+                fontSize: '10px',
+                letterSpacing: '2px',
+            }}>
+                暂无告警
             </div>
         );
     }
 
     return (
-        <div className="alert-stream" style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', height: '100%', paddingRight: '4px' }}>
-            {alerts.map(alert => {
-                let Icon = Info;
-                let color = 'var(--text-secondary)';
-                let bgStyle = 'rgba(255,255,255,0.02)';
-
-                if (alert.severity === 'critical') {
-                    Icon = ShieldAlert;
-                    color = 'var(--status-critical)';
-                    bgStyle = 'rgba(220, 38, 38, 0.08)';
-                } else if (alert.severity === 'warning') {
-                    Icon = AlertTriangle;
-                    color = 'var(--status-warning)';
-                    bgStyle = 'rgba(245, 158, 11, 0.08)';
-                }
+        <div className="alert-list">
+            {alerts.map((alert, idx) => {
+                const severity = alert.severity || 'info';
+                const isNew = idx === 0;
+                const timeStr = safeFormatTime(alert.created_at);
 
                 return (
-                    <div key={alert.id} style={{
-                        background: bgStyle,
-                        border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
-                        borderLeft: `3px solid ${color}`,
-                        padding: '10px',
-                        borderRadius: '6px',
-                        display: 'flex',
-                        gap: '12px',
-                        animation: 'slideInRight 0.3s ease-out'
-                    }}>
-                        <div style={{ marginTop: '2px' }}><Icon size={16} color={color} /></div>
-                        <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                                {isValid(new Date(alert.created_at)) ? format(new Date(alert.created_at), 'HH:mm:ss') : format(new Date(), 'HH:mm:ss')} • {alert.device_id}
-                            </div>
-                            <div style={{ fontSize: '13px', lineHeight: '1.4' }}>
-                                {alert.message}
-                            </div>
+                    <div
+                        key={alert.id ?? idx}
+                        className={`alert-item ${severity}${isNew ? ' is-new' : ''}`}
+                    >
+                        <div className="alert-time">{timeStr}</div>
+                        <div className="alert-header">
+                            <span className={`alert-badge ${severity}`}>
+                                {SEVERITY_LABEL[severity] || severity}
+                            </span>
+                            <span className="alert-device">
+                                {alert.device_id || '—'}
+                            </span>
                         </div>
+                        <div className="alert-msg">{alert.message || '—'}</div>
                     </div>
-                )
+                );
             })}
         </div>
     );

@@ -38,7 +38,8 @@ const Login = () => {
             login(access_token, userRes.data);
             navigate('/dashboard');
         } catch (err) {
-            setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+            const detail = err.response?.data?.detail;
+            setError(typeof detail === 'string' ? detail : '登录失败，请检查用户名和密码。');
         } finally {
             setLoading(false);
         }
@@ -53,33 +54,33 @@ const Login = () => {
             </div>
             <div className="glass-card login-card">
                 <div className="login-header">
-                    <h2>KVM Dashboard</h2>
-                    <p>Login to access monitoring system</p>
+                    <h2>KVM 监控中心</h2>
+                    <p>请登录以访问监控大屏</p>
                 </div>
                 <form onSubmit={handleLogin} className="login-form">
                     <div className="input-group">
-                        <label>Username</label>
+                        <label>用户名</label>
                         <input
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             required
-                            placeholder="Enter username"
+                            placeholder="请输入用户名"
                         />
                     </div>
                     <div className="input-group">
-                        <label>Password</label>
+                        <label>密码</label>
                         <input
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            placeholder="Enter password"
+                            placeholder="请输入密码"
                         />
                     </div>
                     {error && <div className="error-message">{error}</div>}
                     <button type="submit" disabled={loading} className="login-button">
-                        {loading ? 'Authenticating...' : 'Sign In'}
+                        {loading ? '验证中...' : '登 录'}
                     </button>
                 </form>
             </div>

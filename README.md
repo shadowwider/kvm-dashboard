@@ -22,7 +22,7 @@
 | **持久层** | `PostgreSQL 16` + `TimescaleDB` | RDBMS 关系型管理 + 压缩超表时序引擎 |
 | **ORM & DB** | `SQLAlchemy 2.0` (asyncpg/aiosqlite) | 自动适配 SQLite 测试模式与生产模式 |
 | **SNMP 通信** | `pysnmp` (纯 asyncio) | 对接全线设备，单次 WALK 高效汇聚端口数据 |
-| **前端大屏** | *(即将开发)* `React 18` + `Vite` | 深色质感、Zustand 全局流、ReactFlow 拓扑 |
+| **前端大屏** | `React 18` + `Vite` | 深色质感、Zustand 全局流、ReactFlow 拓扑 |
 | **部署交付** | `Docker Compose` | 一键拉起 DB + Backend + Frontend (Nginx) |
 
 ---
@@ -36,6 +36,7 @@
 3. **🗄️ 数据库业务全图** 👉 `backend/init.sql`（PostgreSQL 表结构、TimescaleDB 配置指令全貌）
 4. **💡 生产级避坑教训** 👉 `tasks/lessons.md`（包括为何要并发限流、连接层复用、和 MIB 数据源信任层级）
 5. **📝 进度追踪清单** 👉 `tasks/todo.md`（项目大阶段总揽）
+6. **🤝 工作交接必读指南** 👉 `docs/HANDOVER.md`（给下一任开发人员的底层闭坑及全栈联调指令）
 
 ---
 
@@ -83,6 +84,6 @@ docker-compose up -d --build
 **容器说明**：
 - `kvm_postgres`: 包含了 TimescaleDB 扩展的 PostgreSQL 实例 (占用本地 5432 端口可选)。
 - `kvm_backend`: FastAPI 接口及轮询常驻服务，内部开放 8000。
-- `kvm_frontend`: (即将开发) 托管静态资产与反代。
+- `kvm_frontend`: 托管静态资产与反代。
 
 > ⚠️ 注意：由于 UDP 162(SNMP Trap) 属于特权端口，Docker 部署时可能需要特殊端口映射配置（参阅 `docker-compose.yml` 注释）。
