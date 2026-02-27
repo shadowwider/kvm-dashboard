@@ -18,8 +18,11 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-def _start_trap_receiver(loop: asyncio.AbstractEventLoop):
-    """在事件循环中启动 Trap 监听器"""
+def _start_trap_receiver(main_loop: asyncio.AbstractEventLoop):
+    """在后台线程中创建全新事件循环来跑 Trap 监听器"""
+    thread_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(thread_loop)
+    
     snmp_engine = SnmpEngine()
 
     # 传输配置
@@ -50,8 +53,8 @@ def _start_trap_receiver(loop: asyncio.AbstractEventLoop):
         message = f"Trap from {source_ip}: " + "; ".join(f"{b['oid']}={b['value']}" for b in binds[:3])
         logger.warning(f"收到 SNMP Trap: {message}")
 
-        # 异步写入数据库
-        asyncio.run_coroutine_threadsafe(_save_trap(source_ip, message, binds, now), loop)
+        # 异步写入数据库 (派发到 FastAPI 主线程的 Event Loop 去执行)
+        asyncio.run_coroutine_threadsafe(_save_trap(source_ip, message, binds, now), main_loop)
 
     ntfrcv.NotificationReceiver(snmp_engine, trap_callback)
     snmp_engine.transportDispatcher.jobStarted(1)

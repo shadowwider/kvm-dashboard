@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, desc
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.database import get_db
@@ -39,15 +39,15 @@ async def get_metric_history(
         ORDER BY time ASC
         LIMIT 2000
     """)
-    # TimescaleDB 支持直接时间过滤，效率极高
+    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
     result = await db.execute(
         select(StatusMetric)
         .where(
             StatusMetric.device_id == device_id,
             StatusMetric.oid_name == oid_name,
             StatusMetric.endpoint_id == endpoint_id if endpoint_id else StatusMetric.endpoint_id.is_(None),
+            StatusMetric.time >= cutoff_time
         )
-        .where(text(f"time >= NOW() - INTERVAL '{hours} hours'"))
         .order_by(StatusMetric.time.asc())
         .limit(2000)
     )

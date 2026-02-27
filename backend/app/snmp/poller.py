@@ -165,6 +165,20 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                 sys_oid_str = str(raw_sys_oid).lstrip(".")
             if "32828" in sys_oid_str:
                 sys_oid = sys_oid_str
+        else:
+            # sysObjectID 获取失败，判定为离线，提前结束以免后续所有 OID 全部卡超时
+            logger.warning(f"设备 {device.id} (IP: {device.host}) 连接超时，判定离线，跳过深度轮询。")
+            async with AsyncSessionLocal() as db:
+                await db.execute(update(Device).where(Device.id == device.id).values(last_poll=now, last_status="offline"))
+                await db.commit()
+            await ws_manager.broadcast({
+                "type": "device_update",
+                "device_id": device.id,
+                "online_status": "offline",
+                "status": {},
+                "timestamp": now.isoformat(),
+            })
+            return
     except Exception as e:
         logger.warning(f"获取 {device.id} sysObjectID 失败: {e}")
 
@@ -206,10 +220,17 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
     if table_oid_configs:
         endpoint_data: dict[int, dict[str, tuple]] = {}
 
+        walk_tasks = []
         for ep_cfg in table_oid_configs:
             col_oid = f"{ep_cfg.table_base_oid}.{ep_cfg.table_column}"
             col_oid = col_oid.replace("{sys_oid}", sys_oid)
-            walk_results = await _snmp_walk(device.host, device.port, device.community, col_oid)
+            walk_tasks.append(_snmp_walk(device.host, device.port, device.community, col_oid))
+
+        walk_results_list = await asyncio.gather(*walk_tasks, return_exceptions=True)
+
+        for ep_cfg, walk_results in zip(table_oid_configs, walk_results_list):
+            if isinstance(walk_results, Exception) or not isinstance(walk_results, dict):
+                continue
 
             for full_oid, raw_value in walk_results.items():
                 try:
@@ -313,6 +334,7 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
     await ws_manager.broadcast({
         "type": "device_update",
         "device_id": device.id,
+        "online_status": device_online_status,
         "status": device_status_summary,
         "timestamp": now.isoformat(),
     })

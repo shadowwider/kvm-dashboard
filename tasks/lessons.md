@@ -53,3 +53,9 @@
 
 ### 6. 数据库连接池要匹配并发量
 `pool_size=10` 在 500 设备场景下不够。**推荐 pool_size=20, max_overflow=40, pool_recycle=1800s**。
+
+## 运行及部署教训 (2026-02-26)
+
+### 1. 后端依赖启动的虚拟环境路径
+当手动启动后端服务时，**必须**使用它在目录下的专属虚拟环境 Python 可执行文件，否则会出现找不到如 `apscheduler` 等依赖。
+`H:\WORK\I\kvm-dashboard\backend\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`
