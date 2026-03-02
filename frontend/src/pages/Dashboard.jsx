@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useStore } from '../store/mainStore';
+import { useTranslation } from '../i18n';
 import useSystemWebSocket from '../hooks/useSystemWebSocket';
 import DeviceCard from '../components/DeviceCard';
 import MatrixView from '../components/MatrixView';
@@ -27,13 +29,16 @@ function useCountUp(target, duration = 1200) {
 }
 
 const Dashboard = () => {
+    const navigate = useNavigate();
     const { token, logout, user } = useAuthStore();
     const {
         stats, devices, alerts,
         selectedDeviceId, viewMode,
         setSelectedDevice, setViewMode,
         fetchAll, fetchEndpoints, fetchTopology,
+        getDisplayName,
     } = useStore();
+    const { t, locale, toggleLocale } = useTranslation();
 
     const { readyState } = useSystemWebSocket();
     const [clock, setClock] = useState('');
@@ -47,8 +52,8 @@ const Dashboard = () => {
             setClock(`${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`);
         };
         tick();
-        const t = setInterval(tick, 1000);
-        return () => clearInterval(t);
+        const timer = setInterval(tick, 1000);
+        return () => clearInterval(timer);
     }, []);
 
     // 初始加载
@@ -82,7 +87,6 @@ const Dashboard = () => {
         } else {
             setSelectedDevice(null);
         }
-        // 同步选中左侧卡片
     };
 
     // 健康率 + KPI：统一用终端 (endpoints) 计算
@@ -105,8 +109,6 @@ const Dashboard = () => {
     // 健康率
     const healthPct = epTotal > 0 ? ((epActive / epTotal) * 100).toFixed(1) : '100.0';
 
-    // 已直接在 JSX 中使用 epTotal 等变量，废弃 useCountUp 动画避免归0闪烁
-
     // 设备卡点击
     const handleDeviceClick = (dev) => {
         setSelectedDevice(dev.id);
@@ -119,12 +121,12 @@ const Dashboard = () => {
             <header className="topbar">
                 <div className="sys-title">
                     <div className="lbl">SHA / PVGL / CTRL-OPS</div>
-                    <div className="name">KVM 监控中心</div>
-                    <div className="sub">G&amp;D CONTROLCENTER NETWORK</div>
+                    <div className="name">{t('dashboard.title')}</div>
+                    <div className="sub">{t('dashboard.subtitle')}</div>
                 </div>
 
                 <div className="health-center">
-                    <div className="health-label">系统健康率</div>
+                    <div className="health-label">{t('dashboard.health_label')}</div>
                     <div className="health-pct">{healthPct}%</div>
                     <div className="health-bar">
                         <div className="health-bar-fill" style={{ width: `${healthPct}%` }} />
@@ -134,26 +136,39 @@ const Dashboard = () => {
                 <div className="kpi-strip">
                     <div className="kpi-card total">
                         <div className="kpi-val">{epTotal}</div>
-                        <div className="kpi-lbl">总终端</div>
+                        <div className="kpi-lbl">{t('dashboard.kpi_total')}</div>
                     </div>
                     <div className="kpi-card online">
                         <div className="kpi-val">{epActive}</div>
-                        <div className="kpi-lbl">活跃</div>
+                        <div className="kpi-lbl">{t('dashboard.kpi_active')}</div>
                     </div>
                     <div className="kpi-card offline">
                         <div className="kpi-val">{epOffline}</div>
-                        <div className="kpi-lbl">离线</div>
+                        <div className="kpi-lbl">{t('dashboard.kpi_offline')}</div>
                     </div>
                     <div className="kpi-card alert">
                         <div className="kpi-val">{activeAlerts}</div>
-                        <div className="kpi-lbl">告警</div>
+                        <div className="kpi-lbl">{t('dashboard.kpi_alerts')}</div>
                     </div>
                     <div className="conn-block">
                         <div className={`conn-dot ${readyState === 1 ? '' : 'disconnected'}`} />
                         <div>
                             <div className="clock-text">{clock}</div>
-                            <div>{readyState === 1 ? '实时连接' : '连接断开'}</div>
+                            <div>{readyState === 1 ? t('dashboard.ws_connected') : t('dashboard.ws_disconnected')}</div>
                         </div>
+                    </div>
+                    <div className="user-actions">
+                        <button className="ua-btn" onClick={toggleLocale} title={locale === 'zh-CN' ? 'English' : '中文'}>
+                            {locale === 'zh-CN' ? 'EN' : '中'}
+                        </button>
+                        {user?.role === 'admin' && (
+                            <button className="ua-btn" onClick={() => navigate('/admin')} title={t('admin.title')}>
+                                ⚙
+                            </button>
+                        )}
+                        <button className="ua-btn logout" onClick={() => { logout(); navigate('/login'); }} title="Logout">
+                            ⏻
+                        </button>
                     </div>
                 </div>
             </header>
@@ -163,8 +178,8 @@ const Dashboard = () => {
                 {/* 左栏：设备卡片 */}
                 <aside className="panel">
                     <div className="panel-hdr">
-                        <span className="panel-hdr-title">KVM 设备</span>
-                        <span className="panel-hdr-badge">{devices.length} 台</span>
+                        <span className="panel-hdr-title">{t('dashboard.devices_panel')}</span>
+                        <span className="panel-hdr-badge">{devices.length} {t('dashboard.devices_unit')}</span>
                     </div>
                     <div className="device-list">
                         {devices.map(dev => (
@@ -183,23 +198,23 @@ const Dashboard = () => {
                     {/* 顶部标题+切换 */}
                     <div className="center-hdr">
                         <span className="panel-hdr-title">
-                            {viewMode === 'grid' ? '终端状态矩阵' : '设备拓扑图'}
+                            {viewMode === 'grid' ? t('dashboard.matrix_title') : t('dashboard.topo_title')}
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <span style={{ fontSize: '9px', color: 'var(--text-dim)' }}>
                                 {filterDeviceId === 'all'
-                                    ? '全部设备'
-                                    : devices.find(d => d.id === filterDeviceId)?.name || filterDeviceId}
+                                    ? t('dashboard.all_devices')
+                                    : getDisplayName(filterDeviceId, devices.find(d => d.id === filterDeviceId)?.name)}
                             </span>
                             <div className="view-toggle">
                                 <button
                                     className={`vt-btn ${viewMode === 'grid' ? 'active' : ''}`}
                                     onClick={() => setViewMode('grid')}
-                                >矩阵</button>
+                                >{t('dashboard.view_matrix')}</button>
                                 <button
                                     className={`vt-btn ${viewMode === 'topology' ? 'active' : ''}`}
                                     onClick={() => setViewMode('topology')}
-                                >拓扑</button>
+                                >{t('dashboard.view_topo')}</button>
                             </div>
                         </div>
                     </div>
@@ -210,7 +225,7 @@ const Dashboard = () => {
                             className={`db-chip ${filterDeviceId === 'all' ? 'active' : ''}`}
                             onClick={() => handleFilter('all')}
                         >
-                            <span className="chip-dot" />全部
+                            <span className="chip-dot" />{t('dashboard.filter_all')}
                         </button>
                         {devices.map(dev => {
                             const st = dev.last_status;
@@ -222,7 +237,7 @@ const Dashboard = () => {
                                     onClick={() => handleFilter(dev.id)}
                                 >
                                     <span className={`chip-dot ${dotCls}`} />
-                                    {dev.name}
+                                    {getDisplayName(dev.id, dev.name)}
                                 </button>
                             );
                         })}
@@ -240,8 +255,8 @@ const Dashboard = () => {
                 {/* 右栏：告警流 */}
                 <aside className="panel">
                     <div className="panel-hdr">
-                        <span className="panel-hdr-title">实时告警</span>
-                        <span className="panel-hdr-badge">{activeAlerts} 条</span>
+                        <span className="panel-hdr-title">{t('dashboard.alerts_panel')}</span>
+                        <span className="panel-hdr-badge">{activeAlerts} {t('dashboard.alerts_unit')}</span>
                     </div>
                     <AlertStream />
                 </aside>

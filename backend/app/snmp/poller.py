@@ -47,21 +47,30 @@ async def _get_engine() -> SnmpEngine:
     return SnmpEngine()
 
 
-async def _return_engine(eng: SnmpEngine):
+def _discard_engine(eng: SnmpEngine):
+    """安全销毁一个不可用的引擎"""
+    try:
+        eng.transportDispatcher.closeDispatcher()
+    except Exception:
+        pass
+
+
+async def _return_engine(eng: SnmpEngine, discard: bool = False):
+    """将引擎放回池中。如果 discard=True（连接失败），则销毁该引擎而非复用。"""
+    if discard:
+        _discard_engine(eng)
+        return
     async with _engine_lock:
         if len(_engine_pool) < CONCURRENCY_LIMIT:
             _engine_pool.append(eng)
         else:
-            # 池满了就丢弃
-            try:
-                eng.transportDispatcher.closeDispatcher()
-            except Exception:
-                pass
+            _discard_engine(eng)
 
 
 async def _snmp_get(host: str, port: int, community: str, oid: str) -> tuple[str, any]:
     """单个 OID GET 查询，返回 (oid, raw_value)"""
     engine = await _get_engine()
+    failed = False
     try:
         error_indication, error_status, error_index, var_binds = await getCmd(
             engine,
@@ -70,16 +79,21 @@ async def _snmp_get(host: str, port: int, community: str, oid: str) -> tuple[str
             ContextData(),
             ObjectType(ObjectIdentity(oid)),
         )
-        if error_indication or error_status:
+        if error_indication:
+            # 超时或网络错误 → 引擎可能已被污染
+            failed = True
+            return oid, None
+        if error_status:
             return oid, None
         if var_binds:
             return oid, var_binds[0][1]
         return oid, None
     except Exception as e:
+        failed = True
         logger.warning(f"SNMP GET {host}:{oid} 失败: {e}")
         return oid, None
     finally:
-        await _return_engine(engine)
+        await _return_engine(engine, discard=failed)
 
 
 async def _snmp_walk(host: str, port: int, community: str, base_oid: str) -> dict[str, any]:
@@ -88,6 +102,7 @@ async def _snmp_walk(host: str, port: int, community: str, base_oid: str) -> dic
     results = {}
     next_oid = base_oid
     base_tuple = tuple(int(x) for x in base_oid.lstrip(".").split("."))
+    failed = False
     try:
         for iteration in range(WALK_MAX_ITERATIONS):
             error_indication, error_status, error_index, var_bind_table = await bulkCmd(
@@ -98,7 +113,10 @@ async def _snmp_walk(host: str, port: int, community: str, base_oid: str) -> dic
                 0, BULK_MAX_REPETITIONS,
                 ObjectType(ObjectIdentity(next_oid)),
             )
-            if error_indication or error_status or not var_bind_table:
+            if error_indication:
+                failed = True
+                break
+            if error_status or not var_bind_table:
                 break
 
             flat_binds = []
@@ -135,9 +153,10 @@ async def _snmp_walk(host: str, port: int, community: str, base_oid: str) -> dic
             if out_of_scope:
                 break
     except Exception as e:
+        failed = True
         logger.warning(f"SNMP WALK {host}:{base_oid} failed: {e}")
     finally:
-        await _return_engine(engine)
+        await _return_engine(engine, discard=failed)
     logger.debug(f"WALK {base_oid}: {len(results)} results")
     return results
 

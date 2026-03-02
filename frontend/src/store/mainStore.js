@@ -8,6 +8,8 @@ export const useStore = create((set, get) => ({
     endpoints: [],   // 合并所有已拉取设备的终端，key by id
     alerts: [],
     topology: null,
+    aliases: {},      // { target_id -> alias_name } 别名映射
+    oidConfigs: [],   // OID 配置列表（含 display_enabled 等）
 
     // UI 状态
     selectedDeviceId: null,
@@ -16,6 +18,34 @@ export const useStore = create((set, get) => ({
     // 加载状态
     loading: false,
     error: null,
+
+    // ── 别名相关 ──────────────────────────────────────
+    // 获取显示名：有别名用别名，否则用原始 name，最后用 id
+    getDisplayName: (id, fallbackName) => {
+        const { aliases } = get();
+        return aliases[id] || fallbackName || id;
+    },
+
+    fetchAliases: async () => {
+        try {
+            const res = await api.get('/aliases');
+            const map = {};
+            (res.data || []).forEach(a => { map[a.target_id] = a.alias; });
+            set({ aliases: map });
+        } catch (err) {
+            console.error('Failed to fetch aliases', err);
+        }
+    },
+
+    // ── OID 配置 ──────────────────────────────────────
+    fetchOidConfigs: async () => {
+        try {
+            const res = await api.get('/oids');
+            set({ oidConfigs: res.data || [] });
+        } catch (err) {
+            console.error('Failed to fetch OID configs', err);
+        }
+    },
 
     // Action：修改视图状态
     setSelectedDevice: (id) => set({ selectedDeviceId: id }),
@@ -99,11 +129,13 @@ export const useStore = create((set, get) => ({
 
     // 综合批量拉取大屏数据
     fetchAll: async () => {
-        const { fetchStats, fetchDevices, fetchAlerts, fetchAllEndpoints } = get();
+        const { fetchStats, fetchDevices, fetchAlerts, fetchAllEndpoints, fetchAliases, fetchOidConfigs } = get();
         await Promise.all([
             fetchStats(),
             fetchDevices(),
             fetchAlerts(),
+            fetchAliases(),
+            fetchOidConfigs(),
         ]);
         // devices 拉完后立刻拉所有终端
         await fetchAllEndpoints();

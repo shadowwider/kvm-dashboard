@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { useStore } from '../store/mainStore';
+import { useTranslation } from '../i18n';
 
 const VIDEO_LABEL = {
-    none: '无信号', vga: 'VGA', dvisl: 'DVI-SL', dvidl: 'DVI-DL',
+    none: 'No Signal', vga: 'VGA', dvisl: 'DVI-SL', dvidl: 'DVI-DL',
     dmdp: 'MDP', dp: 'DP', hdmi: 'HDMI',
 };
-const STATUS_TEXT = { online: '在线', ready: '就绪', offline: '离线', warning: '告警' };
 
 function getEpStatus(ep) {
     const st = ep.last_status || {};
@@ -21,10 +22,12 @@ function getEpStatus(ep) {
 
 const EndpointDetail = ({ ep, dev, onClose }) => {
     const [histData, setHistData] = useState([]);
+    const getDisplayName = useStore(s => s.getDisplayName);
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (!ep) return;
-        api.get(`/metrics/history?oid_name=ep_temperature&endpoint_id=${ep.id}&hours=12`)
+        api.get(`/metrics/history?oid_name=ep_temperature&endpoint_id=${ep.id}&device_id=${ep.device_id}&hours=12`)
             .then(r => setHistData(r.data || []))
             .catch(() => setHistData([]));
     }, [ep?.id]);
@@ -37,6 +40,16 @@ const EndpointDetail = ({ ep, dev, onClose }) => {
     const access = stRaw.ep_target_access || '—';
     const sfpTx = stRaw.ep_sfp_tx_power;
     const sfpRx = stRaw.ep_sfp_rx_power;
+
+    const STATUS_TEXT = {
+        online: t('dashboard.legend_online'),
+        ready: t('dashboard.legend_ready'),
+        offline: t('dashboard.legend_offline'),
+        warning: t('dashboard.legend_warning'),
+    };
+
+    const epName = getDisplayName(ep.id, ep.name);
+    const devName = dev ? getDisplayName(dev.id, dev.name) : '—';
 
     const PW = 164, PH = 58;
     let miniPath = '', miniArea = '';
@@ -52,21 +65,21 @@ const EndpointDetail = ({ ep, dev, onClose }) => {
 
     return (
         <div className="topo-detail-panel" style={{ zIndex: 10001 }}>
-            <button className="td-close" onClick={onClose}>✕ 关闭</button>
-            <div className="td-title">{ep.name || ep.id}</div>
+            <button className="td-close" onClick={onClose}>✕ {t('dashboard.detail_close')}</button>
+            <div className="td-title">{epName}</div>
             <div className={`td-badge ${st}`}>{STATUS_TEXT[st] || st}</div>
             <div className="td-div" />
-            <div className="td-row"><span className="td-k">所属设备</span><span className="td-v">{dev?.name || dev?.id}</span></div>
-            <div className="td-row"><span className="td-k">端口号</span><span className="td-v">#{ep.index || '—'}</span></div>
-            <div className="td-row"><span className="td-k">视频信号</span><span className="td-v">{video}</span></div>
-            <div className="td-row"><span className="td-k">当前温度</span><span className="td-v">{isNaN(temp) ? 'N/A' : `${temp.toFixed(1)}°C`}</span></div>
-            <div className="td-row"><span className="td-k">访问状态</span><span className="td-v">{access}</span></div>
-            {sfpTx && <div className="td-row"><span className="td-k">SFP 发送</span><span className="td-v">{sfpTx} uW</span></div>}
-            {sfpRx && <div className="td-row"><span className="td-k">SFP 接收</span><span className="td-v">{sfpRx} uW</span></div>}
+            <div className="td-row"><span className="td-k">{t('dashboard.detail_device')}</span><span className="td-v">{devName}</span></div>
+            <div className="td-row"><span className="td-k">{t('dashboard.detail_port')}</span><span className="td-v">#{ep.index || '—'}</span></div>
+            <div className="td-row"><span className="td-k">{t('dashboard.detail_video')}</span><span className="td-v">{video}</span></div>
+            <div className="td-row"><span className="td-k">{t('dashboard.detail_temp')}</span><span className="td-v">{isNaN(temp) ? 'N/A' : `${temp.toFixed(1)}°C`}</span></div>
+            <div className="td-row"><span className="td-k">{t('dashboard.detail_access')}</span><span className="td-v">{access}</span></div>
+            {sfpTx && <div className="td-row"><span className="td-k">SFP TX</span><span className="td-v">{sfpTx} uW</span></div>}
+            {sfpRx && <div className="td-row"><span className="td-k">SFP RX</span><span className="td-v">{sfpRx} uW</span></div>}
             <div className="td-div" />
             {histData.length > 1 && (
                 <>
-                    <div style={{ fontSize: '8px', color: 'var(--text-dim)', letterSpacing: '1px', marginBottom: '2px' }}>温度趋势（近12次轮询）</div>
+                    <div style={{ fontSize: '8px', color: 'var(--text-dim)', letterSpacing: '1px', marginBottom: '2px' }}>{t('dashboard.detail_trend')}</div>
                     <div className="td-chart-wrap">
                         <svg style={{ width: '100%', height: '58px' }} viewBox="0 0 164 58" preserveAspectRatio="none">
                             {miniArea && <path d={miniArea} fill="rgba(0,212,255,0.1)" />}

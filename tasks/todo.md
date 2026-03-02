@@ -10,13 +10,13 @@
 - [x] 新增端点 /api/topology 用于渲染动态拓扑图结构
 - [x] 提交当前重构及前端脚手架代码 (backend & frontend)
 - [x] 完善定时轮询任务的健壮度
-- [ ] 开发前端管理界面（Admin Dashboard：基础配置、验证、开关）
+- [x] 开发前端管理界面（Admin Dashboard：5个Tab + 主题切换 + 语言切换 + 密码重置）
 
 ## Phase 3 — 生产级 Docker 部署与交付 (Production Deployment)
-- [ ] 编写前端多阶段构建的 `frontend/Dockerfile` (Node.js Build + Nginx)
-- [ ] 编写 `frontend/nginx.conf` 支撑 SPA 路由 fallback 并反代 `/api` 和 `/ws`
-- [ ] 补全并调优根目录的 `docker-compose.yml` (时区 TZ、依赖关系、挂载点)
-- [ ] 制作用于最终交付运维人员的部署手册 `docs/DEPLOYMENT.md`
+- [x] 编写前端多阶段构建的 `frontend/Dockerfile` (Node.js Build + Nginx)
+- [x] 编写 `frontend/nginx.conf` 支撑 SPA 路由 fallback 并反代 `/api` 和 `/ws`
+- [x] 补全并调优根目录的 `docker-compose.yml` (时区 TZ、依赖关系、挂载点)
+- [x] 制作用于最终交付运维人员的部署手册 `docs/DEPLOYMENT.md`
 
 ## Phase 2.1 — 脚手架 (Frontend Scaffold)
 - [x] 初始化 React Vite 项目: `npx create-vite frontend --template react`
@@ -49,6 +49,12 @@
 # 任务回顾 (Review)
 
 - `2026-03-02`:
+  - **Admin 面板与全链路打通**：
+    - 完成 `Admin.jsx` 侧边栏和全部 5 个管理 Tab。
+    - **别名系统**：完成设备和终端的自定义别名增删，并无缝集成到 `Dashboard`（含芯片、图标图例、拓扑节点、矩阵面板）。
+    - **OID 显示开关控制**：实现从 Admin 启停测点，动态显隐 `DeviceCard` 指标。
+    - **全站中英混淆 i18n 重构**：消除 Hardcode 中文，覆盖所有的动态与静态组件并能响应外部状态变化。
+    - **告警全处理**：修补了 `window.confirm` 无效和偶发 422 失败的坑，改为双形态点击二次确认方案。
   - **文档同步大整理**：全量审计并修正了 README / Refactor Plan / todo / HANDOVER / metrics_reference / frontend_plan 中与代码不一致的描述。
   - 关键变更记录：拓扑图从 React Flow 改为纯 SVG+DOM；底栏图表从 ECharts 改为纯 SVG；KPI 从交换机改为终端维度；矩阵从 hover 改为点击详情。
   - 创建了综合交接文档 `docs/HANDOVER.md`（已完全同步）和 Implementation Plan（存入 artifact 供下一 session 使用）。

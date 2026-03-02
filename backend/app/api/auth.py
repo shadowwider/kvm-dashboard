@@ -92,6 +92,14 @@ async def create_user(
     return user
 
 
+class PasswordReset(BaseModel):
+    new_password: str
+
+
+class UserRoleUpdate(BaseModel):
+    role: str  # "admin" 或 "viewer"
+
+
 @router.patch("/users/{user_id}/toggle", response_model=UserOut)
 async def toggle_user(
     user_id: int,
@@ -104,6 +112,47 @@ async def toggle_user(
     if user.id == current.id:
         raise HTTPException(400, "不能禁用自己")
     user.is_active = not user.is_active
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.patch("/users/{user_id}/reset-password", response_model=UserOut)
+async def reset_user_password(
+    user_id: int,
+    body: PasswordReset,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """管理员强制重置用户密码"""
+    from app.auth.jwt import hash_password
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "用户不存在")
+    if len(body.new_password) < 6:
+        raise HTTPException(400, "密码长度至少 6 位")
+    user.password_hash = hash_password(body.new_password)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.patch("/users/{user_id}/role", response_model=UserOut)
+async def update_user_role(
+    user_id: int,
+    body: UserRoleUpdate,
+    db: AsyncSession = Depends(get_db),
+    current: User = Depends(require_admin),
+):
+    """管理员修改用户角色"""
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "用户不存在")
+    if user.id == current.id:
+        raise HTTPException(400, "不能修改自己的角色")
+    if body.role not in ("admin", "viewer"):
+        raise HTTPException(400, "角色只能是 admin 或 viewer")
+    user.role = body.role
     await db.commit()
     await db.refresh(user)
     return user

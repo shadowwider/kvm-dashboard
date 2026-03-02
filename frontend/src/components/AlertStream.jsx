@@ -1,17 +1,11 @@
 import React from 'react';
 import { useStore } from '../store/mainStore';
+import { useTranslation } from '../i18n';
 
-const SEVERITY_LABEL = {
-    critical: '紧急',
-    warning: '警告',
-    info: '信息',
-};
-
-// 健壮的时间格式化：兼容 ISO8601、无 T/Z 的字符串、数字时间戳
+// 健壮的时间格式化
 function safeFormatTime(raw) {
     if (!raw) return '--:--:--';
     try {
-        // 处理没有 T/Z 的格式（如 '2026-02-27 10:07:00'）
         const normalized = typeof raw === 'string' ? raw.replace(' ', 'T') : raw;
         const dt = new Date(normalized);
         if (isNaN(dt.getTime())) return '--:--:--';
@@ -26,6 +20,14 @@ function safeFormatTime(raw) {
 
 const AlertStream = () => {
     const alerts = useStore(state => state.alerts);
+    const getDisplayName = useStore(state => state.getDisplayName);
+    const { t } = useTranslation();
+
+    const SEVERITY_LABEL = {
+        critical: t('dashboard.severity_critical'),
+        warning: t('dashboard.severity_warning'),
+        info: t('dashboard.severity_info'),
+    };
 
     if (alerts.length === 0) {
         return (
@@ -38,7 +40,7 @@ const AlertStream = () => {
                 fontSize: '10px',
                 letterSpacing: '2px',
             }}>
-                暂无告警
+                {t('dashboard.no_alerts')}
             </div>
         );
     }
@@ -61,7 +63,7 @@ const AlertStream = () => {
                                 {SEVERITY_LABEL[severity] || severity}
                             </span>
                             <span className="alert-device">
-                                {alert.device_id || '—'}
+                                {getDisplayName(alert.device_id, alert.device_id)}
                             </span>
                         </div>
                         <div className="alert-msg">{alert.message || '—'}</div>

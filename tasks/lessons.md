@@ -59,3 +59,22 @@
 ### 1. 后端依赖启动的虚拟环境路径
 当手动启动后端服务时，**必须**使用它在目录下的专属虚拟环境 Python 可执行文件，否则会出现找不到如 `apscheduler` 等依赖。
 `H:\WORK\I\kvm-dashboard\backend\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`
+
+## Admin 与用户页面必须是一体化的 (2026-03-02)
+
+### 1. Admin 配置必须在用户页面生效
+Admin 的别名管理、OID 开关等配置如果只存进数据库但用户页面不读取，就是**割裂的假功能**。正确做法：
+- mainStore 在 `fetchAll()` 时一并拉取 aliases 和 oidConfigs
+- 提供 `getDisplayName(id, fallback)` 全局 helper
+- DeviceCard / AlertStream / BottomCharts / Dashboard 芯片条 全部使用别名
+- DeviceCard 根据 `display_enabled` 动态显隐指标
+
+### 2. SnmpEngine 池污染问题
+首次连接失败后，引擎内部 TransportDispatcher 进入坏状态。放回池中 → 后续所有请求都失败。**连接失败时必须 discard 而非复用**。
+
+### 3. API 调用必须符合参数约束
+后端 `device_id = Query(...)` 标记为必填参数，前端调用时漏掉会直接 422。**写 API 调用前先检查后端签名**。
+
+### 4. 每个页面都需要退出按钮
+没有退出按钮 = 普通用户被困在 Dashboard 无法切换账号。所有受保护页面（Dashboard、Admin）都必须提供退出入口。
+

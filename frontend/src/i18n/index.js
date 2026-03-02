@@ -15,11 +15,16 @@ const dictionaries = {
 
 export function useTranslation() {
   const locale = useTranslationStore((state) => state.locale);
+  const setLocale = useTranslationStore((state) => state.setLocale);
   const dict = dictionaries[locale] || dictionaries['zh-CN'];
 
   const t = (key) => {
     return key.split('.').reduce((obj, k) => (obj || {})[k], dict) || key;
   };
 
-  return { t, locale };
+  const toggleLocale = () => {
+    setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN');
+  };
+
+  return { t, locale, setLocale, toggleLocale };
 }

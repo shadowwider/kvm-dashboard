@@ -10,10 +10,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-kvm_monitor}
       POSTGRES_USER: ${POSTGRES_USER:-kvm_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
-      - "5432:5432"          # 仅开发时暴露，生产可注释掉
+      - "${POSTGRES_PORT:-5432}:5432"    # 仅开发时暴露，生产可注释掉
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kvm_user} -d ${POSTGRES_DB:-kvm_monitor}"]
       interval: 10s
@@ -31,17 +33,27 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - .env
+      - .env.production
     environment:
+      DB_MODE: postgres
       POSTGRES_HOST: postgres
-    ports:
-      - "8000:8000"
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-kvm_monitor}
+      POSTGRES_USER: ${POSTGRES_USER:-kvm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/stats/dashboard')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     # Trap 接收需要监听 UDP:162（需要宿主机网络或端口映射）
-    # 注意：162 端口需要 root 或 CAP_NET_BIND_SERVICE
-    # 如使用宿主机网络：network_mode: "host"
-    # 或使用端口映射（源端口 > 1024 转发到 162）
+    # 如需 SNMP Trap: 取消下方注释并映射 UDP 端口
+    # ports:
+    #   - "10162:10162/udp"
 
   # ── Nginx + 前端静态文件 ────────────────────────────────────────
   frontend:
@@ -51,10 +63,17 @@ services:
     container_name: kvm_frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
     ports:
-      - "80:80"
-      - "443:443"    # 如需 HTTPS，挂载证书
+      - "${FRONTEND_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
 
 volumes:
   postgres_data:

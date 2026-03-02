@@ -2,7 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import ProtectedRoute from './components/ProtectedRoute';
+import Admin from './pages/Admin';
+import ProtectedRoute, { AdminRoute } from './components/ProtectedRoute';
 
 function App() {
   return (
@@ -13,7 +14,10 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/topo" element={<Dashboard />} />
-          <Route path="/admin" element={<div>Admin Panel (Coming Soon)</div>} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<Admin />} />
         </Route>
 
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
