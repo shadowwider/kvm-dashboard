@@ -1,6 +1,6 @@
 # KVM 监控大屏 — 前端设计方案
 
-> 分支: `feat/full-refactor` | 最后更新: 2026-02-26
+> 分支: `feat/full-refactor` | 最后更新: 2026-03-02
 > 后端 API 基础地址: `/api/v1` (通过 Nginx 反代)
 
 ---
@@ -12,8 +12,8 @@
 | 框架 | **React 18 + Vite 5** | 快速 HMR，组件化 |
 | 路由 | **React Router v6** | Login / Dashboard / Admin |
 | 状态 | **Zustand** | 轻量全局状态（WebSocket 数据流） |
-| 拓扑图 | **React Flow** | 专业拓扑/关系图，节点可自定义为任意 React 组件 |
-| 仪表图表 | **ECharts** (echarts-for-react) | 温度趋势、风扇仪表盘、在线率统计 |
+| 拓扑图 | **纯 SVG + DOM 手写渲染** | 拓扑图动态渲染，含粒子动画 + 缩放/平移（不依赖 React Flow） |
+| 仪表图表 | **纯 SVG 手绘** | 温度折线图、风扇仪表盘、在线率柱状图（不依赖 ECharts） |
 | 样式 | **Vanilla CSS + CSS Variables** | 暗色大屏主题，无框架依赖 |
 | 字体 | **Inter** (Google Fonts) | 现代感数据展示字体 |
 | HTTP | **axios** + 拦截器 | JWT 自动注入 + 401 跳转 |
@@ -66,9 +66,9 @@
 ```
 
 #### 顶栏统计数字
-- 4 个发光数字卡片：总设备数、在线数（绿色）、离线数（红色）、告警数（橙色脉冲）
-- 数字变化时有递增动画（countUp 效果）
-- 从 `GET /api/v1/stats` 拉取
+- 4 个发光数字卡片：**总终端数**、**活跃终端**（绿色）、**离线终端**（红色）、**告警数**（橙色脉冲）
+- 数字直接展示实时值（已移除 countUp 动画，避免 WS 推送时归零闪烁）
+- 数据源：前端 `mainStore.endpoints` 计算（兜底 `GET /api/v1/stats`）
 
 #### 左栏 — KVM 设备卡片
 - 每台 KVM 交换机一张卡片（从 `GET /api/v1/devices` 拉取）
@@ -85,24 +85,21 @@
 - **默认视图：点阵网格**
   - 每个终端是一个小色块（约 40×40px）
   - 颜色：绿=online, 蓝=ready, 红=offline, 橙=告警
-  - 悬浮：弹出 tooltip 显示终端名（别名优先）、温度、视频信号
-  - 点击：展开侧面板显示完整字段
+  - 悬浮：显示终端名（别名优先）、title 提示
+  - **点击**：弹出 EndpointDetail 终端详情面板（与拓扑图共享同一组件）
   - 数据源：`GET /api/v1/endpoints?device_id=xxx`
 
 - **可切换视图：拓扑图** 🌟
   - 中心大节点 = KVM 交换机
-  - 放射状连线 → 终端节点
-  - 每个终端节点 = React Flow 自定义节点（迷你卡片）：
-    - 顶部：终端名称（别名>SNMP名）
-    - 状态指示灯（左上角圆点）
-    - 视频信号类型图标（DP/HDMI/DVI）
-    - 温度数字
+  - 放射状连线 → 终端节点（纯 SVG `<path>` 贝塞尔曲线 + 流光粒子动画）
+  - 每个终端节点 = DOM 元素卡片：
+    - 状态指示灯 + 终端名 + 视频信号类型
   - 线的样式：
     - 实线绿色 = 视频线已连接
     - 虚线红色 = 视频线断开
-    - 线上可选标注端口号
-  - 支持缩放、拖拽、自动布局
-  - 数据源：`GET /api/v1/topology/{device_id}`
+    - VIDEO LOST 标注 = 视频线物理未插
+  - 支持缩放、拖拽平移
+  - 数据源：`GET /api/v1/endpoints?device_id=xxx`（不依赖后端 topology API 节点/连线结构）
 
 #### 右栏 — 实时告警流
 - 最新告警在最上方
@@ -112,9 +109,9 @@
 
 #### 底栏 — ECharts 历史图表
 - Tab 切换：温度趋势 | 风扇转速 | 在线率
-- 温度趋势：折线图，X=时间，Y=温度，多设备叠加
-- 风扇转速：仪表盘（Dashboard gauge），6 个扇区
-- 在线率：面积图，24h 内在线终端百分比
+- 温度趋势：纯 SVG 折线图，X=时间，Y=温度，多设备叠加
+- 风扇转速：纯 SVG 圆弧仪表盘，6 个扇区
+- 在线率：纯 SVG 柱状图，24h 内在线终端百分比
 - 数据源：`GET /api/v1/metrics/history?oid_name=temperature&hours=24`
 
 ### 3.3 /admin — 管理员面板
@@ -279,8 +276,8 @@ frontend/src/i18n/
 ```
 
 ### 核心 KPI 一排
-- **设备在线率** | **终端在线率** | **今日告警** | **平均温度** | **网络可用率**
-- 每个数字带 countUp 动画 + 微型趋势箭头（↑↓）
+- **终端在线率** | **终端活跃/总数** | **今日告警** | **平均温度** | **网络可用率**
+- 数字直接展示真实值（已移除 countUp 动画）
 
 ### 动态效果
 - 数据刷新时的波纹动画
@@ -317,12 +314,12 @@ frontend/src/i18n/
 - [ ] DeviceMatrix 组件（全局色块热力网格 — 第一层）
 - [ ] EndpointGrid 组件（终端点阵矩阵）
 
-### Phase 2.3 — 高级可视化
-- [ ] TopologyView 组件（React Flow 拓扑图 — 第二层）
-- [ ] EndpointDetail 组件（侧边抽屉 — 第三层）
-- [ ] AlertPanel 组件（实时告警流 + 边缘闪光）
-- [ ] MetricChart 组件（ECharts 历史图表）
-- [ ] WebSocket 实时数据集成
+### Phase 2.3 — 高级可视化 ✅
+- [x] TopoView 组件（纯 SVG+DOM 拓扑图，含粒子动画 + 缩放平移）
+- [x] EndpointDetail 组件（矩阵/拓扑共享，点击弹出）
+- [x] AlertStream 组件（实时告警流 + 时间戳兜底）
+- [x] BottomCharts 组件（纯 SVG 图表）
+- [x] WebSocket 实时数据集成
 
 ### Phase 2.4 — Admin 面板
 - [ ] Admin 路由保护

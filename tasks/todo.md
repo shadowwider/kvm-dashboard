@@ -35,12 +35,23 @@
 - [x] EndpointGrid 组件 (第二层矩阵)
 
 ## Phase 2.3 — 高级可视化与实时集成 (Advanced Viz & WS)
-- [x] TopologyView 组件（React Flow 拓扑图 — 第二层）
-- [x] EndpointDetail 侧边抽屉（第三层）
-- [x] MetricChart 底栏 ECharts 历史趋势图
+- [x] TopoView 组件（纯 SVG+DOM 手写拓扑图，含粒子动画、缩放平移，不依赖 React Flow）
+- [x] EndpointDetail 终端详情面板（矩阵/拓扑共享，点击弹出）
+- [x] BottomCharts 纯 SVG 底栏图表（温度折线 + 风扇仪表盘 + 24H在线率）
 - [x] WebSocket 实时数据推送集成 (Zustand 派发更新)
 
+## Phase 2.4 — KPI 指标优化 (2026-03-02)
+- [x] KPI 卡片从交换机维度切换为终端维度（总终端/活跃/离线/告警）
+- [x] 移除 useCountUp 动画，避免 WS 推送时数字归零闪烁
+- [x] 健康率、在线率、拓扑终端计数统一口径（online + ready = 活跃）
+- [x] 告警时间戳兼容：WebSocket trap_received 强制添加 created_at 兜底
+
 # 任务回顾 (Review)
+
+- `2026-03-02`:
+  - **文档同步大整理**：全量审计并修正了 README / Refactor Plan / todo / HANDOVER / metrics_reference / frontend_plan 中与代码不一致的描述。
+  - 关键变更记录：拓扑图从 React Flow 改为纯 SVG+DOM；底栏图表从 ECharts 改为纯 SVG；KPI 从交换机改为终端维度；矩阵从 hover 改为点击详情。
+  - 创建了综合交接文档 `docs/HANDOVER.md`（已完全同步）和 Implementation Plan（存入 artifact 供下一 session 使用）。
 
 - `2026-02-27`:
   - 成功解决了在 SNMP 通讯、React 流中遭遇的各种 "Invalid date" 及 Canvas 染色越界 BUG。全面排查并重置了后端多台超规模模拟器的吞吐限制，保证系统安全起飞。

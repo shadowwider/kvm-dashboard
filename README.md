@@ -22,7 +22,7 @@
 | **持久层** | `PostgreSQL 16` + `TimescaleDB` | RDBMS 关系型管理 + 压缩超表时序引擎 |
 | **ORM & DB** | `SQLAlchemy 2.0` (asyncpg/aiosqlite) | 自动适配 SQLite 测试模式与生产模式 |
 | **SNMP 通信** | `pysnmp` (纯 asyncio) | 对接全线设备，单次 WALK 高效汇聚端口数据 |
-| **前端大屏** | `React 18` + `Vite` | 深色质感、Zustand 全局流、ReactFlow 拓扑 |
+| **前端大屏** | `React 18` + `Vite` | 深色质感、Zustand 全局流、纯 SVG 拓扑图 + 手绘图表 |
 | **部署交付** | `Docker Compose` | 一键拉起 DB + Backend + Frontend (Nginx) |
 
 ---
