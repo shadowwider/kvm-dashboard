@@ -35,10 +35,55 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 
 
+async def _migrate_columns():
+    """动态补全新增列，兼容旧数据库（无需重建）"""
+    migrations = [
+        # (table, column, ddl)
+        # DDL 仅在列不存在时执行；SQLite 用 create_all 建表已含所有列，以下 DDL 只会跑到 PostgreSQL
+        ("endpoints",      "module_type", "ALTER TABLE endpoints ADD COLUMN module_type TEXT NOT NULL DEFAULT 'cpu'"),
+        ("devices",        "model_name",  "ALTER TABLE devices ADD COLUMN model_name VARCHAR(128)"),
+        ("users",          "updated_at",  "ALTER TABLE users ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
+        ("status_metrics", "id",          "ALTER TABLE status_metrics ADD COLUMN id BIGSERIAL"),
+    ]
+    async with engine.begin() as conn:
+        if settings.is_sqlite:
+            for table, column, ddl in migrations:
+                rows = await conn.execute(text(f"PRAGMA table_info({table})"))
+                cols = {row[1] for row in rows.fetchall()}
+                if column not in cols:
+                    await conn.execute(text(ddl))
+                    logger.info(f"迁移: {table}.{column} 列已添加")
+        else:
+            # PostgreSQL: information_schema
+            for table, column, ddl in migrations:
+                result = await conn.execute(text(
+                    "SELECT 1 FROM information_schema.columns "
+                    f"WHERE table_name='{table}' AND column_name='{column}'"
+                ))
+                if not result.fetchone():
+                    await conn.execute(text(ddl))
+                    logger.info(f"迁移: {table}.{column} 列已添加")
+
+            # 列类型变更（ALTER TYPE，幂等可重复执行）
+            type_migrations = [
+                "ALTER TABLE alerts ALTER COLUMN raw_value TYPE TEXT",
+            ]
+            for ddl in type_migrations:
+                try:
+                    await conn.execute(text(ddl))
+                except Exception as e:
+                    logger.debug(f"列类型迁移跳过 ({e})")
+
+
 async def _init_database():
     """创建所有表，配置 TimescaleDB 超表"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # SQLite WAL 模式：允许读写并发，解决 API 被 poller 写锁阻塞的问题
+        if settings.is_sqlite:
+            await conn.execute(text("PRAGMA journal_mode=WAL"))
+            await conn.execute(text("PRAGMA synchronous=NORMAL"))
 
         # TimescaleDB 超表配置（仅 PostgreSQL 模式）
         if not settings.is_sqlite:
@@ -61,6 +106,7 @@ async def _init_database():
         else:
             logger.info("SQLite 测试模式，跳过 TimescaleDB 配置")
 
+    await _migrate_columns()
     logger.info(f"数据库初始化完成 (模式: {settings.db_mode})")
 
 
@@ -128,13 +174,13 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         run_poll_cycle,
         trigger="interval",
-        seconds=60,
+        seconds=settings.snmp_poll_interval,
         id="snmp_poll",
         max_instances=1,
         coalesce=True,
     )
     scheduler.start()
-    logger.info("SNMP 轮询调度器已启动（间隔 60s，各设备可独立配置）")
+    logger.info(f"SNMP 轮询调度器已启动（间隔 {settings.snmp_poll_interval}s）")
 
     # 启动时立即执行一次轮询
     asyncio.create_task(run_poll_cycle())

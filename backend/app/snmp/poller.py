@@ -7,6 +7,8 @@ SNMP 多设备并行轮询器 (生产级)。
 """
 import asyncio
 import logging
+import logging.handlers
+import os
 from datetime import datetime, timezone, timedelta
 from pysnmp.hlapi.asyncio import (
     SnmpEngine, CommunityData, UdpTransportTarget,
@@ -23,8 +25,35 @@ from app.models.status_metric import StatusMetric
 from app.models.alert import Alert
 from app.snmp.parser import parse_snmp_value, is_alert_triggered
 from app.websocket.hub import ws_manager
+from app.config import get_settings as _get_settings
 
 logger = logging.getLogger(__name__)
+
+# ─── 轮询原始数据专用日志（受 SNMP_RAW_LOG_ENABLED 控制）────────
+_poll_raw_logger = logging.getLogger('snmp.poll.raw')
+_poll_settings = _get_settings()
+_raw_log_enabled: bool = _poll_settings.snmp_raw_log_enabled
+
+
+def _init_poll_raw_logger():
+    """初始化轮询原始数据 RotatingFileHandler（不影响主日志）"""
+    log_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', '..', 'logs')
+    )
+    os.makedirs(log_dir, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(
+        os.path.join(log_dir, 'poll_raw.log'),
+        maxBytes=20 * 1024 * 1024,   # 20 MB per file
+        backupCount=10,
+        encoding='utf-8',
+    )
+    handler.setFormatter(logging.Formatter('%(asctime)s | %(message)s'))
+    _poll_raw_logger.addHandler(handler)
+    _poll_raw_logger.setLevel(logging.DEBUG)
+    _poll_raw_logger.propagate = False
+
+
+_init_poll_raw_logger()
 
 # ─── 配置 ─────────────────────────────────────────────────────────
 CONCURRENCY_LIMIT = 20      # 同时最多轮询 N 台设备
@@ -34,10 +63,15 @@ BULK_MAX_REPETITIONS = 25    # GETBULK 每批返回行数
 WALK_MAX_ITERATIONS = 100    # WALK 防止无限循环
 ALERT_DEDUP_MINUTES = 10     # 告警去重窗口 (分钟)
 BATCH_INSERT_SIZE = 5000     # 每批 INSERT 行数
+TRAP_POLL_COOLDOWN = 10      # Trap 触发轮询冷却时间 (秒)，避免与定时轮询并发写冲突
 
 # ─── SnmpEngine 池 ────────────────────────────────────────────────
 _engine_pool: list[SnmpEngine] = []
 _engine_lock = asyncio.Lock()
+
+# ─── Trap 触发轮询冷却表（host → 上次触发时间戳）────────────────────
+import time as _time
+_trap_poll_last: dict[str, float] = {}
 
 
 async def _get_engine() -> SnmpEngine:
@@ -214,6 +248,11 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
         if isinstance(result, Exception):
             continue
         _, raw_value = result
+        if _raw_log_enabled and raw_value is not None:
+            _poll_raw_logger.info(
+                f"GET device={device.id} host={device.host} "
+                f"oid={oid_cfg.name} type={type(raw_value).__name__} value={raw_value!r}"
+            )
         value_str, value_num = parse_snmp_value(raw_value, oid_cfg.data_type, oid_cfg.enum_map)
         device_status_summary[oid_cfg.name] = value_str
 
@@ -235,9 +274,10 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                 "raw_value": str(raw_value),
             })
 
-    # ── 轮询表类型 OID（终端模块 + 端口）─────────────────────────
+    # ── 轮询表类型 OID（CPU 终端模块 + CON 用户模块 + 端口）────────
     if table_oid_configs:
-        endpoint_data: dict[int, dict[str, tuple]] = {}
+        # key = (module_namespace, row_index) 避免 CON 和 CPU 行号碰撞
+        endpoint_data: dict[tuple, dict[str, tuple]] = {}
 
         walk_tasks = []
         for ep_cfg in table_oid_configs:
@@ -251,6 +291,18 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
             if isinstance(walk_results, Exception) or not isinstance(walk_results, dict):
                 continue
 
+            if _raw_log_enabled and walk_results:
+                _poll_raw_logger.info(
+                    f"WALK device={device.id} host={device.host} "
+                    f"oid={ep_cfg.name} rows={len(walk_results)} "
+                    f"values={[(k, type(v).__name__, repr(v)) for k, v in list(walk_results.items())[:10]]}"
+                )
+
+            # 从 category 推导 namespace: endpoint→cpu, con_endpoint→con, port→port
+            namespace = {"endpoint": "cpu", "con_endpoint": "con", "port": "port"}.get(
+                ep_cfg.category, ep_cfg.category
+            )
+
             for full_oid, raw_value in walk_results.items():
                 try:
                     row_index = int(full_oid.split(".")[-1])
@@ -259,30 +311,43 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
 
                 value_str, value_num = parse_snmp_value(raw_value, ep_cfg.data_type, ep_cfg.enum_map)
 
-                if row_index not in endpoint_data:
-                    endpoint_data[row_index] = {}
-                endpoint_data[row_index][ep_cfg.name] = (value_str, value_num, ep_cfg)
+                key = (namespace, row_index)
+                if key not in endpoint_data:
+                    endpoint_data[key] = {}
+                endpoint_data[key][ep_cfg.name] = (value_str, value_num, ep_cfg)
 
-        # 写入/更新终端
+        # 写入/更新终端（仅 cpu / con；port 不创建 endpoint 记录，只归档 metrics）
+        _EP_NAMESPACES = {"cpu", "con"}
         async with AsyncSessionLocal() as db:
-            for row_index, field_map in endpoint_data.items():
-                ep_id = f"{device.id}_{row_index}"
+            # 关闭 autoflush：endpoint 循环中每次 db.get() 都会触发 autoflush，
+            # 导致 SQLite 在同一 session 内出现并发写锁错误；全部积累到 commit() 统一写入
+            db.sync_session.autoflush = False
+            for (namespace, row_index), field_map in endpoint_data.items():
                 ep_status_summary = {k: v[0] for k, v in field_map.items()}
 
-                existing = await db.get(Endpoint, ep_id)
-                if existing:
-                    existing.last_status = ep_status_summary
-                    existing.updated_at = now
-                    ep_name = ep_status_summary.get("ep_name") or existing.name
-                    if ep_name:
-                        existing.name = ep_name
+                if namespace in _EP_NAMESPACES:
+                    ep_id = f"{device.id}_{namespace}_{row_index}"
+                    ep_name = (
+                        ep_status_summary.get("ep_name")
+                        or ep_status_summary.get("con_name")
+                    )
+                    existing = await db.get(Endpoint, ep_id)
+                    if existing:
+                        existing.last_status = ep_status_summary
+                        existing.updated_at = now
+                        if ep_name:
+                            existing.name = ep_name
+                    else:
+                        ep_name = ep_name or f"{namespace.upper()}-{row_index}"
+                        db.add(Endpoint(
+                            id=ep_id, device_id=device.id, name=ep_name,
+                            index=row_index, module_type=namespace,
+                            last_status=ep_status_summary,
+                            updated_at=now, created_at=now,
+                        ))
                 else:
-                    ep_name = ep_status_summary.get("ep_name") or f"终端-{row_index}"
-                    db.add(Endpoint(
-                        id=ep_id, device_id=device.id, name=ep_name,
-                        index=row_index, last_status=ep_status_summary,
-                        updated_at=now, created_at=now,
-                    ))
+                    # port 等非终端类型：不创建 endpoint 行，metrics 使用 None endpoint_id
+                    ep_id = None
 
                 for oid_name, (value_str, value_num, ep_cfg) in field_map.items():
                     if getattr(ep_cfg, 'archive_enabled', True):
@@ -295,7 +360,7 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                         alert_gt=ep_cfg.alert_gt, alert_lt=ep_cfg.alert_lt,
                         alert_eq_str=ep_cfg.alert_eq_str, alert_ne_str=ep_cfg.alert_ne_str,
                     ):
-                        ep_name_display = ep_status_summary.get("ep_name", ep_id)
+                        ep_name_display = ep_status_summary.get("ep_name") or ep_status_summary.get("con_name") or (ep_id or f"{namespace}-{row_index}")
                         alerts_to_create.append({
                             "device_id": device.id, "endpoint_id": ep_id, "oid_name": oid_name,
                             "alert_type": "threshold", "severity": ep_cfg.alert_severity,
@@ -392,3 +457,36 @@ async def run_poll_cycle():
 
     await asyncio.gather(*[limited_poll(d) for d in devices], return_exceptions=True)
     logger.info(f"轮询周期完成: {len(devices)} 台设备")
+
+
+async def poll_device_by_host(host: str):
+    """按 IP 地址立即轮询该 IP 下所有活跃设备（供 Trap 触发使用）。
+    同一 IP 可能有多台设备（端口不同），全部触发。
+    带冷却期（TRAP_POLL_COOLDOWN 秒），防止 Trap 风暴与定时轮询并发写 SQLite。
+    """
+    now = _time.monotonic()
+    if now - _trap_poll_last.get(host, 0) < TRAP_POLL_COOLDOWN:
+        logger.debug(f"Trap 触发轮询 host={host} 冷却中，跳过（避免并发写冲突）")
+        return
+    _trap_poll_last[host] = now
+
+    from sqlalchemy import select as sa_select
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            sa_select(Device).where(Device.host == host, Device.is_active == True)
+        )
+        devices = result.scalars().all()
+        if not devices:
+            logger.debug(f"Trap 触发: 未找到 host={host} 的活跃设备，跳过即时轮询")
+            return
+        oids_result = await db.execute(
+            sa_select(OIDRegistry).where(OIDRegistry.poll_enabled == True)
+        )
+        oid_configs = oids_result.scalars().all()
+
+    logger.info(f"Trap 触发即时轮询: {len(devices)} 台设备 (host={host})")
+    for device in devices:
+        try:
+            await poll_device(device, oid_configs)
+        except Exception as e:
+            logger.error(f"Trap 触发轮询异常 {device.id}: {e}", exc_info=True)

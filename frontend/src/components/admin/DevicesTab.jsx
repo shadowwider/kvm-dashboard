@@ -50,6 +50,14 @@ function DevicesTab({ t, showToast }) {
 
     // Submit form
     const handleSubmit = async () => {
+        if (!editDevice && !form.id.trim()) {
+            showToast('设备 ID 不能为空', 'error');
+            return;
+        }
+        if (!form.name.trim() || !form.host.trim()) {
+            showToast('名称和 IP 不能为空', 'error');
+            return;
+        }
         try {
             if (editDevice) {
                 const { id, ...body } = form;

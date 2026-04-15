@@ -15,7 +15,7 @@ class StatusMetric(Base):
     # 使用 auto-increment id 作为主键（兼容 SQLite）
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    time: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     device_id: Mapped[str] = mapped_column(String(64), nullable=False)
     endpoint_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     oid_name: Mapped[str] = mapped_column(String(64), nullable=False)

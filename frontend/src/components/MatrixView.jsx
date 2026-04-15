@@ -8,21 +8,29 @@ const VIDEO_MAP = {
     dmdp: 'MDP', dp: 'DP', hdmi: 'HDMI',
 };
 
-// 从 endpoint 推断显示状态
+// 从 endpoint 推断显示状态（支持 cpu / con 两种模块类型）
 function getEpStatus(ep) {
     const st = ep.last_status || {};
+    if (ep.module_type === 'con') {
+        const devSt = st.con_device_status;
+        if (!devSt || devSt === 'offline') return 'offline';
+        if (st.con_display_conn === 'notConnected') return 'warning';
+        if (!st.con_console_usb || st.con_console_usb === 'none') return 'warning';
+        if (st.con_freeze === 'true') return 'warning';
+        return devSt;
+    }
     const devSt = st.ep_device_status;
     if (!devSt || devSt === 'offline') return 'offline';
-    if (devSt === 'ready') return 'ready';
-    if (devSt === 'online') {
-        if (st.ep_target_power === 'off') return 'warning';
-        return 'online';
-    }
-    return 'offline';
+    if (st.ep_target_video_cable === 'notConnected') return 'warning';
+    if (st.ep_target_usb_hid === 'notConnected') return 'warning';
+    if (st.ep_target_power === 'off') return 'warning';
+    return devSt;
 }
 
 const MatrixView = ({ filterDeviceId }) => {
-    const { endpoints, devices, fetchEndpoints, getDisplayName } = useStore();
+    const { endpoints, devices, fetchEndpoints } = useStore();
+    // 显式订阅 aliases，确保别名加载后触发重渲染（Zustand v5 无 selector 不可靠）
+    const aliases = useStore(state => state.aliases);
     const { t } = useTranslation();
     const [activeEp, setActiveEp] = useState(null);
     const [activeDev, setActiveDev] = useState(null);
@@ -46,7 +54,7 @@ const MatrixView = ({ filterDeviceId }) => {
     });
 
     const total = list.length;
-    const cols = total <= 32 ? 16 : total <= 64 ? 24 : total <= 128 ? 32 : 40;
+    const cols = total <= 12 ? 4 : total <= 24 ? 6 : total <= 48 ? 8 : total <= 96 ? 10 : 12;
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -58,8 +66,10 @@ const MatrixView = ({ filterDeviceId }) => {
                 >
                     {list.map(ep => {
                         const st = getEpStatus(ep);
-                        // 终端名：优先用别名，否则 ep.name，最后 ep.id
-                        const epDisplayName = getDisplayName(ep.id, ep.name);
+                        const epDisplayName = aliases[ep.id] || ep.name || ep.id;
+                        // 取短名：末段最多 8 个字符
+                        const rawShort = epDisplayName.split(/[-_]/).pop() || epDisplayName;
+                        const shortName = rawShort.length > 8 ? rawShort.slice(-8) : rawShort;
                         return (
                             <div
                                 key={ep.id}
@@ -70,6 +80,8 @@ const MatrixView = ({ filterDeviceId }) => {
                                 }}
                                 title={`${epDisplayName} (${t('dashboard.ep_click_hint')})`}
                             >
+                                <span className="m-cell-type">{(ep.module_type || 'cpu').toUpperCase()}</span>
+                                <span className="m-cell-name">{shortName}</span>
                             </div>
                         );
                     })}

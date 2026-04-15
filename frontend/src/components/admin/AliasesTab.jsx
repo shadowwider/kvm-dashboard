@@ -45,7 +45,7 @@ function AliasesTab({ t, showToast }) {
         }
         return endpoints.map(ep => ({
             id: ep.id,
-            label: `${ep.id} — ${ep.name || '未命名'}`,
+            label: `[${(ep.module_type || 'cpu').toUpperCase()}] ${ep.id} — ${ep.name || '未命名'}`,
         }));
     };
 

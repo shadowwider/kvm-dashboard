@@ -595,12 +595,37 @@
 }
 
 .m-cell {
-    aspect-ratio: 1;
-    border-radius: 2px;
+    height: 38px;
+    border-radius: 3px;
     cursor: pointer;
     position: relative;
     transition: transform .1s, filter .2s;
     border: 1px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 4px;
+    overflow: hidden;
+}
+
+.m-cell-name {
+    font-size: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    color: rgba(255, 255, 255, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.m-cell-type {
+    font-size: 6px;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.5px;
+    line-height: 1.2;
 }
 
 .m-cell:hover {
@@ -1068,6 +1093,24 @@
     background: var(--cyan-dim);
     color: var(--cyan);
     border: 1px solid var(--cyan);
+}
+
+/* TRAP 类型告警 — 使用紫红色与阈值告警区分 */
+.alert-badge.trap {
+    background: rgba(224, 64, 251, 0.15);
+    color: #e040fb;
+    border: 1px solid #e040fb;
+    animation: trapglow .8s ease infinite alternate;
+}
+
+@keyframes trapglow {
+    from { box-shadow: none; }
+    to   { box-shadow: 0 0 6px #e040fb; }
+}
+
+.alert-item.is-trap::before {
+    background: #e040fb;
+    box-shadow: 0 0 6px #e040fb;
 }
 
 .alert-device {

@@ -8,16 +8,24 @@ const VIDEO_LABEL = {
     dmdp: 'MDP', dp: 'DP', hdmi: 'HDMI',
 };
 
+const USB_HID_LABEL = { notConnected: 'Not Connected', connected: 'Connected', initialized: 'Active' };
+
 function getEpStatus(ep) {
     const st = ep.last_status || {};
+    if (ep.module_type === 'con') {
+        const devSt = st.con_device_status;
+        if (!devSt || devSt === 'offline') return 'offline';
+        if (st.con_display_conn === 'notConnected') return 'warning';
+        if (!st.con_console_usb || st.con_console_usb === 'none') return 'warning';
+        if (st.con_freeze === 'true') return 'warning';
+        return devSt;
+    }
     const devSt = st.ep_device_status;
     if (!devSt || devSt === 'offline') return 'offline';
-    if (devSt === 'ready') return 'ready';
-    if (devSt === 'online') {
-        if (st.ep_target_power === 'off') return 'warning';
-        return 'online';
-    }
-    return 'offline';
+    if (st.ep_target_video_cable === 'notConnected') return 'warning';
+    if (st.ep_target_usb_hid === 'notConnected') return 'warning';
+    if (st.ep_target_power === 'off') return 'warning';
+    return devSt;
 }
 
 const EndpointDetail = ({ ep, dev, onClose }) => {
@@ -27,19 +35,25 @@ const EndpointDetail = ({ ep, dev, onClose }) => {
 
     useEffect(() => {
         if (!ep) return;
-        api.get(`/metrics/history?oid_name=ep_temperature&endpoint_id=${ep.id}&device_id=${ep.device_id}&hours=12`)
+        const oidName = ep.module_type === 'con' ? 'con_temperature' : 'ep_temperature';
+        api.get(`/metrics/history?oid_name=${oidName}&endpoint_id=${ep.id}&device_id=${ep.device_id}&hours=12`)
             .then(r => setHistData(r.data || []))
             .catch(() => setHistData([]));
     }, [ep?.id]);
 
     if (!ep) return null;
     const st = getEpStatus(ep);
+    const isCon = ep.module_type === 'con';
     const stRaw = ep.last_status || {};
-    const temp = parseFloat(stRaw.ep_temperature);
-    const video = VIDEO_LABEL[stRaw.ep_target_video_signal] || stRaw.ep_target_video_signal || '—';
-    const access = stRaw.ep_target_access || '—';
-    const sfpTx = stRaw.ep_sfp_tx_power;
-    const sfpRx = stRaw.ep_sfp_rx_power;
+    const temp   = parseFloat(isCon ? stRaw.con_temperature   : stRaw.ep_temperature);
+    const video  = isCon
+        ? (stRaw.con_display_conn === 'connected' ? 'Connected' : 'Not Connected')
+        : (VIDEO_LABEL[stRaw.ep_target_video_signal] || stRaw.ep_target_video_signal || '—');
+    const access = isCon
+        ? (stRaw.con_freeze === 'true' ? 'FROZEN ⚠' : '—')
+        : (stRaw.ep_target_access || '—');
+    const sfpTx  = isCon ? stRaw.con_sfp_tx_power : stRaw.ep_sfp_tx_power;
+    const sfpRx  = isCon ? stRaw.con_sfp_rx_power : stRaw.ep_sfp_rx_power;
 
     const STATUS_TEXT = {
         online: t('dashboard.legend_online'),
@@ -72,6 +86,40 @@ const EndpointDetail = ({ ep, dev, onClose }) => {
             <div className="td-row"><span className="td-k">{t('dashboard.detail_device')}</span><span className="td-v">{devName}</span></div>
             <div className="td-row"><span className="td-k">{t('dashboard.detail_port')}</span><span className="td-v">#{ep.index || '—'}</span></div>
             <div className="td-row"><span className="td-k">{t('dashboard.detail_video')}</span><span className="td-v">{video}</span></div>
+            {!isCon && (
+                <div className="td-row">
+                    <span className="td-k">Video Cable</span>
+                    <span className="td-v">{stRaw.ep_target_video_cable === 'connected' ? 'Connected' : stRaw.ep_target_video_cable === 'notConnected' ? 'Not Connected' : '—'}</span>
+                </div>
+            )}
+            {!isCon && stRaw.ep_target_usb_hid && (
+                <div className="td-row">
+                    <span className="td-k">USB HID</span>
+                    <span className="td-v">{USB_HID_LABEL[stRaw.ep_target_usb_hid] || stRaw.ep_target_usb_hid}</span>
+                </div>
+            )}
+            {!isCon && stRaw.ep_net_if0 && (
+                <div className="td-row">
+                    <span className="td-k">Network</span>
+                    <span className="td-v">{stRaw.ep_net_if0 === 'up' ? 'Up' : 'Down'}</span>
+                </div>
+            )}
+            {isCon && stRaw.con_display_type && (
+                <div className="td-row"><span className="td-k">Display</span><span className="td-v">{stRaw.con_display_type}</span></div>
+            )}
+            {isCon && (() => {
+                const KM_LABEL = { none: '—', keyboard: 'Keyboard', mouse: 'Mouse', keyboardMouse: 'KB + Mouse' };
+                const ps2 = KM_LABEL[stRaw.con_console_ps2] || stRaw.con_console_ps2;
+                const usb = KM_LABEL[stRaw.con_console_usb] || stRaw.con_console_usb;
+                return (<>
+                    {stRaw.con_console_ps2 && stRaw.con_console_ps2 !== 'none' && (
+                        <div className="td-row"><span className="td-k">PS/2</span><span className="td-v">{ps2}</span></div>
+                    )}
+                    {stRaw.con_console_usb && stRaw.con_console_usb !== 'none' && (
+                        <div className="td-row"><span className="td-k">USB KM</span><span className="td-v">{usb}</span></div>
+                    )}
+                </>);
+            })()}
             <div className="td-row"><span className="td-k">{t('dashboard.detail_temp')}</span><span className="td-v">{isNaN(temp) ? 'N/A' : `${temp.toFixed(1)}°C`}</span></div>
             <div className="td-row"><span className="td-k">{t('dashboard.detail_access')}</span><span className="td-v">{access}</span></div>
             {sfpTx && <div className="td-row"><span className="td-k">SFP TX</span><span className="td-v">{sfpTx} uW</span></div>}

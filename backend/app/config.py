@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # SNMP
     snmp_trap_port: int = 162
     snmp_default_community: str = "public"
+    snmp_poll_interval: int = 45  # 可通过 SNMP_POLL_INTERVAL 环境变量覆盖；Trap 负责实时告警
+
+    # 原始 SNMP 数据日志（Trap + 轮询，写入 logs/ 目录，可通过 SNMP_RAW_LOG_ENABLED=false 关闭）
+    snmp_raw_log_enabled: bool = True
 
     # 服务
     backend_host: str = "0.0.0.0"

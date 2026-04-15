@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) DEFAULT 'viewer', -- admin, operator, viewer
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3. KVM 交换机设备表
@@ -28,16 +29,18 @@ CREATE TABLE IF NOT EXISTS devices (
     last_poll TIMESTAMPTZ,
     last_status VARCHAR(20) DEFAULT 'unknown', -- online, offline, warning
     system_oid VARCHAR(255), -- 用于动态 OID 映射
+    model_name VARCHAR(128), -- 例如: ControlCenter-Compact-8C
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. 终端设备表 (CPU-ID Modules)
+-- 4. 终端设备表 (CPU/CON Modules)
 CREATE TABLE IF NOT EXISTS endpoints (
-    id VARCHAR(150) PRIMARY KEY, -- 格式: device_id + index
+    id VARCHAR(150) PRIMARY KEY, -- 格式: device_id + module_type + index
     device_id VARCHAR(100) REFERENCES devices(id) ON DELETE CASCADE,
     name VARCHAR(200),
     index INTEGER NOT NULL,
+    module_type VARCHAR(16) DEFAULT 'cpu', -- cpu | con | port
     last_status JSONB, -- 存储最后一次所有 OID 的快照数据
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -80,7 +83,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     alert_type VARCHAR(32) NOT NULL, -- threshold, trap, offline
     severity VARCHAR(20) NOT NULL, -- critical, warning, info
     message TEXT NOT NULL,
-    raw_value VARCHAR(255),
+    raw_value TEXT,
     is_resolved BOOLEAN DEFAULT FALSE,
     resolved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -90,12 +93,13 @@ CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(is_resolved) WHERE (is_re
 
 -- 7. 时序指标数据表 (核心核心核心)
 CREATE TABLE IF NOT EXISTS status_metrics (
+    id BIGSERIAL NOT NULL,           -- SQLAlchemy autoincrement PK (TimescaleDB 不要求 PK 含 time 时，不加 PRIMARY KEY 约束)
     time TIMESTAMPTZ NOT NULL,
     device_id VARCHAR(100) NOT NULL,
-    endpoint_id VARCHAR(150), -- 关联终端
+    endpoint_id VARCHAR(150),        -- 关联终端
     oid_name VARCHAR(64) NOT NULL,
-    value_str VARCHAR(256), -- 存储原始字符串
-    value_num FLOAT -- 存储数值用于绘图
+    value_str VARCHAR(256),          -- 存储原始字符串
+    value_num FLOAT                  -- 存储数值用于绘图
 );
 
 -- 转换为 TimescaleDB 超表

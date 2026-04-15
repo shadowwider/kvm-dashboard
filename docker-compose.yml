@@ -45,15 +45,14 @@ services:
     volumes:
       - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/stats/dashboard')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
-    # Trap 接收需要监听 UDP:162（需要宿主机网络或端口映射）
-    # 如需 SNMP Trap: 取消下方注释并映射 UDP 端口
-    # ports:
-    #   - "10162:10162/udp"
+    # Trap 接收 UDP 端口（宿主机 SNMP_TRAP_PORT → 容器 10162）
+    ports:
+      - "${SNMP_TRAP_PORT:-10162}:10162/udp"
 
   # ── Nginx + 前端静态文件 ────────────────────────────────────────
   frontend:

@@ -29,6 +29,8 @@ async def get_metric_history(
     _: User = Depends(get_current_user),
 ):
     """获取指定设备/终端某 OID 字段的历史数据（默认 24h）"""
+    if not device_id:
+        return []
     stmt = text("""
         SELECT time, value_str, value_num
         FROM status_metrics

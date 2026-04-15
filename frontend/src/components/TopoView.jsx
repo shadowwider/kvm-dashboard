@@ -18,14 +18,20 @@ function mkSVG(tag, attrs = {}) {
 
 function getEpStatus(ep) {
     const st = ep.last_status || {};
+    if (ep.module_type === 'con') {
+        const devSt = st.con_device_status;
+        if (!devSt || devSt === 'offline') return 'offline';
+        if (st.con_display_conn === 'notConnected') return 'warning';
+        if (!st.con_console_usb || st.con_console_usb === 'none') return 'warning';
+        if (st.con_freeze === 'true') return 'warning';
+        return devSt;
+    }
     const devSt = st.ep_device_status;
     if (!devSt || devSt === 'offline') return 'offline';
-    if (devSt === 'ready') return 'ready';
-    if (devSt === 'online') {
-        if (st.ep_target_power === 'off') return 'warning';
-        return 'online';
-    }
-    return 'offline';
+    if (st.ep_target_video_cable === 'notConnected') return 'warning';
+    if (st.ep_target_usb_hid === 'notConnected') return 'warning';
+    if (st.ep_target_power === 'off') return 'warning';
+    return devSt;
 }
 
 function ensureGlowDefs(svgEl) {
@@ -171,8 +177,10 @@ function renderSingleDevice(container, svgEl, nodesWrap, dev, eps, onEpClick, ge
         svgEl.appendChild(path);
 
         const rstSt = ep.last_status || {};
-        const vc = rstSt.ep_target_video_cable;
-        if (vc === 'notConnected' || vc === 'disconnected') {
+        const videoLost = ep.module_type === 'con'
+            ? rstSt.con_display_conn !== 'connected'
+            : (rstSt.ep_target_video_cable === 'notConnected' || rstSt.ep_target_video_cable === 'disconnected');
+        if (videoLost) {
             const txt = mkSVG('text', {
                 x: bx.toFixed(1), y: by.toFixed(1),
                 fill: '#ff3355', 'font-size': '7', 'font-family': 'JetBrains Mono',
@@ -240,7 +248,9 @@ function renderSingleDevice(container, svgEl, nodesWrap, dev, eps, onEpClick, ge
         const ey = cy + R * Math.sin(angle);
         const st = getEpStatus(ep);
         const stRaw = ep.last_status || {};
-        const video = VIDEO_LABEL[stRaw.ep_target_video_signal] || '—';
+        const video = ep.module_type === 'con'
+            ? (stRaw.con_display_conn === 'connected' ? 'DISP-ON' : 'NO DISP')
+            : (VIDEO_LABEL[stRaw.ep_target_video_signal] || '—');
         const bColor = STATUS_COLOR[st] || STATUS_COLOR.offline;
         const epName = getAlias(ep.id, ep.name);
         // 取末段作为短名

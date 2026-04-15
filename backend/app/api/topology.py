@@ -43,34 +43,45 @@ async def get_device_topology(device_id: str, db: AsyncSession = Depends(get_db)
 
     for ep in endpoints:
         status_dict = ep.last_status or {}
-        
-        # 提取终端状态和连接情况
-        ep_status = status_dict.get("ep_device_status", "offline")
-        ep_power = status_dict.get("ep_target_power", "off")
-        ep_video = status_dict.get("ep_target_video_cable", "notConnected")
-        
-        node_status = ep_status
-        if ep_status == "online" and ep_power == "off":
-            node_status = "warning" # 在线但未通电等
-        
-        # 生成终端节点
-        nodes.append({
-            "id": ep.id,
-            "name": ep.name or ep.id,
-            "type": "endpoint",
-            "status": node_status,
-            "symbolSize": 40,
-            "category": 1,
-            "detail": {
-                "temperature": status_dict.get("ep_temperature"),
+
+        if ep.module_type == "con":
+            ep_status = status_dict.get("con_device_status", "offline")
+            ep_video   = status_dict.get("con_display_conn", "notConnected")
+            node_status = ep_status
+            if ep_status == "online" and status_dict.get("con_freeze") == "true":
+                node_status = "warning"
+            detail = {
+                "temperature":  status_dict.get("con_temperature"),
+                "display_conn": status_dict.get("con_display_conn"),
+                "display_type": status_dict.get("con_display_type"),
+                "freeze":       status_dict.get("con_freeze"),
+                "sfp_tx_power": status_dict.get("con_sfp_tx_power"),
+                "sfp_rx_power": status_dict.get("con_sfp_rx_power"),
+            }
+        else:  # cpu / port
+            ep_status = status_dict.get("ep_device_status", "offline")
+            ep_video   = status_dict.get("ep_target_video_cable", "notConnected")
+            node_status = ep_status
+            if ep_status == "online" and status_dict.get("ep_target_power") == "off":
+                node_status = "warning"
+            detail = {
+                "temperature":  status_dict.get("ep_temperature"),
                 "video_signal": status_dict.get("ep_target_video_signal", "none"),
                 "sfp_tx_power": status_dict.get("ep_sfp_tx_power"),
                 "sfp_rx_power": status_dict.get("ep_sfp_rx_power"),
             }
+
+        nodes.append({
+            "id": ep.id,
+            "name": ep.name or ep.id,
+            "type": "endpoint",
+            "module_type": ep.module_type,
+            "status": node_status,
+            "symbolSize": 40,
+            "category": 1,
+            "detail": detail,
         })
 
-        # 生成与主机的连接线
-        # 根据视频线连接状态改变线的颜色或样式
         line_style = {"type": "solid", "color": "#5470c6"}
         label = "Connected"
         if ep_video != "connected":

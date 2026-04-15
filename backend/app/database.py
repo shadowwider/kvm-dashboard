@@ -10,7 +10,11 @@ engine_kwargs = {
 }
 if settings.is_sqlite:
     # SQLite 不支持 pool_size / max_overflow
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
+    # WAL 模式允许并发读写，避免 API 查询被 poller 写锁阻塞
+    engine_kwargs["connect_args"] = {
+        "check_same_thread": False,
+        "timeout": 30,  # 等锁最多 30 秒，而非立即报错
+    }
 else:
     engine_kwargs["pool_size"] = 20
     engine_kwargs["max_overflow"] = 40

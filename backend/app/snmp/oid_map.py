@@ -51,9 +51,8 @@ DEVICE_OIDS = {
 }
 
 # -------------------------------------------------------------------
-# 终端模块表
-# 这里使用了 .1.2.2.3.1000.1 为基础 (对应 CPU 终端表)
-# 如果支持其他模型可根据情况在后续按需扩充。
+# CPU 目标模块表 (GUD-CCDCCPU-MIB: gudCCDCCPU.2.3.1000.1)
+# 即 gudCCDC.1.2.2.3.1000.1 — 目标侧（服务器/计算机）
 # -------------------------------------------------------------------
 ENDPOINT_TABLE_ENTRY = "{sys_oid}.1.2.2.3.1000.1"
 
@@ -81,6 +80,44 @@ ENDPOINT_COLUMNS = {
     "ep_sfp_rx_power":        22,  # sfpRxPower (uW)
     "ep_sfp_type":            23,  # sfpType
     "ep_net_if0":             24,  # networkInterface0
+}
+
+# -------------------------------------------------------------------
+# CON 用户模块表 (GUD-CCDCCON-MIB: gudCCDCCON.2.3.1000.1)
+# 即 gudCCDC.1.1.2.3.1000.1 — 用户侧（操作员终端）
+# -------------------------------------------------------------------
+CON_TABLE_ENTRY = "{sys_oid}.1.1.2.3.1000.1"
+
+CON_COLUMNS = {
+    "con_id":               2,   # id (终端 hex ID)
+    "con_class":            3,   # cl (类别编号)
+    "con_name":             4,   # name (显示名称)
+    "con_device_status":    5,   # deviceStatus
+    "con_main_power":       6,   # mainPower
+    "con_redundant_power":  7,   # redundantPower
+    "con_temperature":      8,   # temperature1
+    "con_console_ps2":      9,   # consolePS2Connection
+    "con_console_usb":      10,  # consoleUSBConnection
+    "con_display_conn":     11,  # displayConnection
+    "con_display_conn1":    12,  # displayConnection1
+    "con_display_conn2":    13,  # displayConnection2
+    "con_display_type":     14,  # displayType (string)
+    "con_display_type1":    15,  # displayType1
+    "con_display_type2":    16,  # displayType2
+    "con_freeze":           17,  # freeze (0=false, 1=true)
+    "con_freeze1":          18,  # freeze1
+    "con_freeze2":          19,  # freeze2
+    "con_sfp_tx_power":     20,  # sfpTxPower (uW)
+    "con_sfp_tx_power1":    21,  # sfpTxPower1
+    "con_sfp_tx_power2":    22,  # sfpTxPower2
+    "con_sfp_rx_power":     23,  # sfpRxPower (uW)
+    "con_sfp_rx_power1":    24,  # sfpRxPower1
+    "con_sfp_rx_power2":    25,  # sfpRxPower2
+    "con_sfp_type":         26,  # sfpType (string)
+    "con_sfp_type1":        27,  # sfpType1
+    "con_sfp_type2":        28,  # sfpType2
+    "con_active_tx_port":   29,  # activeTransmissionPort (integer)
+    "con_net_if0":          30,  # networkInterface0
 }
 
 # -------------------------------------------------------------------
@@ -136,6 +173,7 @@ ENUM_MAPS = {
     "port_status": {
         0: "noModule", 1: "moduleDeactivated", 2: "down", 3: "up",
     },
+    "freeze_status": {0: "false", 1: "true"},
 }
 
 # -------------------------------------------------------------------
@@ -190,6 +228,37 @@ SEED_OID_REGISTRY = [
     {"name": "ep_sfp_rx_power",        "display_name": "SFP接收功率",    "category": "endpoint", "data_type": "integer", "is_table": True, "table_base_oid": ENDPOINT_TABLE_ENTRY, "table_column": 22, "unit": "uW",  "alert_enabled": False, "display_order": 120},
     {"name": "ep_sfp_type",            "display_name": "SFP类型",        "category": "endpoint", "data_type": "string",  "is_table": True, "table_base_oid": ENDPOINT_TABLE_ENTRY, "table_column": 23, "alert_enabled": False, "display_order": 121},
     {"name": "ep_net_if0",             "display_name": "终端网口",       "category": "endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": ENDPOINT_TABLE_ENTRY, "table_column": 24, "enum_map": ENUM_MAPS["net_if_status"],     "alert_enabled": False, "display_order": 122},
+
+    # ─── CON 用户模块（SNMP Table，30个列）─────────────────────────
+    {"name": "con_id",              "display_name": "CON终端ID",      "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 2,  "alert_enabled": False, "display_order": 130},
+    {"name": "con_class",           "display_name": "CON类别",        "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 3,  "alert_enabled": False, "display_order": 131},
+    {"name": "con_name",            "display_name": "CON名称",        "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 4,  "alert_enabled": False, "display_order": 132},
+    {"name": "con_device_status",   "display_name": "CON在线状态",    "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 5,  "enum_map": ENUM_MAPS["device_status"],     "alert_enabled": True,  "alert_ne_str": "online", "alert_severity": "warning",  "display_order": 133},
+    {"name": "con_main_power",      "display_name": "CON主电源",      "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 6,  "enum_map": ENUM_MAPS["power_status"],      "alert_enabled": False, "display_order": 134},
+    {"name": "con_redundant_power", "display_name": "CON冗余电源",    "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 7,  "enum_map": ENUM_MAPS["power_status"],      "alert_enabled": False, "display_order": 135},
+    {"name": "con_temperature",     "display_name": "CON温度",        "category": "con_endpoint", "data_type": "float",   "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 8,  "unit": "°C",  "alert_enabled": False, "display_order": 136},
+    {"name": "con_console_ps2",     "display_name": "CON控制台PS/2",  "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 9,  "enum_map": ENUM_MAPS["keyboard_mouse"],    "alert_enabled": False, "display_order": 137},
+    {"name": "con_console_usb",     "display_name": "CON控制台USB",   "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 10, "enum_map": ENUM_MAPS["keyboard_mouse"],    "alert_enabled": False, "display_order": 138},
+    {"name": "con_display_conn",    "display_name": "显示器连接",     "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 11, "enum_map": ENUM_MAPS["connection"],        "alert_enabled": True,  "alert_ne_str": "connected", "alert_severity": "info", "display_order": 139},
+    {"name": "con_display_conn1",   "display_name": "显示器1连接",    "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 12, "enum_map": ENUM_MAPS["connection"],        "alert_enabled": False, "display_order": 140},
+    {"name": "con_display_conn2",   "display_name": "显示器2连接",    "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 13, "enum_map": ENUM_MAPS["connection"],        "alert_enabled": False, "display_order": 141},
+    {"name": "con_display_type",    "display_name": "显示器类型",     "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 14, "alert_enabled": False, "display_order": 142},
+    {"name": "con_display_type1",   "display_name": "显示器1类型",    "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 15, "alert_enabled": False, "display_order": 143},
+    {"name": "con_display_type2",   "display_name": "显示器2类型",    "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 16, "alert_enabled": False, "display_order": 144},
+    {"name": "con_freeze",          "display_name": "冻结状态",       "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 17, "enum_map": ENUM_MAPS["freeze_status"],     "alert_enabled": False, "display_order": 145},
+    {"name": "con_freeze1",         "display_name": "冻结通道1",      "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 18, "enum_map": ENUM_MAPS["freeze_status"],     "alert_enabled": False, "display_order": 146},
+    {"name": "con_freeze2",         "display_name": "冻结通道2",      "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 19, "enum_map": ENUM_MAPS["freeze_status"],     "alert_enabled": False, "display_order": 147},
+    {"name": "con_sfp_tx_power",    "display_name": "CON SFP发送",    "category": "con_endpoint", "data_type": "integer", "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 20, "unit": "uW",  "alert_enabled": False, "display_order": 148},
+    {"name": "con_sfp_tx_power1",   "display_name": "CON SFP发送1",   "category": "con_endpoint", "data_type": "integer", "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 21, "unit": "uW",  "alert_enabled": False, "display_order": 149},
+    {"name": "con_sfp_tx_power2",   "display_name": "CON SFP发送2",   "category": "con_endpoint", "data_type": "integer", "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 22, "unit": "uW",  "alert_enabled": False, "display_order": 150},
+    {"name": "con_sfp_rx_power",    "display_name": "CON SFP接收",    "category": "con_endpoint", "data_type": "integer", "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 23, "unit": "uW",  "alert_enabled": False, "display_order": 151},
+    {"name": "con_sfp_rx_power1",   "display_name": "CON SFP接收1",   "category": "con_endpoint", "data_type": "integer", "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 24, "unit": "uW",  "alert_enabled": False, "display_order": 152},
+    {"name": "con_sfp_rx_power2",   "display_name": "CON SFP接收2",   "category": "con_endpoint", "data_type": "integer", "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 25, "unit": "uW",  "alert_enabled": False, "display_order": 153},
+    {"name": "con_sfp_type",        "display_name": "CON SFP类型",    "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 26, "alert_enabled": False, "display_order": 154},
+    {"name": "con_sfp_type1",       "display_name": "CON SFP类型1",   "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 27, "alert_enabled": False, "display_order": 155},
+    {"name": "con_sfp_type2",       "display_name": "CON SFP类型2",   "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 28, "alert_enabled": False, "display_order": 156},
+    {"name": "con_active_tx_port",  "display_name": "活跃传输端口",   "category": "con_endpoint", "data_type": "integer", "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 29, "alert_enabled": False, "display_order": 157},
+    {"name": "con_net_if0",         "display_name": "CON网口",        "category": "con_endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 30, "enum_map": ENUM_MAPS["net_if_status"],     "alert_enabled": False, "display_order": 158},
 
     # ─── 端口表（SNMP Table）────────────────────────────────────────
     {"name": "port_status",        "display_name": "端口状态",     "category": "port", "data_type": "enum",    "is_table": True, "table_base_oid": PORT_TABLE_ENTRY, "table_column": 2,  "enum_map": ENUM_MAPS["port_status"],  "alert_enabled": False, "display_order": 200},

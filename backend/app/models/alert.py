@@ -18,7 +18,7 @@ class Alert(Base):
     severity: Mapped[str] = mapped_column(String(16), default="warning")  # info|warning|critical
 
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    raw_value: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    raw_value: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # 状态追踪
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)

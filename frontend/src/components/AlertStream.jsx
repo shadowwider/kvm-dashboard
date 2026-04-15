@@ -49,19 +49,23 @@ const AlertStream = () => {
         <div className="alert-list">
             {alerts.map((alert, idx) => {
                 const severity = alert.severity || 'info';
+                const isTrap = alert.alert_type === 'trap';
                 const isNew = idx === 0;
                 const timeStr = safeFormatTime(alert.created_at);
 
                 return (
                     <div
                         key={alert.id ?? idx}
-                        className={`alert-item ${severity}${isNew ? ' is-new' : ''}`}
+                        className={`alert-item ${severity}${isNew ? ' is-new' : ''}${isTrap ? ' is-trap' : ''}`}
                     >
                         <div className="alert-time">{timeStr}</div>
                         <div className="alert-header">
                             <span className={`alert-badge ${severity}`}>
                                 {SEVERITY_LABEL[severity] || severity}
                             </span>
+                            {isTrap && (
+                                <span className="alert-badge trap">TRAP</span>
+                            )}
                             <span className="alert-device">
                                 {getDisplayName(alert.device_id, alert.device_id)}
                             </span>

@@ -18,6 +18,7 @@ class EndpointOut(BaseModel):
     device_id: str
     name: Optional[str]
     index: int
+    module_type: str
     last_status: Optional[dict]
     updated_at: datetime
     model_config = {"from_attributes": True}

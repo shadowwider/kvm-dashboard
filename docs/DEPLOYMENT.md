@@ -30,17 +30,16 @@ git checkout feat/full-refactor
 ### 2. 配置环境变量
 
 ```bash
-# 复制生产模板
-cp .env.production .env.production.local
-
-# 编辑敏感配置（必须修改！）
-vi .env.production.local
+# 编辑生产配置（必须修改！）
+vi .env.production
 ```
 
-**必须修改的字段**：
+**必须修改的字段**（搜索 `CHANGE_ME`）：
 - `POSTGRES_PASSWORD` — 数据库密码
 - `SECRET_KEY` — JWT 签名密钥（建议 32+ 位随机字符串）
 - `ADMIN_PASSWORD` — 初始管理员密码
+
+> `docker-compose.yml` 通过 `env_file: .env.production` 直接加载此文件，请勿重命名。
 
 ### 3. 构建并启动
 
@@ -75,6 +74,8 @@ docker compose ps
 
 ## 三、环境变量说明
 
+完整的环境变量参考见 [`docs/ENV_VARS.md`](./ENV_VARS.md)，以下为常用变量速查：
+
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `POSTGRES_DB` | kvm_monitor | 数据库名 |
@@ -84,7 +85,9 @@ docker compose ps
 | `ADMIN_USERNAME` | admin | 初始管理员用户名 |
 | `ADMIN_PASSWORD` | admin123 | ⚠️ 初始管理员密码 |
 | `SNMP_DEFAULT_COMMUNITY` | public | SNMP 默认 Community |
-| `SNMP_TRAP_PORT` | 10162 | SNMP Trap 监听端口 |
+| `SNMP_TRAP_PORT` | 10162 | SNMP Trap 监听 UDP 端口（宿主机侧） |
+| `SNMP_POLL_INTERVAL` | 45 | SNMP 主动轮询间隔（秒） |
+| `SNMP_RAW_LOG_ENABLED` | true | 开启原始 SNMP 数据日志（logs/ 目录） |
 | `LOG_LEVEL` | INFO | 日志级别（DEBUG/INFO/WARNING/ERROR） |
 | `TZ` | Asia/Shanghai | 系统时区 |
 | `FRONTEND_PORT` | 80 | 前端访问端口 |
@@ -218,5 +221,5 @@ frontend:
 | 数据库连接池 | `pool_size=20, max_overflow=40` |
 | SNMP 并发限流 | Semaphore 上限 20-30 |
 | 日志轮转 | 配置 logrotate 或 Docker `--log-opt max-size=50m` |
-| 轮询间隔 | 生产环境建议 60s+，避免过多 SNMP 请求 |
+| 轮询间隔 | 生产环境默认 45s（有 Trap 实时告警，无需过短），可通过 `SNMP_POLL_INTERVAL` 调整 |
 | TimescaleDB 压缩 | 开启 30 天以上数据自动压缩 |
