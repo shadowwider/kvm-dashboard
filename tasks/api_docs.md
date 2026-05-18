@@ -65,8 +65,15 @@
       "id": "CCDC-01",
       "name": "核心机房-KVM1",
       "host": "192.168.1.10",
-      "last_status": "online", // online, offline, warning
-      "last_poll": "2026-02-26T12:05:00Z"
+      "last_status": "online", 
+      "last_poll": "2026-02-26T12:05:00Z",
+      "last_metrics": {
+        "ports": {
+          "1": { "port_status": "3", "ep_id": "0x0005F9EF", "ep_name": "CPU-1" },
+          "2": { "port_status": "1" },
+          "3": { "port_status": "1" }
+        }
+      }
     }
   ]
   ```
@@ -87,11 +94,11 @@
       "name": "塔台协同终端",
       "index": 1,
       "last_status": {
-        "ep_name": "塔台协同终端",
-        "video_cable": "connected",
-        "video_signal": "dp",
+        "ep_name": "操作员终端-A",
         "ep_online": "yes",
-        "temperature": "45.0"
+        "con_console_usb": "none", // 新增：即使未连接也会返回 'none' 而非空
+        "con_display_conn": "connected",
+        "temperature": "38.5"
       },
       "updated_at": "2026-02-26T12:05:00Z"
     }

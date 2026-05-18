@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KVM 仿真器 — 3台交换机，每台 4 CPU + 36 CON
+KVM 仿真器 — 多台交换机，每台可配置 CPU / CON / 端口数量
 状态每 10 秒动态更新一次，模拟真实设备的抖动、上下线、温度漂移等。
 """
 import os
@@ -81,8 +81,9 @@ def _send_trap(level: int, message: str):
     except Exception as e:
         logger.warning(f"_send_trap failed: {e}")
 
-NUM_CPU = 3
-NUM_CON = 3
+NUM_CPU = int(os.environ.get("SIM_NUM_CPU", "12"))
+NUM_CON = int(os.environ.get("SIM_NUM_CON", "12"))
+NUM_PORTS = int(os.environ.get("SIM_NUM_PORTS", str(NUM_CPU + NUM_CON)))
 STATE_UPDATE_INTERVAL = 10  # 秒
 
 DISPLAY_MODELS = [
@@ -97,51 +98,80 @@ VIDEO_SIGNALS = [1, 2, 3, 5, 6]  # 常见信号类型
 
 # ─── 状态初始化 ─────────────────────────────────────────────────────
 
+def _random_km_pair(is_present=True):
+    """返回 CON 的 PS/2 与 USB 键鼠状态，绝大多数为完整键鼠，少量异常。"""
+    if not is_present:
+        return 0, 0
+    pattern = random.choices(
+        ["usb_both", "ps2_both", "both_ports", "split", "keyboard_only", "none"],
+        weights=[76, 10, 8, 3, 2, 1],
+    )[0]
+    if pattern == "usb_both":
+        return 0, 3
+    if pattern == "ps2_both":
+        return 3, 0
+    if pattern == "both_ports":
+        return 3, 3
+    if pattern == "split":
+        return random.choice([(1, 2), (2, 1)])
+    if pattern == "keyboard_only":
+        return random.choice([(1, 0), (0, 1)])
+    return 0, 0
+
+
 def _init_cpu(sw_id, idx):
     """初始化单个 CPU 模块状态"""
+    status = random.choices([1, 2, 0], weights=[96, 3, 1])[0]
+    is_present = status != 0
+    target_usb_hid = random.choices([2, 0], weights=[98, 2])[0] if is_present else 0
+    target_video_cable = random.choices([1, 0], weights=[98, 2])[0] if is_present else 0
+    target_video_signal = random.choice(VIDEO_SIGNALS) if target_video_cable else 0
+    target_power = random.choices([1, 0], weights=[99, 1])[0] if is_present else 0
     return {
+        "module_index": idx,
         "id": f"CPU-{sw_id}-{idx:03d}",
         "name": f"CPU-HOST-SW{sw_id}-{idx:03d}",
-        "device_status": random.choices([1, 2, 0], weights=[88, 8, 4])[0],
-        "main_power": 1,
+        "device_status": status,
+        "main_power": 1 if is_present else 0,
         "redundant_power": random.choice([0, 1]),
         "temperature": round(random.uniform(38, 52), 1),
-        "target_usb_hid": random.choice([0, 2]),     # 0=notConnected, 2=initialized
-        "target_video_cable": random.choice([0, 1]),  # 0=notConnected, 1=connected
-        "target_video_signal": random.choice(VIDEO_SIGNALS + [0]),
-        "target_power": random.choice([0, 1]),
+        "target_usb_hid": target_usb_hid,       # 0=notConnected, 2=initialized
+        "target_video_cable": target_video_cable,  # 0=notConnected, 1=connected
+        "target_video_signal": target_video_signal,
+        "target_power": target_power,
         "target_access": random.choices([0, 1, 2, 3], weights=[60, 25, 10, 5])[0],
         "sfp_tx_power": random.randint(440, 530),
         "sfp_rx_power": random.randint(400, 500),
-        "net_if0": 1,
+        "net_if0": 1 if is_present else 0,
     }
 
 
 def _init_con(sw_id, idx):
     """初始化单个 CON 模块状态"""
     display = random.choice(DISPLAY_MODELS)
-    online = random.choices([1, 2, 0], weights=[82, 8, 10])[0]
-    # console_ps2/usb: 0=none,1=keyboard,2=mouse,3=keyboardMouse
-    # 大多数操作员站接键盘+鼠标(3)，少数只接键盘(1)或未接(0)
-    km = random.choices([3, 1, 0], weights=[75, 15, 10])[0] if online == 1 else 0
+    online = random.choices([1, 2, 0], weights=[96, 3, 1])[0]
+    is_present = online != 0
+    ps2_km, usb_km = _random_km_pair(is_present)
+    display_conn = random.choices([1, 0], weights=[98, 2])[0] if is_present else 0
     return {
+        "module_index": NUM_CPU + idx,
         "id": f"CON-{sw_id}-{idx:03d}",
         "name": f"CON-USER-SW{sw_id}-{idx:03d}",
         "device_status": online,
-        "main_power": 1,
+        "main_power": 1 if is_present else 0,
         "redundant_power": 0,
         "temperature": round(random.uniform(33, 47), 1),
-        "console_ps2": km,
-        "console_usb": km,
-        "display_conn": 1 if online == 1 else 0,
-        "display_type": display,
-        "freeze": 0,
+        "console_ps2": ps2_km,
+        "console_usb": usb_km,
+        "display_conn": display_conn,
+        "display_type": display if display_conn else "",
+        "freeze": random.choices([0, 1], weights=[99, 1])[0] if is_present else 0,
         "sfp_tx_power": random.randint(480, 540),
         "sfp_rx_power": random.randint(460, 510),
         "sfp_tx_power1": random.randint(480, 540),
         "sfp_rx_power1": random.randint(460, 510),
         "active_tx_port": random.choice([1, 2]),
-        "net_if0": 1 if online != 0 else 0,
+        "net_if0": 1 if is_present else 0,
         # 过渡计数器：连续几轮保持离线后才恢复，模拟真实断线时长
         "_offline_ticks": random.randint(0, 2) if online == 0 else 0,
     }
@@ -153,7 +183,7 @@ def init_switch_state(sw_id):
         "sw_id": sw_id,
         "temperature": round(random.uniform(38, 48), 1),
         "main_power": 1,
-        "redundant_power": random.choice([0, 1]),
+        "redundant_power": random.choices([1, 0], weights=[97, 3])[0],
         "fan1": random.randint(2900, 3200),
         "fan2": random.randint(2900, 3200),
         "fan3": random.randint(2900, 3200),
@@ -195,21 +225,27 @@ def update_switch_state(state) -> list[tuple[int, str]]:
 
             # 状态转移
             if prev_st == 0:  # offline → 有概率恢复
-                if random.random() < 0.35:
+                if random.random() < 0.45:
                     cpu["device_status"] = random.choice([1, 2])
+                    cpu["main_power"] = 1
+                    cpu["net_if0"] = 1
+                    cpu["target_usb_hid"] = 2
                     cpu["target_power"] = 1
                     cpu["target_video_cable"] = 1
                     cpu["target_video_signal"] = random.choice(VIDEO_SIGNALS)
                     events.append((5, f"CPU module {cpu['id']} came online"))
             elif prev_st in (1, 2):
                 r = random.random()
-                if r < 0.03:   # 3% 概率掉线
+                if r < 0.002:   # 少量模块偶发掉线
                     cpu["device_status"] = 0
+                    cpu["main_power"] = 0
+                    cpu["net_if0"] = 0
+                    cpu["target_usb_hid"] = 0
                     cpu["target_power"] = 0
                     cpu["target_video_cable"] = 0
                     cpu["target_video_signal"] = 0
                     events.append((3, f"CPU module {cpu['id']} went offline"))
-                elif r < 0.08:  # 5% 概率在 online/ready 之间切换
+                elif r < 0.01:  # 少量 online/ready 状态切换
                     cpu["device_status"] = 2 if prev_st == 1 else 1
 
             # 温度漂移
@@ -221,8 +257,13 @@ def update_switch_state(state) -> list[tuple[int, str]]:
             cpu["sfp_rx_power"] = _clamp(cpu["sfp_rx_power"] + random.randint(-8, 8), 350, 540)
 
             # online 状态下偶尔切换视频接入方式
-            if cpu["device_status"] == 1 and random.random() < 0.05:
+            if cpu["device_status"] == 1 and random.random() < 0.01:
                 cpu["target_access"] = random.choices([0, 1, 2, 3], weights=[60, 25, 10, 5])[0]
+            if cpu["device_status"] != 0 and random.random() < 0.004:
+                cpu["target_usb_hid"] = 0 if cpu["target_usb_hid"] == 2 else 2
+            if cpu["device_status"] != 0 and random.random() < 0.004:
+                cpu["target_video_cable"] = 0 if cpu["target_video_cable"] == 1 else 1
+                cpu["target_video_signal"] = random.choice(VIDEO_SIGNALS) if cpu["target_video_cable"] else 0
 
         # ── CON 模块更新 ──────────────────────────────────────────
         for con in state["cons"]:
@@ -230,33 +271,39 @@ def update_switch_state(state) -> list[tuple[int, str]]:
 
             if prev_st == 0:
                 con["_offline_ticks"] += 1
-                # 离线至少 1 轮（10s），之后以 25% 概率恢复
-                if con["_offline_ticks"] >= 1 and random.random() < 0.25:
+                # 离线至少 1 轮（10s），之后以较高概率恢复
+                if con["_offline_ticks"] >= 1 and random.random() < 0.35:
                     con["device_status"] = 1
+                    con["main_power"] = 1
                     con["display_conn"] = 1
+                    con["display_type"] = random.choice(DISPLAY_MODELS)
                     con["freeze"] = 0
                     con["net_if0"] = 1
-                    con["console_ps2"] = random.choices([3, 1, 0], weights=[75, 15, 10])[0]
-                    con["console_usb"] = con["console_ps2"]
+                    con["console_ps2"], con["console_usb"] = _random_km_pair(True)
                     con["_offline_ticks"] = 0
                     events.append((5, f"CON module {con['id']} came online"))
             else:
                 r = random.random()
-                if r < 0.05:    # 5% 掉线
+                if r < 0.002:    # 少量模块偶发掉线
                     con["device_status"] = 0
+                    con["main_power"] = 0
                     con["display_conn"] = 0
+                    con["display_type"] = ""
                     con["freeze"] = 0
                     con["net_if0"] = 0
                     con["console_ps2"] = 0
                     con["console_usb"] = 0
                     con["_offline_ticks"] = 0
                     events.append((3, f"CON module {con['id']} went offline"))
-                elif r < 0.08:  # 3% ready/online 互切
+                elif r < 0.01:  # 少量 ready/online 互切
                     con["device_status"] = 2 if prev_st == 1 else 1
-                elif r < 0.10:  # 2% 显示器断开（设备还在线，非关键事件，不发 Trap）
+                elif r < 0.016:  # 显示器偶发断开（设备还在线，非关键事件，不发 Trap）
                     con["display_conn"] = 0 if con["display_conn"] == 1 else 1
-                elif r < 0.12:  # 2% 画面冻结（非关键事件，不发 Trap）
+                    con["display_type"] = random.choice(DISPLAY_MODELS) if con["display_conn"] else ""
+                elif r < 0.022:  # 画面冻结偶发（非关键事件，不发 Trap）
                     con["freeze"] = 1 if con["freeze"] == 0 else 0
+                elif r < 0.028:  # 键鼠链路偶发变化
+                    con["console_ps2"], con["console_usb"] = _random_km_pair(True)
 
             # 温度漂移
             con["temperature"] = _clamp(
@@ -314,7 +361,7 @@ def build_oid_map(state):
         # 设备信息
         f"{base}.2.1.1.0": f"SIM-{sw_id}",
         f"{base}.2.1.2.0": "257",
-        f"{base}.2.1.3.0": "ControlCenter-Compact-8C",
+        f"{base}.2.1.3.0": f"ControlCenter-Compact-{NUM_PORTS}C",
         f"{base}.2.1.4.0": f"GD-SIM-{sw_id}",
         f"{base}.2.1.5.0": f"0x000ff402455{sw_id}",
         f"{base}.2.1.6.0": f"0x000ff402456{sw_id}",
@@ -336,6 +383,7 @@ def build_oid_map(state):
     # ── CPU 终端模块 → .1.2.2.3.1000.1.{col}.{row} ──────────────
     ep_base = f"{base}.1.2.2.3.1000.1"
     for row, cpu in enumerate(s["cpus"], start=1):
+        oid_map[f"{ep_base}.1.{row}"]  = cpu["module_index"]
         oid_map[f"{ep_base}.2.{row}"]  = cpu["id"]
         oid_map[f"{ep_base}.3.{row}"]  = "0x00000401"
         oid_map[f"{ep_base}.4.{row}"]  = cpu["name"]
@@ -363,6 +411,7 @@ def build_oid_map(state):
     # ── CON 用户模块 → .1.1.2.3.1000.1.{col}.{row} ──────────────
     con_base = f"{base}.1.1.2.3.1000.1"
     for row, con in enumerate(s["cons"], start=1):
+        oid_map[f"{con_base}.1.{row}"]  = con["module_index"]
         oid_map[f"{con_base}.2.{row}"]  = con["id"]
         oid_map[f"{con_base}.3.{row}"]  = "0x00000101"
         oid_map[f"{con_base}.4.{row}"]  = con["name"]
@@ -392,6 +441,33 @@ def build_oid_map(state):
         oid_map[f"{con_base}.28.{row}"] = ""   # sfp_type2
         oid_map[f"{con_base}.29.{row}"] = con["active_tx_port"]
         oid_map[f"{con_base}.30.{row}"] = con["net_if0"]
+
+    # ── 交换机物理传输端口 → .2.3.1000.1.{col}.{row} ─────────────
+    port_base = f"{base}.2.3.1000.1"
+    occupied_ports = {}
+    for cpu in s["cpus"]:
+        occupied_ports[cpu["module_index"]] = {
+            "status": 3 if cpu["device_status"] != 0 else 2,
+            "tx": cpu["sfp_tx_power"] if cpu["device_status"] != 0 else 0,
+            "rx": cpu["sfp_rx_power"] if cpu["device_status"] != 0 else 0,
+            "type": "LC-SMF" if cpu["device_status"] != 0 else "",
+        }
+    for con in s["cons"]:
+        occupied_ports[con["module_index"]] = {
+            "status": 3 if con["device_status"] != 0 else 2,
+            "tx": con["sfp_tx_power"] if con["device_status"] != 0 else 0,
+            "rx": con["sfp_rx_power"] if con["device_status"] != 0 else 0,
+            "type": "LC-SMF" if con["device_status"] != 0 else "",
+        }
+    max_port = max(NUM_PORTS, max(occupied_ports.keys(), default=0))
+    for port_idx in range(1, max_port + 1):
+        port = occupied_ports.get(port_idx)
+        status = port["status"] if port else 0
+        oid_map[f"{port_base}.2.{port_idx}"] = status
+        oid_map[f"{port_base}.3.{port_idx}"] = status
+        oid_map[f"{port_base}.4.{port_idx}"] = port["tx"] if port else 0
+        oid_map[f"{port_base}.5.{port_idx}"] = port["rx"] if port else 0
+        oid_map[f"{port_base}.6.{port_idx}"] = port["type"] if port else ""
 
     return oid_map
 
@@ -495,7 +571,7 @@ def start_simulator(port, state):
         sock.settimeout(1.0)
         logger.info(
             f"Switch {state['sw_id']} on :{port}  "
-            f"({NUM_CPU} CPU + {NUM_CON} CON)"
+            f"({NUM_CPU} CPU + {NUM_CON} CON, {NUM_PORTS} ports)"
         )
         while True:
             try:
@@ -516,8 +592,8 @@ def start_simulator(port, state):
 # ─── 入口 ─────────────────────────────────────────────────────────────
 
 async def main():
-    base_port = 11161
-    num_switches = 3
+    base_port = int(os.environ.get("SIM_BASE_PORT", "11161"))
+    num_switches = int(os.environ.get("SIM_NUM_SWITCHES", "3"))
 
     # 初始化所有交换机状态
     all_states = [init_switch_state(i) for i in range(1, num_switches + 1)]
@@ -556,7 +632,7 @@ async def main():
 
     logger.info(
         f"{num_switches} switches registered. "
-        f"Each: {NUM_CPU} CPU + {NUM_CON} CON endpoints. "
+        f"Each: {NUM_CPU} CPU + {NUM_CON} CON endpoints, {NUM_PORTS} ports. "
         f"State updates every {STATE_UPDATE_INTERVAL}s. "
         "Backend poller will collect data automatically."
     )

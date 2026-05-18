@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useStore } from '../store/mainStore';
@@ -9,28 +9,12 @@ import MatrixView from '../components/MatrixView';
 import TopoView from '../components/TopoView';
 import AlertStream from '../components/AlertStream';
 import BottomCharts from '../components/BottomCharts';
+import { getEndpointDeviceState } from '../utils/endpointStatus';
 import './Dashboard.css';
-
-// countUp 动画
-function useCountUp(target, duration = 1200) {
-    const [value, setValue] = useState(0);
-    useEffect(() => {
-        if (!target) return;
-        let v = 0;
-        const step = target / (duration / 16);
-        const timer = setInterval(() => {
-            v += step;
-            if (v >= target) { setValue(target); clearInterval(timer); return; }
-            setValue(Math.floor(v));
-        }, 16);
-        return () => clearInterval(timer);
-    }, [target]);
-    return value;
-}
 
 const Dashboard = () => {
     const navigate = useNavigate();
-    const { token, logout, user } = useAuthStore();
+    const { logout, user } = useAuthStore();
     const {
         stats, devices, alerts,
         selectedDeviceId, viewMode,
@@ -91,14 +75,8 @@ const Dashboard = () => {
 
     // 健康率 + KPI：统一用终端 (endpoints) 计算
     const { endpoints: allEps } = useStore();
-    const isEpActive = ep => {
-        const devSt = (ep.last_status || {}).ep_device_status;
-        return devSt === 'online' || devSt === 'ready';
-    };
-    const isEpOffline = ep => {
-        const devSt = (ep.last_status || {}).ep_device_status;
-        return !devSt || devSt === 'offline';
-    };
+    const isEpActive = ep => ['online', 'ready'].includes(getEndpointDeviceState(ep));
+    const isEpOffline = ep => getEndpointDeviceState(ep) === 'offline';
 
     // 终端分类数
     const epTotal = allEps.length > 0 ? allEps.length : (stats?.total_endpoints || 0);

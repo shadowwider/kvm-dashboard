@@ -1,103 +1,137 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/mainStore';
 import { useTranslation } from '../i18n';
 import EndpointDetail from './EndpointDetail';
-
-const VIDEO_MAP = {
-    none: 'No Signal', vga: 'VGA', dvisl: 'DVI-SL', dvidl: 'DVI-DL',
-    dmdp: 'MDP', dp: 'DP', hdmi: 'HDMI',
-};
-
-// 从 endpoint 推断显示状态（支持 cpu / con 两种模块类型）
-function getEpStatus(ep) {
-    const st = ep.last_status || {};
-    if (ep.module_type === 'con') {
-        const devSt = st.con_device_status;
-        if (!devSt || devSt === 'offline') return 'offline';
-        if (st.con_display_conn === 'notConnected') return 'warning';
-        if (!st.con_console_usb || st.con_console_usb === 'none') return 'warning';
-        if (st.con_freeze === 'true') return 'warning';
-        return devSt;
-    }
-    const devSt = st.ep_device_status;
-    if (!devSt || devSt === 'offline') return 'offline';
-    if (st.ep_target_video_cable === 'notConnected') return 'warning';
-    if (st.ep_target_usb_hid === 'notConnected') return 'warning';
-    if (st.ep_target_power === 'off') return 'warning';
-    return devSt;
-}
+import {
+    formatEndpointPosition,
+    getDevicePortSummary,
+    getEndpointSortIndex,
+    getEndpointStatus,
+} from '../utils/endpointStatus';
 
 const MatrixView = ({ filterDeviceId }) => {
     const { endpoints, devices, fetchEndpoints } = useStore();
-    // 显式订阅 aliases，确保别名加载后触发重渲染（Zustand v5 无 selector 不可靠）
-    const aliases = useStore(state => state.aliases);
+    const getDisplayName = useStore(state => state.getDisplayName);
     const { t } = useTranslation();
     const [activeEp, setActiveEp] = useState(null);
     const [activeDev, setActiveDev] = useState(null);
 
-    useEffect(() => {
-        if (filterDeviceId === 'all') {
-            devices.forEach(d => fetchEndpoints(d.id));
-        } else if (filterDeviceId) {
-            fetchEndpoints(filterDeviceId);
-        }
-    }, [filterDeviceId, devices.length]);
+    const visibleDevices = useMemo(() => (
+        filterDeviceId === 'all'
+            ? devices
+            : devices.filter(dev => dev.id === filterDeviceId)
+    ), [devices, filterDeviceId]);
 
-    const list = filterDeviceId === 'all'
-        ? endpoints
-        : endpoints.filter(ep => ep.device_id === filterDeviceId);
+    useEffect(() => {
+        visibleDevices.forEach(dev => fetchEndpoints(dev.id));
+    }, [visibleDevices, fetchEndpoints]);
+
+    const list = useMemo(() => {
+        const deviceIds = new Set(visibleDevices.map(dev => dev.id));
+        return endpoints
+            .filter(ep => deviceIds.has(ep.device_id))
+            .slice()
+            .sort((a, b) => {
+                if (a.device_id !== b.device_id) return a.device_id.localeCompare(b.device_id);
+                if ((a.module_type || 'cpu') !== (b.module_type || 'cpu')) {
+                    return (a.module_type || 'cpu') === 'cpu' ? -1 : 1;
+                }
+                return getEndpointSortIndex(a) - getEndpointSortIndex(b);
+            });
+    }, [endpoints, visibleDevices]);
 
     const counts = { online: 0, ready: 0, offline: 0, warning: 0 };
     list.forEach(ep => {
-        const st = getEpStatus(ep);
-        if (counts[st] !== undefined) counts[st]++;
+        const st = getEndpointStatus(ep);
+        if (counts[st] !== undefined) counts[st] += 1;
     });
 
-    const total = list.length;
-    const cols = total <= 12 ? 4 : total <= 24 ? 6 : total <= 48 ? 8 : total <= 96 ? 10 : 12;
+    const openEndpoint = (ep, dev) => {
+        setActiveEp(ep);
+        setActiveDev(dev);
+    };
+
+    const renderEndpointCard = (ep, dev) => {
+        const st = getEndpointStatus(ep);
+        const epName = getDisplayName(ep.id, ep.name);
+        const type = ep.module_type === 'con' ? 'CON' : 'CPU';
+
+        return (
+            <button
+                key={ep.id}
+                className={`m-cell tier-card ${st}`}
+                onClick={() => openEndpoint(ep, dev)}
+                title={`${getDisplayName(dev.id, dev.name)} ${formatEndpointPosition(ep, t)}`}
+            >
+                <span className="m-cell-port">{formatEndpointPosition(ep, t, { short: true })}</span>
+                <span className="m-cell-name">{epName}</span>
+                <span className="m-cell-type">{type}</span>
+            </button>
+        );
+    };
+
+    const renderStack = (dev) => {
+        const devEndpoints = list.filter(ep => ep.device_id === dev.id);
+        const cpus = devEndpoints.filter(ep => ep.module_type !== 'con');
+        const cons = devEndpoints.filter(ep => ep.module_type === 'con');
+        const portSummary = getDevicePortSummary(dev);
+        const devName = getDisplayName(dev.id, dev.name);
+
+        return (
+            <section key={dev.id} className="matrix-device-stack">
+                <div className="tiered-layer top">
+                    {cpus.length > 0
+                        ? cpus.map(ep => renderEndpointCard(ep, dev))
+                        : <div className="tiered-empty">{t('dashboard.empty_cpu')}</div>}
+                </div>
+
+                <div className="tier-connector top" />
+
+                <div className="tiered-layer middle">
+                    <button
+                        className={`m-switch-node ${dev.last_status || 'offline'}`}
+                        onClick={() => setActiveDev(dev)}
+                        title={`${devName} ${dev.host || ''}`}
+                    >
+                        <span className="ms-icon">SW</span>
+                        <span className="ms-name">{devName}</span>
+                        <span className="ms-meta">{dev.host || dev.id}</span>
+                        <span className="ms-stats">
+                            CPU {cpus.length} · CON {cons.length}
+                            {portSummary.total > 0
+                                ? ` · ${t('dashboard.switch_ports')} ${portSummary.up}/${portSummary.total}`
+                                : ''}
+                        </span>
+                    </button>
+                </div>
+
+                <div className="tier-connector bottom" />
+
+                <div className="tiered-layer bottom">
+                    {cons.length > 0
+                        ? cons.map(ep => renderEndpointCard(ep, dev))
+                        : <div className="tiered-empty">{t('dashboard.empty_con')}</div>}
+                </div>
+            </section>
+        );
+    };
 
     return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div className="matrix-wrap" style={{ overflowY: 'auto' }}>
-                <div className="scan-line" />
-                <div
-                    className="matrix-grid"
-                    style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
-                >
-                    {list.map(ep => {
-                        const st = getEpStatus(ep);
-                        const epDisplayName = aliases[ep.id] || ep.name || ep.id;
-                        // 取短名：末段最多 8 个字符
-                        const rawShort = epDisplayName.split(/[-_]/).pop() || epDisplayName;
-                        const shortName = rawShort.length > 8 ? rawShort.slice(-8) : rawShort;
-                        return (
-                            <div
-                                key={ep.id}
-                                className={`m-cell ${st}`}
-                                onClick={() => {
-                                    setActiveEp(ep);
-                                    setActiveDev(devices.find(d => d.id === ep.device_id));
-                                }}
-                                title={`${epDisplayName} (${t('dashboard.ep_click_hint')})`}
-                            >
-                                <span className="m-cell-type">{(ep.module_type || 'cpu').toUpperCase()}</span>
-                                <span className="m-cell-name">{shortName}</span>
-                            </div>
-                        );
-                    })}
-                    {list.length === 0 && (
-                        <div style={{
-                            gridColumn: '1/-1', textAlign: 'center',
-                            padding: '40px', color: 'var(--text-dim)',
-                            fontSize: '10px', letterSpacing: '2px',
-                        }}>
-                            {t('dashboard.no_endpoints')}
-                        </div>
-                    )}
-                </div>
+        <div className="matrix-view">
+            <div className="matrix-content tiered-content">
+                {visibleDevices.length > 0 && (
+                    <div className="matrix-tiered-container">
+                        {visibleDevices.map(renderStack)}
+                    </div>
+                )}
+
+                {list.length === 0 && (
+                    <div className="empty-state">
+                        {t('dashboard.no_endpoints')}
+                    </div>
+                )}
             </div>
 
-            {/* 图例 */}
             <div className="matrix-legend">
                 {[
                     { key: 'online', label: t('dashboard.legend_online'), cls: 'online' },
@@ -111,8 +145,9 @@ const MatrixView = ({ filterDeviceId }) => {
                         <span className="legend-count">{counts[key]}</span>
                     </div>
                 ))}
-                <div style={{ marginLeft: 'auto', fontSize: '9px', color: 'var(--text-dim)' }}>
-                    {total} {t('dashboard.ep_total_hint')} · {t('dashboard.ep_click_hint')}
+
+                <div className="matrix-hint">
+                    {list.length} {t('dashboard.ep_total_hint')} · {t('dashboard.ep_click_hint')}
                 </div>
             </div>
 

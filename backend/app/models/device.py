@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, DateTime, Text
+from sqlalchemy import String, Boolean, Integer, DateTime, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -21,6 +21,8 @@ class Device(Base):
     poll_interval: Mapped[int] = mapped_column(Integer, default=60)  # 秒
     last_poll: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_status: Mapped[str | None] = mapped_column(String(16), nullable=True)  # online/offline/warning
+    last_metrics: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 存储最近一次轮询的设备指标及端口状态
+    endpoint_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

@@ -167,9 +167,26 @@ docker compose down
 docker compose down -v
 ```
 
+### 5. 数据库自动迁移 (New)
+如果您是从旧版本（v1.0 以前）升级，本次更新引入了 `devices.last_metrics` 字段。
+- **自动处理**：后端程序 `app.main.py` 在启动时会自动检测数据库。如果缺失该字段，会自动执行 `ALTER TABLE` 语句。
+- **手动补丁**：若自动迁移受阻，请进入数据库容器执行：
+  ```sql
+  ALTER TABLE devices ADD COLUMN last_metrics JSONB DEFAULT '{}';
+  ```
+
 ---
 
-## 六、故障排查
+## 六、关键逻辑说明：物理端口映射
+为了保证大屏显示与机架面板完全一致，本系统采用了 **硬件物理索引优先** 的策略：
+1. **OID 映射**：轮询器会读取 SNMP Table 的第 1 列（物理 Index）。
+2. **位置匹配**：前端渲染时，不再按照数据返回顺序排列，而是根据物理 Index 将终端分配到 1-32 号槽位。
+3. **视觉反馈**：未插入模块的槽位会显示为虚线空置状态，方便一眼看出交换机还有几个空余接口。
+   详见文档：[`docs/port_mapping_logic.md`](./port_mapping_logic.md)
+
+---
+
+## 七、故障排查
 
 ### 1. 前端页面白屏 / 404
 

@@ -399,59 +399,68 @@
     color: var(--green);
 }
 
+.dc-port-section {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dc-port-map {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 3px;
+    margin-top: 4px;
+}
+
+.port-dot {
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 1px;
+    transition: all 0.3s ease;
+}
+
+.port-dot.empty {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.port-dot.cpu {
+    background: #00d2ff;
+    box-shadow: 0 0 6px rgba(0, 210, 255, 0.4);
+}
+
+.port-dot.con {
+    background: #00ff88;
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.4);
+}
+
+.port-dot.offline {
+    opacity: 0.3;
+    box-shadow: none;
+}
+
+.dc-extra-metrics {
+    margin-top: 10px;
+}
+
 .dc-fans {
     display: flex;
-    gap: 2px;
-    margin-top: 6px;
+    gap: 3px;
+    margin-top: 4px;
 }
 
 .fan-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: var(--green);
-    box-shadow: 0 0 4px var(--green);
-    animation: fanp 1s ease-in-out infinite;
-}
-
-.fan-dot:nth-child(2) {
-    animation-delay: .16s;
-}
-
-.fan-dot:nth-child(3) {
-    animation-delay: .32s;
-}
-
-.fan-dot:nth-child(4) {
-    animation-delay: .48s;
-}
-
-.fan-dot:nth-child(5) {
-    animation-delay: .64s;
-}
-
-.fan-dot:nth-child(6) {
-    animation-delay: .80s;
+    box-shadow: 0 0 4px var(--green-glow);
 }
 
 .fan-dot.dead {
     background: var(--red);
-    box-shadow: 0 0 4px var(--red);
-    animation: none;
-}
-
-@keyframes fanp {
-
-    0%,
-    100% {
-        opacity: .3;
-        transform: scale(.8);
-    }
-
-    50% {
-        opacity: 1;
-        transform: scale(1);
-    }
+    box-shadow: 0 0 6px var(--red-glow);
+    animation: alert-pulse 1s infinite;
 }
 
 /* ─── CENTER ──────────────────────────────────────────── */
@@ -628,6 +637,15 @@
     line-height: 1.2;
 }
 
+.m-cell-port {
+    position: absolute;
+    top: 1px;
+    right: 2px;
+    font-size: 6px;
+    color: rgba(255, 255, 255, 0.3);
+    font-family: 'Orbitron', monospace;
+}
+
 .m-cell:hover {
     transform: scale(1.08);
     z-index: 9999;
@@ -654,6 +672,137 @@
     background: rgba(255, 179, 0, .55);
     border-color: rgba(255, 179, 0, .3);
     animation: warnp 1s ease-in-out infinite;
+}
+
+.m-cell.empty {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    cursor: default;
+}
+
+.m-cell.empty.active {
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.m-cell.empty .m-cell-name {
+    color: rgba(255, 255, 255, 0.2);
+}
+
+/* ─── TIERED MATRIX LAYOUT ────────────────────────── */
+.matrix-tiered-container {
+    position: relative;
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px 40px;
+}
+
+.tiered-svg-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.tiered-line {
+    stroke-width: 1;
+    stroke-dasharray: 4, 2;
+    opacity: 0.15;
+    transition: all 0.3s ease;
+}
+
+.tiered-line.online {
+    stroke: var(--green);
+    opacity: 0.3;
+}
+
+.tiered-line.warning {
+    stroke: var(--amber);
+    opacity: 0.3;
+}
+
+.tiered-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+    padding: 10px 0;
+}
+
+.tiered-row.top {
+    align-items: flex-start;
+}
+
+.tiered-row.middle {
+    gap: 40px;
+    padding: 60px 0;
+}
+
+.tiered-row.bottom {
+    align-items: flex-end;
+}
+
+.m-cell.compact {
+    height: 32px;
+    min-width: 70px;
+    padding: 0 6px;
+}
+
+.switch-node {
+    width: 120px;
+    height: 60px;
+    background: var(--bg-card);
+    border: 2px solid var(--border-bright);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+}
+
+.switch-icon {
+    font-size: 18px;
+    margin-bottom: 2px;
+}
+
+.switch-name {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 1px;
+}
+
+.switch-status-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    box-shadow: 0 0 8px currentColor;
+}
+
+.view-notice {
+    text-align: center;
+    padding: 10px;
+    font-size: 9px;
+    color: var(--amber);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: rgba(255, 179, 0, 0.05);
+    border: 1px dashed rgba(255, 179, 0, 0.2);
+    margin-top: 20px;
 }
 
 @keyframes deadp {
@@ -1250,4 +1399,544 @@
     border-color: var(--red);
     color: var(--red);
     background: var(--red-dim);
+}
+
+.view-notice {
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    color: #ffc107;
+    font-size: 9px;
+    padding: 4px 10px;
+    margin-bottom: 8px;
+    border-radius: 2px;
+    letter-spacing: 0.5px;
+    display: inline-block;
+    animation: notice-slide .3s ease-out;
+}
+/* ─── 矩阵分层视图 (拓扑) ────────────────────────────────── */
+.matrix-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+
+.matrix-content {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    padding: 20px;
+    min-height: 500px;
+}
+
+.matrix-tiered-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 100%;
+    position: relative;
+    gap: 40px;
+}
+
+.tiered-layer {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    position: relative;
+    z-index: 2;
+    padding: 10px;
+}
+
+.tiered-layer.middle {
+    gap: 60px; /* 交换机之间留宽一点 */
+}
+
+.m-cell {
+    width: 80px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    position: relative;
+}
+
+.m-cell:hover {
+    border-color: var(--cyan);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.m-cell-name {
+    font-size: 10px;
+    color: var(--text-bright);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.m-cell-type {
+    font-size: 8px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+/* 状态颜色 */
+.m-cell.online { border-color: var(--green); background: rgba(0, 230, 118, 0.05); }
+.m-cell.ready { border-color: var(--cyan); background: rgba(0, 184, 212, 0.05); }
+.m-cell.offline { border-color: var(--text-dim); opacity: 0.6; }
+.m-cell.warning { border-color: var(--amber); background: rgba(255, 193, 7, 0.05); }
+
+/* 交换机节点样式 */
+.m-switch-node {
+    width: 100px;
+    padding: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    text-align: center;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    border-radius: 4px;
+}
+
+.m-switch-node.online { border-color: var(--cyan); box-shadow: 0 0 10px var(--cyan-dim); }
+
+.ms-icon { font-size: 16px; margin-bottom: 4px; }
+.ms-name { font-size: 11px; font-weight: 600; color: var(--text-bright); }
+
+/* 背景连线 */
+.tiered-svg-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.tiered-line {
+    stroke: var(--border);
+    stroke-width: 0.5;
+    stroke-opacity: 0.3;
+    transition: all 0.3s;
+}
+
+.tiered-line.online { stroke: var(--green); stroke-opacity: 0.6; stroke-width: 1; }
+.tiered-line.ready  { stroke: var(--cyan); stroke-opacity: 0.6; stroke-width: 1; }
+.tiered-line.warning { stroke: var(--amber); stroke-opacity: 0.8; stroke-width: 1.5; }
+
+/* 底部图例 */
+.matrix-legend {
+    height: 32px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    gap: 20px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-main);
+}
+
+.legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.legend-dot.online { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.legend-dot.ready { background: var(--cyan); box-shadow: 0 0 5px var(--cyan); }
+.legend-dot.offline { background: var(--text-dim); }
+.legend-dot.warning { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
+
+.legend-count {
+    color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+}
+
+/* ─── v3 tiered matrix/topology overrides ───────────────── */
+.empty-state {
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 40px 16px;
+    text-align: center;
+}
+
+.tiered-content {
+    padding: 14px;
+}
+
+.matrix-tiered-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    align-items: stretch;
+    min-height: 100%;
+    width: 100%;
+}
+
+.matrix-device-stack {
+    min-height: 390px;
+    display: grid;
+    grid-template-rows: minmax(86px, 1fr) 28px auto 28px minmax(118px, 1.3fr);
+    align-items: center;
+    position: relative;
+    border: 1px solid rgba(0, 212, 255, 0.08);
+    background: rgba(6, 12, 24, 0.42);
+    padding: 10px;
+}
+
+.matrix-device-stack .tiered-layer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 0;
+    position: relative;
+    z-index: 2;
+}
+
+.tiered-empty,
+.topo-empty {
+    min-width: 86px;
+    min-height: 34px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    color: var(--text-dim);
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.tier-card.m-cell {
+    width: 86px;
+    min-height: 44px;
+    height: 44px;
+    padding: 5px 7px 4px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-bright);
+    text-align: center;
+}
+
+.tier-card.m-cell:hover {
+    transform: translateY(-2px);
+}
+
+.tier-card .m-cell-name {
+    width: 100%;
+    font-size: 9px;
+    line-height: 1.15;
+}
+
+.tier-card .m-cell-type {
+    margin-top: 3px;
+    font-size: 7px;
+}
+
+.tier-card .m-cell-port {
+    top: 2px;
+    right: 3px;
+    font-size: 7px;
+    color: rgba(255, 255, 255, 0.52);
+}
+
+.tier-connector {
+    width: 1px;
+    height: 28px;
+    justify-self: center;
+    background: linear-gradient(180deg, transparent, rgba(0, 212, 255, 0.45), transparent);
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.16);
+}
+
+.matrix-device-stack .m-switch-node {
+    width: min(170px, 100%);
+    min-height: 76px;
+    border-radius: 5px;
+    border: 1px solid var(--border-bright);
+    background: rgba(4, 14, 28, 0.88);
+    color: var(--text-bright);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    cursor: pointer;
+    padding: 9px 10px;
+}
+
+.matrix-device-stack .m-switch-node.online {
+    border-color: rgba(0, 212, 255, 0.75);
+    box-shadow: 0 0 16px rgba(0, 212, 255, 0.12);
+}
+
+.matrix-device-stack .m-switch-node.warning {
+    border-color: rgba(255, 179, 0, 0.75);
+}
+
+.matrix-device-stack .m-switch-node.offline {
+    border-color: rgba(255, 51, 85, 0.55);
+}
+
+.ms-icon {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--cyan);
+}
+
+.ms-name,
+.topo-switch-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ms-name {
+    font-size: 12px;
+    color: var(--text-bright);
+}
+
+.ms-meta,
+.ms-stats,
+.topo-switch-host,
+.topo-switch-stats {
+    font-size: 8px;
+    color: var(--text-dim);
+}
+
+.matrix-hint {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--text-dim);
+}
+
+.dc-module-map {
+    display: grid;
+    grid-template-columns: repeat(16, minmax(8px, 1fr));
+    gap: 3px;
+    margin-top: 4px;
+}
+
+.module-slot-pair {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+    min-height: 13px;
+}
+
+.module-slot-pair .port-dot {
+    width: 100%;
+    height: 5px;
+}
+
+.port-dot.cpu.empty,
+.port-dot.con.empty {
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: none;
+}
+
+.port-dot.physical {
+    width: 100%;
+}
+
+.port-dot.physical.up {
+    background: var(--green);
+    box-shadow: 0 0 5px var(--green);
+}
+
+.port-dot.physical.down {
+    background: var(--red);
+    opacity: 0.75;
+}
+
+.port-dot.physical.noModule,
+.port-dot.physical.moduleDeactivated {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.km-ok {
+    color: var(--green);
+}
+
+.km-partial,
+.km-unknown {
+    color: var(--amber);
+}
+
+.km-disconnected {
+    color: var(--red);
+}
+
+.topo-tiered-board {
+    transform-origin: 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 18px;
+    padding: 18px;
+    min-width: 100%;
+    min-height: 100%;
+}
+
+.topo-device-stack {
+    min-height: 430px;
+    display: grid;
+    grid-template-rows: minmax(96px, 1fr) 36px auto 36px minmax(130px, 1.35fr);
+    align-items: center;
+    border: 1px solid rgba(0, 212, 255, 0.1);
+    background: rgba(5, 12, 24, 0.35);
+    padding: 12px;
+}
+
+.topo-tier-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.topo-link-row {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    min-height: 32px;
+    align-items: stretch;
+}
+
+.topo-link-segment {
+    width: 1px;
+    min-height: 32px;
+    background: var(--cyan);
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.22);
+}
+
+.topo-link-segment.online {
+    background: var(--green);
+}
+
+.topo-link-segment.ready {
+    background: var(--cyan);
+}
+
+.topo-link-segment.warning {
+    background: var(--amber);
+}
+
+.topo-link-segment.offline,
+.topo-link-segment.muted {
+    background: repeating-linear-gradient(180deg, rgba(255, 51, 85, 0.6) 0 5px, transparent 5px 10px);
+    box-shadow: none;
+}
+
+.topo-tier-node {
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: rgba(5, 14, 28, 0.9);
+    color: var(--text-bright);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 4px;
+    padding: 7px 8px;
+    min-width: 92px;
+    max-width: 128px;
+}
+
+.topo-tier-node.endpoint {
+    cursor: pointer;
+    min-height: 58px;
+}
+
+.topo-tier-node.endpoint:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.15);
+}
+
+.topo-tier-node.switch {
+    min-width: min(200px, 100%);
+    max-width: 220px;
+    min-height: 86px;
+    align-items: center;
+    border-width: 2px;
+}
+
+.topo-tier-node.online,
+.topo-tier-node.switch.online {
+    border-color: var(--green);
+}
+
+.topo-tier-node.ready {
+    border-color: var(--cyan);
+}
+
+.topo-tier-node.warning,
+.topo-tier-node.switch.warning {
+    border-color: var(--amber);
+}
+
+.topo-tier-node.offline,
+.topo-tier-node.switch.offline {
+    border-color: var(--red);
+    opacity: 0.78;
+}
+
+.topo-node-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+}
+
+.topo-node-kind,
+.topo-node-port {
+    font-family: 'Orbitron', monospace;
+    font-size: 8px;
+    color: var(--cyan);
+}
+
+.topo-node-name,
+.topo-node-signal {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.topo-node-name {
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.topo-node-signal {
+    font-size: 8px;
+    color: var(--text-dim);
+}
+
+@media (max-width: 900px) {
+    .matrix-tiered-container,
+    .topo-tiered-board {
+        grid-template-columns: 1fr;
+    }
+
+    .matrix-hint {
+        display: none;
+    }
 }

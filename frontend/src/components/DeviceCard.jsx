@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import { useStore } from '../store/mainStore';
 import { useTranslation } from '../i18n';
+import { getDevicePortSummary } from '../utils/endpointStatus';
 
 /**
  * DeviceCard — 左侧 KVM 设备卡片
@@ -52,6 +53,18 @@ const DeviceCard = ({ device, isActive, onClick }) => {
     ].map(v => (v === undefined || v === null) ? null : Number(v));
     const hasMetrics = metrics !== null;
     const displayName = getDisplayName(device.id, device.name);
+    const ports = device.last_metrics?.ports || {};
+    const moduleOccupancy = device.last_metrics?.module_occupancy || {};
+    const cpuModules = moduleOccupancy.cpu || {};
+    const conModules = moduleOccupancy.con || {};
+    const legacyOccupancy = device.last_metrics?.port_occupancy || {};
+    const moduleSlots = Array.from(new Set([
+        ...Object.keys(cpuModules),
+        ...Object.keys(conModules),
+        ...Object.keys(legacyOccupancy),
+    ])).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+    const portIndices = Object.keys(ports).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+    const portSummary = getDevicePortSummary(device);
 
     return (
         <div
@@ -104,17 +117,59 @@ const DeviceCard = ({ device, isActive, onClick }) => {
                 </div>
             </div>
 
+            <div className="dc-port-section">
+                <div className="dc-metric-label" style={{ marginBottom: '4px' }}>
+                    {t('dashboard.dc_module_map')}
+                </div>
+                <div className="dc-module-map">
+                    {(moduleSlots.length ? moduleSlots : Array.from({ length: 8 }, (_, i) => i + 1)).map(portIdx => {
+                        const legacy = legacyOccupancy[portIdx];
+                        const cpu = cpuModules[portIdx] || (legacy?.type === 'cpu' ? legacy : null);
+                        const con = conModules[portIdx] || (legacy?.type === 'con' ? legacy : null);
+                        return (
+                            <div key={portIdx} className="module-slot-pair" title={`${t('dashboard.detail_interface')} #${portIdx}`}>
+                                <span className={`port-dot cpu ${cpu ? (cpu.status || 'online') : 'empty'}`} />
+                                <span className={`port-dot con ${con ? (con.status || 'online') : 'empty'}`} />
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {portSummary.total > 0 && (
+                <div className="dc-port-section">
+                    <div className="dc-metric-label" style={{ marginBottom: '4px' }}>
+                        {t('dashboard.dc_port_map')} {portSummary.up}/{portSummary.total}
+                    </div>
+                    <div className="dc-port-map">
+                        {portIndices.map(portIdx => {
+                            const statusValue = ports[portIdx]?.port_status || 'noModule';
+                            return (
+                                <div
+                                    key={portIdx}
+                                    className={`port-dot physical ${statusValue}`}
+                                    title={`${t('dashboard.detail_port')} ${portIdx}: ${statusValue}`}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             {hasMetrics && fans.some(f => f !== null) && isDisplayEnabled('fan1') && (
-                <div className="dc-fans">
-                    {fans.map((f, i) =>
-                        f !== null ? (
-                            <div
-                                key={i}
-                                className={`fan-dot ${f === 0 ? 'dead' : ''}`}
-                                title={f === 0 ? `${t('dashboard.dc_fan_fault')} ${i + 1}` : `Fan${i + 1}: ${f} RPM`}
-                            />
-                        ) : null
-                    )}
+                <div className="dc-extra-metrics">
+                    <div className="dc-metric-label">{t('dashboard.dc_fans', 'Fans Status')}</div>
+                    <div className="dc-fans">
+                        {fans.map((f, i) =>
+                            f !== null ? (
+                                <div
+                                    key={i}
+                                    className={`fan-dot ${f === 0 ? 'dead' : ''}`}
+                                    title={f === 0 ? `${t('dashboard.dc_fan_fault')} ${i + 1}` : `Fan${i + 1}: ${f} RPM`}
+                                />
+                            ) : null
+                        )}
+                    </div>
                 </div>
             )}
         </div>

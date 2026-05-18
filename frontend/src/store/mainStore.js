@@ -146,7 +146,13 @@ export const useStore = create((set, get) => ({
         set((state) => {
             const updatedDevices = state.devices.map(d =>
                 d.id === deviceUpdate.device_id
-                    ? { ...d, last_status: deviceUpdate.online_status || 'online', updated_at: deviceUpdate.timestamp }
+                    ? { 
+                        ...d, 
+                        last_status: deviceUpdate.online_status || 'online', 
+                        last_metrics: deviceUpdate.last_metrics || d.last_metrics,
+                        endpoint_count: deviceUpdate.endpoint_count ?? d.endpoint_count,
+                        updated_at: deviceUpdate.timestamp 
+                      }
                     : d
             );
             return { devices: updatedDevices };

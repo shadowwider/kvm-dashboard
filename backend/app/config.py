@@ -1,5 +1,9 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from pathlib import Path
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -45,9 +49,18 @@ class Settings(BaseSettings):
     admin_password: str = "admin123"
 
     @property
+    def resolved_sqlite_path(self) -> str:
+        if self.sqlite_path == ":memory:":
+            return self.sqlite_path
+        path = Path(self.sqlite_path)
+        if not path.is_absolute():
+            path = BACKEND_DIR / path
+        return path.resolve().as_posix()
+
+    @property
     def database_url(self) -> str:
         if self.db_mode == "sqlite":
-            return f"sqlite+aiosqlite:///{self.sqlite_path}"
+            return f"sqlite+aiosqlite:///{self.resolved_sqlite_path}"
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
@@ -57,7 +70,7 @@ class Settings(BaseSettings):
     def database_url_sync(self) -> str:
         """Alembic 使用同步驱动"""
         if self.db_mode == "sqlite":
-            return f"sqlite:///{self.sqlite_path}"
+            return f"sqlite:///{self.resolved_sqlite_path}"
         return (
             f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"

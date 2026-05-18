@@ -9,6 +9,7 @@ import asyncio
 import logging
 import logging.handlers
 import os
+import sys
 from datetime import datetime, timezone, timedelta
 from pysnmp.hlapi.asyncio import (
     SnmpEngine, CommunityData, UdpTransportTarget,
@@ -35,13 +36,23 @@ _poll_settings = _get_settings()
 _raw_log_enabled: bool = _poll_settings.snmp_raw_log_enabled
 
 
+class _SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
+    def handleError(self, record):
+        exc = sys.exc_info()[1]
+        if isinstance(exc, PermissionError):
+            return
+        super().handleError(record)
+
+
 def _init_poll_raw_logger():
     """初始化轮询原始数据 RotatingFileHandler（不影响主日志）"""
+    if not _raw_log_enabled or _poll_raw_logger.handlers:
+        return
     log_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), '..', '..', 'logs')
     )
     os.makedirs(log_dir, exist_ok=True)
-    handler = logging.handlers.RotatingFileHandler(
+    handler = _SafeRotatingFileHandler(
         os.path.join(log_dir, 'poll_raw.log'),
         maxBytes=20 * 1024 * 1024,   # 20 MB per file
         backupCount=10,
@@ -326,6 +337,16 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                 ep_status_summary = {k: v[0] for k, v in field_map.items()}
 
                 if namespace in _EP_NAMESPACES:
+                    # Column 1 是厂商表里的 module index。部分型号上它可能等于面板接口位，
+                    # 但 MIB 未证明它就是 portTable 的物理 portIndex。
+                    module_index = row_index
+                    if namespace == "cpu" and "ep_port" in field_map:
+                        _, val_num, _ = field_map["ep_port"]
+                        if val_num is not None: module_index = int(val_num)
+                    elif namespace == "con" and "con_port" in field_map:
+                        _, val_num, _ = field_map["con_port"]
+                        if val_num is not None: module_index = int(val_num)
+
                     ep_id = f"{device.id}_{namespace}_{row_index}"
                     ep_name = (
                         ep_status_summary.get("ep_name")
@@ -335,13 +356,14 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                     if existing:
                         existing.last_status = ep_status_summary
                         existing.updated_at = now
+                        existing.index = module_index
                         if ep_name:
                             existing.name = ep_name
                     else:
-                        ep_name = ep_name or f"{namespace.upper()}-{row_index}"
+                        ep_name = ep_name or f"{namespace.upper()}-{module_index}"
                         db.add(Endpoint(
                             id=ep_id, device_id=device.id, name=ep_name,
-                            index=row_index, module_type=namespace,
+                            index=module_index, module_type=namespace,
                             last_status=ep_status_summary,
                             updated_at=now, created_at=now,
                         ))
@@ -381,6 +403,52 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
         device_online_status = "online"
         if device_status_summary.get("main_power") not in (None, "on"):
             device_online_status = "warning"
+
+        # 聚合端口状态与模块接口位。ports 来自 portTable；module_occupancy 来自 CPU/CON 表。
+        ports_map = {}
+        module_occupancy = {"cpu": {}, "con": {}}
+        port_occupancy = {}  # legacy: kept for old frontends, do not rely on it for CPU/CON mapping
+        endpoint_id_list = set()
+
+        for (namespace, row_index), field_map in endpoint_data.items():
+            if namespace == "port":
+                ports_map[row_index] = {k: v[0] for k, v in field_map.items()}
+            elif namespace in ("cpu", "con"):
+                module_index = row_index
+                if namespace == "cpu" and "ep_port" in field_map:
+                    module_index = int(field_map["ep_port"][1] or row_index)
+                elif namespace == "con" and "con_port" in field_map:
+                    module_index = int(field_map["con_port"][1] or row_index)
+
+                status_key = "ep_device_status" if namespace == "cpu" else "con_device_status"
+                status_value = field_map.get(status_key, ("offline", None, None))[0]
+                name_key = "ep_name" if namespace == "cpu" else "con_name"
+                module_entry = {
+                    "type": namespace,
+                    "status": status_value,
+                    "row_index": row_index,
+                    "module_index": module_index,
+                    "endpoint_id": f"{device.id}_{namespace}_{row_index}",
+                    "name": field_map.get(name_key, ("", None, None))[0],
+                }
+                module_occupancy[namespace][str(module_index)] = module_entry
+                port_occupancy.setdefault(str(module_index), module_entry)
+                endpoint_id_list.add(f"{device.id}_{namespace}_{row_index}")
+
+        # 整理最终的设备指标快照
+        endpoint_count_by_type = {
+            "cpu": len(module_occupancy["cpu"]),
+            "con": len(module_occupancy["con"]),
+        }
+        full_metrics = {
+            "summary": device_status_summary,
+            "ports": ports_map,
+            "module_occupancy": module_occupancy,
+            "port_occupancy": port_occupancy,
+            "endpoint_count": endpoint_count_by_type,
+        }
+        ep_count = len(endpoint_id_list)
+
         temp = None
         try:
             temp_str = device_status_summary.get("temperature")
@@ -393,7 +461,10 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
 
         await db.execute(
             update(Device).where(Device.id == device.id).values(
-                last_poll=now, last_status=device_online_status
+                last_poll=now,
+                last_status=device_online_status,
+                last_metrics=full_metrics,
+                endpoint_count=ep_count
             )
         )
 
@@ -420,6 +491,8 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
         "device_id": device.id,
         "online_status": device_online_status,
         "status": device_status_summary,
+        "last_metrics": full_metrics,
+        "endpoint_count": ep_count,
         "timestamp": now.isoformat(),
     })
     if alerts_to_create:

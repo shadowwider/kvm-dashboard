@@ -29,31 +29,28 @@
 
 ## 📂 核心交接文档指引
 
-由于本项目开发严谨复杂，相关的深入逻辑设计和规范均已文档化，**前后端交接或新开对话请务必阅读以下 5 个核心文件：**
+由于本项目开发严谨复杂，相关的深入逻辑设计和规范均已文档化：
 
-1. **📚 API 契约文档** 👉 `tasks/api_docs.md`（前端 axios 请求必备，含参数和 JSON 示例）
-2. **🎨 前端大屏设计案** 👉 `tasks/frontend_plan.md`（React 拓扑分层策略、UI 质感、CSS 色卡基准）
-3. **🗄️ 数据库业务全图** 👉 `backend/init.sql`（PostgreSQL 表结构、TimescaleDB 配置指令全貌）
-4. **💡 生产级避坑教训** 👉 `tasks/lessons.md`（包括为何要并发限流、连接层复用、和 MIB 数据源信任层级）
+1. **📚 API 契约文档** 👉 `tasks/api_docs.md`（含新增 `last_metrics` 端口状态字段说明）
+2. **🎨 前端设计案** 👉 `tasks/frontend_plan.md`（UI 质感、CSS 色卡基准）
+3. **🔧 物理端口逻辑** 👉 `docs/port_mapping_logic.md`（**必读**：解释如何通过 Column 1 映射机架位置）
+4. **💡 生产避坑教训** 👉 `tasks/lessons.md`（包含并发限流、SNMP 库兼容性处理）
 5. **📝 进度追踪清单** 👉 `tasks/todo.md`（项目大阶段总揽）
-6. **🤝 工作交接必读指南** 👉 `docs/HANDOVER.md`（给下一任开发人员的底层闭坑及全栈联调指令）
+6. **🎮 仿真器指南** 👉 `help/README.md`（如何使用可视化工具 Sim-Pro 进行压力测试）
 
 ---
 
-## 🚀 快速启动 (后端开发模式)
+## 🚀 快速启动
 
-### 1. 环境准备
-确保已安装 `Python 3.10+` 和包管理工具 `uv` (推荐) 或 `pip`。
+### 1. 环境要求
+- **Python 3.10+** (后端)
+- **Node.js 18+** (前端)
+- **PostgreSQL 16+** (生产环境推荐) 或 **SQLite** (开发环境)
 
+### 2. 开发模式启动
 ```bash
-# 切换到后端目录
-cd backend
-
-# 安装依赖
+# 后端 (backend 目录下)
 pip install -r requirements.txt
-```
-
-### 2. 环境配置
 复制环境变量模板：
 ```bash
 # Windows

@@ -18,8 +18,9 @@ export function useTranslation() {
   const setLocale = useTranslationStore((state) => state.setLocale);
   const dict = dictionaries[locale] || dictionaries['zh-CN'];
 
-  const t = (key) => {
-    return key.split('.').reduce((obj, k) => (obj || {})[k], dict) || key;
+  const t = (key, fallback) => {
+    const value = key.split('.').reduce((obj, k) => (obj || {})[k], dict);
+    return value || fallback || key;
   };
 
   const toggleLocale = () => {

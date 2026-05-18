@@ -57,6 +57,7 @@ DEVICE_OIDS = {
 ENDPOINT_TABLE_ENTRY = "{sys_oid}.1.2.2.3.1000.1"
 
 ENDPOINT_COLUMNS = {
+    "ep_port":                1,   # targetModuleIndex (模块索引/接口位，未证明等于 portTable portIndex)
     "ep_id":                  2,   # id (设备 hex ID)
     "ep_class":               3,   # cl (类别编号)
     "ep_name":                4,   # name (显示名称)
@@ -89,6 +90,7 @@ ENDPOINT_COLUMNS = {
 CON_TABLE_ENTRY = "{sys_oid}.1.1.2.3.1000.1"
 
 CON_COLUMNS = {
+    "con_port":             1,   # userModuleIndex (模块索引/接口位，未证明等于 portTable portIndex)
     "con_id":               2,   # id (终端 hex ID)
     "con_class":            3,   # cl (类别编号)
     "con_name":             4,   # name (显示名称)
@@ -205,6 +207,7 @@ SEED_OID_REGISTRY = [
     {"name": "net_if1",         "oid": DEVICE_OIDS["net_if1"],         "display_name": "网口1",      "category": "device", "data_type": "enum",    "enum_map": ENUM_MAPS["net_if_status"],      "alert_enabled": False, "display_order": 31},
 
     # ─── 终端模块（SNMP Table，23个列）──────────────────────────────
+    {"name": "ep_port",                "display_name": "CPU模块索引",    "category": "endpoint", "data_type": "integer", "is_table": True, "table_base_oid": ENDPOINT_TABLE_ENTRY, "table_column": 1,  "alert_enabled": False, "display_order": 99},
     {"name": "ep_id",                  "display_name": "终端ID",         "category": "endpoint", "data_type": "string",  "is_table": True, "table_base_oid": ENDPOINT_TABLE_ENTRY, "table_column": 2,  "alert_enabled": False, "display_order": 100},
     {"name": "ep_class",               "display_name": "终端类别",       "category": "endpoint", "data_type": "string",  "is_table": True, "table_base_oid": ENDPOINT_TABLE_ENTRY, "table_column": 3,  "alert_enabled": False, "display_order": 101},
     {"name": "ep_name",                "display_name": "终端名称",       "category": "endpoint", "data_type": "string",  "is_table": True, "table_base_oid": ENDPOINT_TABLE_ENTRY, "table_column": 4,  "alert_enabled": False, "display_order": 102},
@@ -230,6 +233,7 @@ SEED_OID_REGISTRY = [
     {"name": "ep_net_if0",             "display_name": "终端网口",       "category": "endpoint", "data_type": "enum",    "is_table": True, "table_base_oid": ENDPOINT_TABLE_ENTRY, "table_column": 24, "enum_map": ENUM_MAPS["net_if_status"],     "alert_enabled": False, "display_order": 122},
 
     # ─── CON 用户模块（SNMP Table，30个列）─────────────────────────
+    {"name": "con_port",            "display_name": "CON模块索引",    "category": "con_endpoint", "data_type": "integer", "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 1,  "alert_enabled": False, "display_order": 129},
     {"name": "con_id",              "display_name": "CON终端ID",      "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 2,  "alert_enabled": False, "display_order": 130},
     {"name": "con_class",           "display_name": "CON类别",        "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 3,  "alert_enabled": False, "display_order": 131},
     {"name": "con_name",            "display_name": "CON名称",        "category": "con_endpoint", "data_type": "string",  "is_table": True, "table_base_oid": CON_TABLE_ENTRY, "table_column": 4,  "alert_enabled": False, "display_order": 132},
