@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
 from app.database import get_db
 from app.models.device import Device
+from app.models.endpoint import Endpoint
 from app.models.user import User
 from app.auth.deps import get_current_user, require_admin
 from app.snmp.poller import poll_device, run_poll_cycle
@@ -118,6 +119,7 @@ async def delete_device(
     device = await db.get(Device, device_id)
     if not device:
         raise HTTPException(404, "设备不存在")
+    await db.execute(sql_delete(Endpoint).where(Endpoint.device_id == device_id))
     await db.delete(device)
     await db.commit()
 

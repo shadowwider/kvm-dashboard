@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -8,7 +8,7 @@ from typing import Optional
 from app.database import get_db
 from app.models.endpoint import Endpoint
 from app.models.user import User
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, require_admin
 
 router = APIRouter()
 
@@ -45,6 +45,19 @@ async def get_endpoint(
 ):
     ep = await db.get(Endpoint, endpoint_id)
     if not ep:
-        from fastapi import HTTPException
         raise HTTPException(404, "终端不存在")
     return ep
+
+
+@router.delete("/{endpoint_id}", status_code=204)
+async def delete_endpoint(
+    endpoint_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    ep = await db.get(Endpoint, endpoint_id)
+    if not ep:
+        raise HTTPException(404, "终端不存在")
+    await db.delete(ep)
+    await db.commit()
+

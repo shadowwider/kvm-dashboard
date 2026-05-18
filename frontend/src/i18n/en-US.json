@@ -52,6 +52,7 @@
         "detail_access": "Access State",
         "detail_trend": "Temp Trend (last 12 polls)",
         "detail_km_combined": "Keyboard/Mouse",
+        "detail_keyboard_mouse": "Keyboard/Mouse",
         "dc_temp": "Temp",
         "dc_power": "PSU",
         "dc_net": "NIC",
@@ -95,6 +96,7 @@
         "back": "Back to Dashboard",
         "tabs": {
             "devices": "Devices",
+            "endpoints": "Endpoints",
             "aliases": "Aliases",
             "oids": "OID Config",
             "alerts": "Alerts",

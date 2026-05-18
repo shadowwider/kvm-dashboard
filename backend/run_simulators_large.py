@@ -27,9 +27,12 @@ TRAP_TARGET_HOST = os.environ.get("TRAP_TARGET_HOST", "127.0.0.1")
 TRAP_TARGET_PORT = int(os.environ.get("SNMP_TRAP_PORT", "10162"))
 TRAP_COMMUNITY   = os.environ.get("SNMP_COMMUNITY", "public")
 
-_TRAP_NOTIF_OID  = "1.3.6.1.4.1.32828.5.0.4"   # G&D GeneralTrap notification OID
-_TRAP_LEVEL_OID  = "1.3.6.1.4.1.32828.5.1.0.2"  # level varbind
-_TRAP_MSG_OID    = "1.3.6.1.4.1.32828.5.1.0.3"  # message varbind
+# OID 来自 GUD-SMI-MIB + GUD-GENERALTRAPS-MIB 推导：
+# gudEnterprise=32828, gudTrap=32828.2, gudGeneralTrap=32828.2.1
+# gudGeneralNotifications=32828.2.1.0
+_TRAP_NOTIF_OID  = "1.3.6.1.4.1.32828.2.1.0.4"  # generalNotification
+_TRAP_LEVEL_OID  = "1.3.6.1.4.1.32828.2.1.0.2"  # level
+_TRAP_MSG_OID    = "1.3.6.1.4.1.32828.2.1.0.3"  # message
 _SYS_UPTIME_OID  = "1.3.6.1.2.1.1.3.0"
 _SNMPTRAPOID_OID = "1.3.6.1.6.3.1.1.4.1.0"
 
@@ -442,32 +445,34 @@ def build_oid_map(state):
         oid_map[f"{con_base}.29.{row}"] = con["active_tx_port"]
         oid_map[f"{con_base}.30.{row}"] = con["net_if0"]
 
-    # ── 交换机物理传输端口 → .2.3.1000.1.{col}.{row} ─────────────
-    port_base = f"{base}.2.3.1000.1"
-    occupied_ports = {}
-    for cpu in s["cpus"]:
-        occupied_ports[cpu["module_index"]] = {
-            "status": 3 if cpu["device_status"] != 0 else 2,
-            "tx": cpu["sfp_tx_power"] if cpu["device_status"] != 0 else 0,
-            "rx": cpu["sfp_rx_power"] if cpu["device_status"] != 0 else 0,
-            "type": "LC-SMF" if cpu["device_status"] != 0 else "",
-        }
-    for con in s["cons"]:
-        occupied_ports[con["module_index"]] = {
-            "status": 3 if con["device_status"] != 0 else 2,
-            "tx": con["sfp_tx_power"] if con["device_status"] != 0 else 0,
-            "rx": con["sfp_rx_power"] if con["device_status"] != 0 else 0,
-            "type": "LC-SMF" if con["device_status"] != 0 else "",
-        }
-    max_port = max(NUM_PORTS, max(occupied_ports.keys(), default=0))
-    for port_idx in range(1, max_port + 1):
-        port = occupied_ports.get(port_idx)
-        status = port["status"] if port else 0
-        oid_map[f"{port_base}.2.{port_idx}"] = status
-        oid_map[f"{port_base}.3.{port_idx}"] = status
-        oid_map[f"{port_base}.4.{port_idx}"] = port["tx"] if port else 0
-        oid_map[f"{port_base}.5.{port_idx}"] = port["rx"] if port else 0
-        oid_map[f"{port_base}.6.{port_idx}"] = port["type"] if port else ""
+    # ── 交换机物理传输端口 (portTable) ─────────────────────────────
+    # 注意：真实设备不支持 portTable，这里注释掉以符合真实行为
+    # 如果需要测试 portTable 功能，可以取消注释以下代码
+    # port_base = f"{base}.2.3.1000.1"
+    # occupied_ports = {}
+    # for cpu in s["cpus"]:
+    #     occupied_ports[cpu["module_index"]] = {
+    #         "status": 3 if cpu["device_status"] != 0 else 2,
+    #         "tx": cpu["sfp_tx_power"] if cpu["device_status"] != 0 else 0,
+    #         "rx": cpu["sfp_rx_power"] if cpu["device_status"] != 0 else 0,
+    #         "type": "LC-SMF" if cpu["device_status"] != 0 else "",
+    #     }
+    # for con in s["cons"]:
+    #     occupied_ports[con["module_index"]] = {
+    #         "status": 3 if con["device_status"] != 0 else 2,
+    #         "tx": con["sfp_tx_power"] if con["device_status"] != 0 else 0,
+    #         "rx": con["sfp_rx_power"] if con["device_status"] != 0 else 0,
+    #         "type": "LC-SMF" if con["device_status"] != 0 else "",
+    #     }
+    # max_port = max(NUM_PORTS, max(occupied_ports.keys(), default=0))
+    # for port_idx in range(1, max_port + 1):
+    #     port = occupied_ports.get(port_idx)
+    #     status = port["status"] if port else 0
+    #     oid_map[f"{port_base}.2.{port_idx}"] = status
+    #     oid_map[f"{port_base}.3.{port_idx}"] = status
+    #     oid_map[f"{port_base}.4.{port_idx}"] = port["tx"] if port else 0
+    #     oid_map[f"{port_base}.5.{port_idx}"] = port["rx"] if port else 0
+    #     oid_map[f"{port_base}.6.{port_idx}"] = port["type"] if port else ""
 
     return oid_map
 

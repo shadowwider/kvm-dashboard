@@ -52,6 +52,7 @@
         "detail_access": "访问状态",
         "detail_trend": "温度趋势（近12次轮询）",
         "detail_km_combined": "综合键鼠",
+        "detail_keyboard_mouse": "键鼠状态",
         "dc_temp": "温度",
         "dc_power": "电源",
         "dc_net": "网口",
@@ -95,6 +96,7 @@
         "back": "返回大屏",
         "tabs": {
             "devices": "设备管理",
+            "endpoints": "终端管理",
             "aliases": "别名管理",
             "oids": "OID 配置",
             "alerts": "告警管理",

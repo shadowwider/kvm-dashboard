@@ -40,12 +40,13 @@ async def _migrate_columns():
     migrations = [
         # (table, column, ddl)
         # DDL 仅在列不存在时执行；SQLite 用 create_all 建表已含所有列，以下 DDL 只会跑到 PostgreSQL
-        ("endpoints",      "module_type", "ALTER TABLE endpoints ADD COLUMN module_type TEXT NOT NULL DEFAULT 'cpu'"),
-        ("devices",        "model_name",  "ALTER TABLE devices ADD COLUMN model_name VARCHAR(128)"),
-        ("devices",        "last_metrics","ALTER TABLE devices ADD COLUMN last_metrics TEXT"), # SQLite JSON is TEXT
-        ("devices",        "endpoint_count", "ALTER TABLE devices ADD COLUMN endpoint_count INTEGER DEFAULT 0"),
-        ("users",          "updated_at",  "ALTER TABLE users ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
-        ("status_metrics", "id",          "ALTER TABLE status_metrics ADD COLUMN id BIGSERIAL"),
+        ("endpoints",      "module_type",   "ALTER TABLE endpoints ADD COLUMN module_type TEXT NOT NULL DEFAULT 'cpu'"),
+        ("devices",        "model_name",    "ALTER TABLE devices ADD COLUMN model_name VARCHAR(128)"),
+        ("devices",        "last_metrics",  "ALTER TABLE devices ADD COLUMN last_metrics TEXT"),
+        ("devices",        "endpoint_count","ALTER TABLE devices ADD COLUMN endpoint_count INTEGER DEFAULT 0"),
+        ("users",          "updated_at",    "ALTER TABLE users ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
+        ("status_metrics", "id",            "ALTER TABLE status_metrics ADD COLUMN id BIGSERIAL"),
+        ("alerts",         "endpoint_id",   "ALTER TABLE alerts ADD COLUMN endpoint_id VARCHAR(128)"),
     ]
     async with engine.begin() as conn:
         if settings.is_sqlite:

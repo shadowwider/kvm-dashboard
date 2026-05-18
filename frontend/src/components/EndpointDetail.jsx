@@ -126,17 +126,10 @@ const EndpointDetail = ({ ep, dev, onClose }) => {
                             <span className="td-v">{stRaw.con_display_type}</span>
                         </div>
                     )}
+                    {/* 只显示综合键鼠状态，不再单独显示 PS/2 和 USB */}
                     <div className="td-row">
-                        <span className="td-k">{t('dashboard.detail_km_combined')}</span>
+                        <span className="td-k">{t('dashboard.detail_keyboard_mouse')}</span>
                         <span className={`td-v km-${kmState.state}`}>{formatKeyboardMouseState(kmState, t)}</span>
-                    </div>
-                    <div className="td-row">
-                        <span className="td-k">{t('dashboard.status_ps2')}</span>
-                        <span className="td-v">{formatKeyboardMouseValue(stRaw.con_console_ps2, t)}</span>
-                    </div>
-                    <div className="td-row">
-                        <span className="td-k">{t('dashboard.status_usb')}</span>
-                        <span className="td-v">{formatKeyboardMouseValue(stRaw.con_console_usb, t)}</span>
                     </div>
                 </>
             )}

@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation, useTranslationStore } from '../i18n';
 import DevicesTab from '../components/admin/DevicesTab';
+import EndpointsTab from '../components/admin/EndpointsTab';
 import AliasesTab from '../components/admin/AliasesTab';
 import OIDsTab from '../components/admin/OIDsTab';
 import AlertsTab from '../components/admin/AlertsTab';
 import UsersTab from '../components/admin/UsersTab';
 import './Admin.css';
 
-const TABS = ['devices', 'aliases', 'oids', 'alerts', 'users'];
+const TABS = ['devices', 'endpoints', 'aliases', 'oids', 'alerts', 'users'];
 
 function Admin() {
     const navigate = useNavigate();
@@ -43,6 +44,8 @@ function Admin() {
         switch (activeTab) {
             case 'devices':
                 return <DevicesTab t={t} showToast={showToast} />;
+            case 'endpoints':
+                return <EndpointsTab t={t} showToast={showToast} />;
             case 'aliases':
                 return <AliasesTab t={t} showToast={showToast} />;
             case 'oids':

@@ -3,11 +3,18 @@ SNMP Trap 接收器（UDP:162）。
 接收 G&D KVM 设备发送的 Trap 通知（GUD-GENERALTRAPS-MIB），
 解析 level/message varbind，写入告警表，广播前端，并将原始数据记录到文件。
 
-G&D 通用 Trap 格式（GUD-GENERALTRAPS-MIB）：
-  Trap OID:  1.3.6.1.4.1.32828.5.0.4
+G&D 通用 Trap 格式（GUD-GENERALTRAPS-MIB，由 GUD-SMI-MIB 推导）：
+  OID 路径：
+    gudEnterprise       = 1.3.6.1.4.1.32828
+    gudTrap             = gudEnterprise.2   → 1.3.6.1.4.1.32828.2
+    gudGeneralTrap      = gudTrap.1         → 1.3.6.1.4.1.32828.2.1
+    gudGeneralNotifications = gudGeneralTrap.0 → 1.3.6.1.4.1.32828.2.1.0
+
   VarBinds:
-    1.3.6.1.4.1.32828.5.1.0.2  level    整数 (0=Emergency .. 5=Notice)
-    1.3.6.1.4.1.32828.5.1.0.3  message  字符串描述
+    1.3.6.1.2.1.1.3.0          sysUpTime  (TimeTicks，固定标准字段)
+    1.3.6.1.6.3.1.1.4.1.0      snmpTrapOID = 1.3.6.1.4.1.32828.2.1.0.4
+    1.3.6.1.4.1.32828.2.1.0.2  level    Integer32 (0=Emergency..5=Notice)
+    1.3.6.1.4.1.32828.2.1.0.3  message  DisplayString
 """
 import asyncio
 import logging
@@ -67,9 +74,12 @@ _LEVEL_NAME: dict[int, str] = {
     3: 'ERROR',     4: 'WARNING', 5: 'NOTICE',
 }
 
-# G&D varbind OID 中出现的标志串（唯一标识 level / message 字段）
-_LEVEL_OID_MARKER   = '32828.5.1.0.2'
-_MESSAGE_OID_MARKER = '32828.5.1.0.3'
+# G&D varbind OID marker（来自 GUD-GENERALTRAPS-MIB + GUD-SMI-MIB 推导）
+# gudGeneralNotifications = 1.3.6.1.4.1.32828.2.1.0
+# level   ::= { gudGeneralNotifications 2 } → 1.3.6.1.4.1.32828.2.1.0.2
+# message ::= { gudGeneralNotifications 3 } → 1.3.6.1.4.1.32828.2.1.0.3
+_LEVEL_OID_MARKER   = '32828.2.1.0.2'
+_MESSAGE_OID_MARKER = '32828.2.1.0.3'
 
 
 def _start_trap_receiver(main_loop: asyncio.AbstractEventLoop):
@@ -165,25 +175,136 @@ async def _save_trap(
     binds: list[dict],
     timestamp: datetime,
 ):
-    """异步写库并广播 WebSocket"""
+    """
+    异步写库并广播 WebSocket。
+
+    增强逻辑：
+    - 从 Trap message 解析 ep_id/con_id（MIB Column 2）
+    - 通过 Endpoint.last_status JSON 字段精确定位端点（不依赖 source_ip）
+    - 从端点反查所属设备，再查别名
+    - 降级：找不到设备/端点时保留原始消息，不报错
+    """
+    from app.models.device import Device
+    from app.models.endpoint import Endpoint
+    from app.models.device_alias import DeviceAlias
+    from sqlalchemy import select
+    import re
+
     async with AsyncSessionLocal() as db:
+        # ── 1. 从消息中解析模块 ID（ep_id / con_id = MIB Column 2）──
+        # Trap message 格式（真实设备日志确认）:
+        #   "CPU module CPU-1-001 went offline"
+        #   "CON module CON-2-003 came online"
+        # 消息里用的是 ep_id / con_id（Column 2），不是 ep_name / con_name（Column 4）
+        endpoint_id = None
+        endpoint_name = None
+        device_id = source_ip
+        device_name = source_ip
+        enhanced_message = message
+
+        match = re.search(r'(CPU|CON) module ((CPU|CON)-\d+-\d+)', message)
+        if match:
+            module_type_str = match.group(1)   # 'CPU' 或 'CON'
+            module_id = match.group(2)          # e.g. 'CPU-1-001'
+            action = "went offline" if "offline" in message else "came online"
+            # last_status JSON 里对应的键名
+            id_field = "ep_id" if module_type_str == "CPU" else "con_id"
+
+            # ── 2. 通过 last_status JSON 搜索端点 ─────────────────
+            # 不依赖 source_ip（Docker 环境下 Trap 来源 IP 可能是网关而非设备 IP）
+            # SQLAlchemy JSON 路径：
+            #   PostgreSQL: last_status->>'ep_id' = 'CPU-1-001'
+            #   SQLite:     json_extract(last_status, '$.ep_id') = 'CPU-1-001'
+            ep_query = select(Endpoint).where(
+                Endpoint.last_status[id_field].as_string() == module_id
+            )
+            ep_result = await db.execute(ep_query)
+            endpoint = ep_result.scalar_one_or_none()
+
+            if endpoint:
+                endpoint_id = endpoint.id
+
+                # ── 3. 从端点反查所属设备 ──────────────────────────
+                device = await db.get(Device, endpoint.device_id)
+                if device:
+                    device_id = device.id
+                    device_name = device.name
+
+                    dev_alias = await db.execute(
+                        select(DeviceAlias).where(DeviceAlias.target_id == device.id)
+                    )
+                    dev_alias = dev_alias.scalar_one_or_none()
+                    if dev_alias and dev_alias.alias:
+                        device_name = dev_alias.alias
+
+                # ── 4. 端点别名 ────────────────────────────────────
+                endpoint_name = endpoint.name
+                ep_alias = await db.execute(
+                    select(DeviceAlias).where(DeviceAlias.target_id == endpoint.id)
+                )
+                ep_alias = ep_alias.scalar_one_or_none()
+                if ep_alias and ep_alias.alias:
+                    endpoint_name = ep_alias.alias
+
+                enhanced_message = f"{device_name}/{endpoint_name} {action}"
+            else:
+                # 找不到端点：尝试仅用 source_ip 查设备（兼容非 Docker 部署）
+                dev_result = await db.execute(
+                    select(Device).where(Device.host == source_ip)
+                )
+                device = dev_result.scalar_one_or_none()
+                if device:
+                    device_id = device.id
+                    device_name = device.name
+                    dev_alias = await db.execute(
+                        select(DeviceAlias).where(DeviceAlias.target_id == device.id)
+                    )
+                    dev_alias = dev_alias.scalar_one_or_none()
+                    if dev_alias and dev_alias.alias:
+                        device_name = dev_alias.alias
+                enhanced_message = f"{device_name}: {message}"
+        else:
+            # 消息格式无法解析（非 G&D 标准格式）：尝试 source_ip 查设备
+            dev_result = await db.execute(
+                select(Device).where(Device.host == source_ip)
+            )
+            device = dev_result.scalar_one_or_none()
+            if device:
+                device_id = device.id
+                device_name = device.name
+                dev_alias = await db.execute(
+                    select(DeviceAlias).where(DeviceAlias.target_id == device.id)
+                )
+                dev_alias = dev_alias.scalar_one_or_none()
+                if dev_alias and dev_alias.alias:
+                    device_name = dev_alias.alias
+                enhanced_message = f"{device_name}: {message}"
+
+        # ── 5. 保存告警 ──────────────────────────────────────────
         db.add(Alert(
-            device_id=source_ip,
+            device_id=device_id,
+            endpoint_id=endpoint_id,
             oid_name="trap",
             alert_type="trap",
             severity=severity,
-            message=message,
-            raw_value=str(binds),   # 全量 varbind 原始数据
+            message=enhanced_message,
+            raw_value=str(binds),
             created_at=timestamp,
         ))
         await db.commit()
 
+    # ── 6. 广播 WebSocket ─────────────────────────────────────
     await ws_manager.broadcast({
         "type": "trap_received",
         "source_ip": source_ip,
-        "message": message,
+        "device_id": device_id,
+        "device_name": device_name,
+        "endpoint_id": endpoint_id,
+        "endpoint_name": endpoint_name,
+        "message": enhanced_message,
+        "original_message": message,
         "severity": severity,
-        "binds": binds,             # 前端可访问原始数据
+        "binds": binds,
         "timestamp": timestamp.isoformat(),
     })
 

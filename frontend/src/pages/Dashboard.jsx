@@ -79,10 +79,12 @@ const Dashboard = () => {
     const isEpOffline = ep => getEndpointDeviceState(ep) === 'offline';
 
     // 终端分类数
-    const epTotal = allEps.length > 0 ? allEps.length : (stats?.total_endpoints || 0);
-    const epActive = allEps.length > 0 ? allEps.filter(isEpActive).length : (stats?.online_endpoints || 0);
-    const epOffline = allEps.length > 0 ? allEps.filter(isEpOffline).length : Math.max(epTotal - epActive, 0);
-    const activeAlerts = stats?.active_alerts || alerts.filter(a => !a.is_resolved).length || 0;
+    // 注意：stats 里没有 online_endpoints 字段，fallback 统一用 total_endpoints
+    const epTotal   = allEps.length > 0 ? allEps.length                         : (stats?.total_endpoints ?? 0);
+    const epActive  = allEps.length > 0 ? allEps.filter(isEpActive).length       : 0;
+    const epOffline = allEps.length > 0 ? allEps.filter(isEpOffline).length      : 0;
+    // ?? 而非 ||：避免 stats.active_alerts=0 时被 alerts 列表数据覆盖
+    const activeAlerts = stats?.active_alerts ?? alerts.filter(a => !a.is_resolved).length;
 
     // 健康率
     const healthPct = epTotal > 0 ? ((epActive / epTotal) * 100).toFixed(1) : '100.0';
