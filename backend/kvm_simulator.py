@@ -386,6 +386,38 @@ def build_oid_map(sw: dict) -> dict:
         m[f"{con_base}.29.{row}"] = con["con_active_tx_port"]
         m[f"{con_base}.30.{row}"] = con["con_net_if0"]
 
+    # ── portTable → {b}.2.3.1000.1.{col}.{portIndex} ──────────────
+    # GUD-CCDC-MIB portTable: 物理传输端口链路状态和光模块指标
+    # col 2=portStatus, 3=portSfpModule, 4=portSfpTxPower, 5=portSfpRxPower, 6=portSfpType
+    # portStatus: 0=noModule, 1=deactivated, 2=down, 3=up
+    # portIndex 范围：MIB 定义 1..80
+    # 注：portTable 只反映物理层链路，不包含 CPU↔CON 业务路由映射
+    port_base = f"{b}.2.3.1000.1"
+    occupied: dict[int, dict] = {}
+    for row, cpu in sw["cpus"].items():
+        occupied[cpu["ep_port"]] = {
+            "status": 3 if cpu["ep_device_status"] != 0 else 2,
+            "tx": cpu["ep_sfp_tx_power"] if cpu["ep_device_status"] != 0 else 0,
+            "rx": cpu["ep_sfp_rx_power"] if cpu["ep_device_status"] != 0 else 0,
+            "sfp_type": cpu["ep_sfp_type"] if cpu["ep_device_status"] != 0 else "",
+        }
+    for row, con in sw["cons"].items():
+        occupied[con["con_port"]] = {
+            "status": 3 if con["con_device_status"] != 0 else 2,
+            "tx": con["con_sfp_tx_power"] if con["con_device_status"] != 0 else 0,
+            "rx": con["con_sfp_rx_power"] if con["con_device_status"] != 0 else 0,
+            "sfp_type": con["con_sfp_type"] if con["con_device_status"] != 0 else "",
+        }
+    max_port = max(occupied.keys(), default=0)
+    for port_idx in range(1, max_port + 1):
+        p = occupied.get(port_idx)
+        st = p["status"] if p else 0
+        m[f"{port_base}.2.{port_idx}"] = st
+        m[f"{port_base}.3.{port_idx}"] = st
+        m[f"{port_base}.4.{port_idx}"] = p["tx"] if p else 0
+        m[f"{port_base}.5.{port_idx}"] = p["rx"] if p else 0
+        m[f"{port_base}.6.{port_idx}"] = p["sfp_type"] if p else ""
+
     return m
 
 

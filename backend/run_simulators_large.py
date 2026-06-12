@@ -446,33 +446,42 @@ def build_oid_map(state):
         oid_map[f"{con_base}.30.{row}"] = con["net_if0"]
 
     # ── 交换机物理传输端口 (portTable) ─────────────────────────────
-    # 注意：真实设备不支持 portTable，这里注释掉以符合真实行为
-    # 如果需要测试 portTable 功能，可以取消注释以下代码
-    # port_base = f"{base}.2.3.1000.1"
-    # occupied_ports = {}
-    # for cpu in s["cpus"]:
-    #     occupied_ports[cpu["module_index"]] = {
-    #         "status": 3 if cpu["device_status"] != 0 else 2,
-    #         "tx": cpu["sfp_tx_power"] if cpu["device_status"] != 0 else 0,
-    #         "rx": cpu["sfp_rx_power"] if cpu["device_status"] != 0 else 0,
-    #         "type": "LC-SMF" if cpu["device_status"] != 0 else "",
-    #     }
-    # for con in s["cons"]:
-    #     occupied_ports[con["module_index"]] = {
-    #         "status": 3 if con["device_status"] != 0 else 2,
-    #         "tx": con["sfp_tx_power"] if con["device_status"] != 0 else 0,
-    #         "rx": con["sfp_rx_power"] if con["device_status"] != 0 else 0,
-    #         "type": "LC-SMF" if con["device_status"] != 0 else "",
-    #     }
-    # max_port = max(NUM_PORTS, max(occupied_ports.keys(), default=0))
-    # for port_idx in range(1, max_port + 1):
-    #     port = occupied_ports.get(port_idx)
-    #     status = port["status"] if port else 0
-    #     oid_map[f"{port_base}.2.{port_idx}"] = status
-    #     oid_map[f"{port_base}.3.{port_idx}"] = status
-    #     oid_map[f"{port_base}.4.{port_idx}"] = port["tx"] if port else 0
-    #     oid_map[f"{port_base}.5.{port_idx}"] = port["rx"] if port else 0
-    #     oid_map[f"{port_base}.6.{port_idx}"] = port["type"] if port else ""
+    # GUD-CCDC-MIB portTable = { status 1000 }
+    # OID: {sys_oid}.2.3.1000.1.{col}.{portIndex}
+    # portIndex 范围 MIB 定义为 1..80
+    # portStatus col=2: 0=noModule, 1=deactivated, 2=down, 3=up
+    # portSfpModule col=3: 同枚举
+    # portSfpTxPower col=4, portSfpRxPower col=5, portSfpType col=6
+    #
+    # 注：portTable 只反映物理层端口链路状态（硬件插拔/光衰），
+    # 不包含"哪个 CPU 连哪个 CON"的业务路由信息（那是厂商 XML API 的领域）。
+    # 真实设备是否上报此表取决于固件版本和 poll_enabled 配置，
+    # 模拟器始终生成，用于验证前端端口面板逻辑。
+    port_base = f"{base}.2.3.1000.1"
+    occupied_ports = {}
+    for cpu in s["cpus"]:
+        occupied_ports[cpu["module_index"]] = {
+            "status": 3 if cpu["device_status"] != 0 else 2,
+            "tx": cpu["sfp_tx_power"] if cpu["device_status"] != 0 else 0,
+            "rx": cpu["sfp_rx_power"] if cpu["device_status"] != 0 else 0,
+            "type": "LC-SMF" if cpu["device_status"] != 0 else "",
+        }
+    for con in s["cons"]:
+        occupied_ports[con["module_index"]] = {
+            "status": 3 if con["device_status"] != 0 else 2,
+            "tx": con["sfp_tx_power"] if con["device_status"] != 0 else 0,
+            "rx": con["sfp_rx_power"] if con["device_status"] != 0 else 0,
+            "type": "LC-SMF" if con["device_status"] != 0 else "",
+        }
+    max_port = max(NUM_PORTS, max(occupied_ports.keys(), default=0))
+    for port_idx in range(1, max_port + 1):
+        port = occupied_ports.get(port_idx)
+        status = port["status"] if port else 0
+        oid_map[f"{port_base}.2.{port_idx}"] = status
+        oid_map[f"{port_base}.3.{port_idx}"] = status
+        oid_map[f"{port_base}.4.{port_idx}"] = port["tx"] if port else 0
+        oid_map[f"{port_base}.5.{port_idx}"] = port["rx"] if port else 0
+        oid_map[f"{port_base}.6.{port_idx}"] = port["type"] if port else ""
 
     return oid_map
 

@@ -26,3 +26,4 @@ apscheduler==3.11.0
 
 # 工具
 httpx==0.28.1
+openai>=1.0.0

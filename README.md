@@ -69,6 +69,40 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
+## GPT 图像生成工作流
+
+安装 Python 依赖后，可直接在项目根目录运行 `image_gen.py` 调用 OpenAI 图像 API：
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+先设置 API Key：
+
+```bash
+# Windows PowerShell
+$env:OPENAI_API_KEY="your_api_key"
+```
+
+示例：
+
+```bash
+python image_gen.py generate \
+  --model gpt-image-1 \
+  --prompt "Native 4K photorealistic aerial drone photo of red desert sand dunes at sunrise, high oblique view, wind-carved sand ripples, sharp realistic texture, no text, no watermark." \
+  --size 1536x1024 \
+  --quality high \
+  --output-format png \
+  --out ~/example.png
+```
+
+说明：
+- `--model` 可替换为你账户当前可用的 GPT 图像模型。
+- `--out` 支持相对路径和 `~`。
+- 脚本会把接口返回的 base64 图像解码后写入本地文件。
+
+---
+
 ## 🐳 Docker 生产部署 (一键起飞)
 
 确保机房宿主机已安装 Docker 和 Docker Compose。
