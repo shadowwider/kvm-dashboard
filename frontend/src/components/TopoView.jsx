@@ -20,7 +20,7 @@ function isVideoLost(ep) {
 }
 
 const TopoView = ({ filterDeviceId, devices }) => {
-    const { endpoints, fetchEndpoints, getDisplayName } = useStore();
+    const { endpoints, topologies, fetchEndpoints, fetchTopology, getDisplayName } = useStore();
     const { t } = useTranslation();
     const canvasRef = useRef(null);
     const viewportRef = useRef(null);
@@ -41,8 +41,11 @@ const TopoView = ({ filterDeviceId, devices }) => {
     ), [devices, filterDeviceId]);
 
     useEffect(() => {
-        visibleDevices.forEach(dev => fetchEndpoints(dev.id));
-    }, [visibleDevices, fetchEndpoints]);
+        visibleDevices.forEach(dev => {
+            fetchEndpoints(dev.id);
+            fetchTopology(dev.id);
+        });
+    }, [visibleDevices, fetchEndpoints, fetchTopology]);
 
     const applyTransform = useCallback((next) => {
         if (!viewportRef.current) return;
@@ -170,16 +173,22 @@ const TopoView = ({ filterDeviceId, devices }) => {
         );
     };
 
-    const renderLinks = (items, side) => (
+    const renderLinks = (items, side, routes = []) => (
         <div className={`topo-link-row ${side}`}>
             {items.length > 0
-                ? items.map(ep => <span key={ep.id} className={`topo-link-segment ${getEndpointStatus(ep)}`} />)
+                ? items.map(ep => {
+                    const route = routes.find(item => item.source === ep.id || item.target === ep.id);
+                    const state = route?.state || getEndpointStatus(ep);
+                    return <span key={ep.id} title={route?.label} className={`topo-link-segment ${state} ${route ? 'simulation-route-link' : ''}`} />;
+                })
                 : <span className="topo-link-segment muted" />}
         </div>
     );
 
     const renderDeviceTopology = (dev) => {
         const devEndpoints = visibleEndpointList.filter(ep => ep.device_id === dev.id);
+        const simulation = topologies[dev.id]?.simulation || null;
+        const simulationRoutes = simulation?.routes || [];
         const cpus = devEndpoints.filter(ep => ep.module_type !== 'con');
         const cons = devEndpoints.filter(ep => ep.module_type === 'con');
         const portSummary = getDevicePortSummary(dev);
@@ -190,7 +199,18 @@ const TopoView = ({ filterDeviceId, devices }) => {
                 <div className="topo-tier-row top">
                     {cpus.length ? cpus.map(ep => renderEndpointNode(ep, dev)) : <div className="topo-empty">{t('dashboard.empty_cpu')}</div>}
                 </div>
-                {renderLinks(cpus, 'top')}
+                {renderLinks(cpus, 'top', simulationRoutes)}
+                {simulation && (
+                    <div className="simulation-route-summary">
+                        <span className="simulation-route-badge">{t('dashboard.simulation_badge')}</span>
+                        <span>{simulation.profile} · {t('dashboard.simulation_revision')} {simulation.revision}</span>
+                        {simulationRoutes.map(route => (
+                            <span key={route.id} className={`simulation-route ${route.state}`}>
+                                {route.label}: {route.state}
+                            </span>
+                        ))}
+                    </div>
+                )}
                 <div className="topo-tier-row middle">
                     <div className={`topo-tier-node switch ${dev.last_status || 'offline'}`}>
                         <span className="topo-node-kind">KVM</span>
@@ -204,7 +224,7 @@ const TopoView = ({ filterDeviceId, devices }) => {
                         </span>
                     </div>
                 </div>
-                {renderLinks(cons, 'bottom')}
+                {renderLinks(cons, 'bottom', simulationRoutes)}
                 <div className="topo-tier-row bottom">
                     {cons.length ? cons.map(ep => renderEndpointNode(ep, dev)) : <div className="topo-empty">{t('dashboard.empty_con')}</div>}
                 </div>

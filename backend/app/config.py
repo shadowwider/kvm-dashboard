@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # 已知 CPU/CON 和物理端口的状态列；不依赖未验证的模块-端口索引映射。
     snmp_endpoint_status_poll_enabled: bool = True
 
+    # 本地模拟器桥接：默认关闭，生产环境不得启用。
+    simulator_bridge_enabled: bool = False
+    simulator_bridge_token: str = "change_me_simulator_token"
+
     # 原始 SNMP 数据日志（Trap + 轮询，写入 logs/ 目录，可通过 SNMP_RAW_LOG_ENABLED=false 关闭）
     snmp_raw_log_enabled: bool = True
 

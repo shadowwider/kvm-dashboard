@@ -8,6 +8,7 @@ export const useStore = create((set, get) => ({
     endpoints: [],   // 合并所有已拉取设备的终端，key by id
     alerts: [],
     topology: null,
+    topologies: {},
     aliases: {},      // { target_id -> alias_name } 别名映射
     oidConfigs: [],   // OID 配置列表（含 display_enabled 等）
 
@@ -121,7 +122,10 @@ export const useStore = create((set, get) => ({
         if (!deviceId) return;
         try {
             const res = await api.get(`/topology/${deviceId}`);
-            set({ topology: res.data });
+            set((state) => ({
+                topology: res.data,
+                topologies: { ...state.topologies, [deviceId]: res.data },
+            }));
         } catch (err) {
             console.error('Failed to fetch topology', err);
         }

@@ -1793,6 +1793,42 @@
     min-height: 100%;
 }
 
+.simulation-route-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    justify-content: center;
+    padding: 5px 8px;
+    font-size: 8px;
+    color: var(--text-dim);
+    background: rgba(95, 70, 180, 0.12);
+    border: 1px dashed rgba(160, 125, 255, 0.48);
+    border-radius: 4px;
+}
+
+.simulation-route-badge {
+    color: #d3bdff;
+    font-family: 'Orbitron', monospace;
+    font-size: 7px;
+    letter-spacing: 0.8px;
+}
+
+.simulation-route {
+    border-radius: 3px;
+    padding: 2px 4px;
+}
+
+.simulation-route.active { color: var(--green); }
+.simulation-route.degraded { color: var(--amber); }
+.simulation-route.disconnected { color: var(--red); }
+.simulation-route.unknown { color: var(--text-dim); }
+
+.topo-link-segment.simulation-route-link.active { background: var(--green); box-shadow: 0 0 7px var(--green); }
+.topo-link-segment.simulation-route-link.degraded { background: var(--amber); box-shadow: 0 0 7px var(--amber); }
+.topo-link-segment.simulation-route-link.disconnected { background: repeating-linear-gradient(90deg, var(--red) 0 4px, transparent 4px 7px); }
+.topo-link-segment.simulation-route-link.unknown { background: rgba(255,255,255,.18); }
+
 .topo-device-stack {
     min-height: 430px;
     display: grid;

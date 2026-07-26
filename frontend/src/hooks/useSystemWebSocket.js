@@ -5,7 +5,7 @@ const useWebSocket = useWebSocketLib.default || useWebSocketLib;
 import { useStore } from '../store/mainStore';
 
 const useSystemWebSocket = () => {
-    const { updateDeviceState, updateEndpointState, updatePortState, prependNewAlerts, fetchAll } = useStore();
+    const { updateDeviceState, updateEndpointState, updatePortState, prependNewAlerts, fetchAll, fetchTopology } = useStore();
 
     // Get current host automatically from browser location
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -29,6 +29,8 @@ const useSystemWebSocket = () => {
             updateEndpointState(lastJsonMessage);
         } else if (type === 'port_update') {
             updatePortState(lastJsonMessage);
+        } else if (type === 'simulation_topology_update') {
+            fetchTopology(lastJsonMessage.device_id);
         } else if (type === 'new_alerts' || type === 'trap_received') {
             const now = new Date().toISOString();
             const rawAlerts = lastJsonMessage.alerts || [{

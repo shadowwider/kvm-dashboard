@@ -36,6 +36,8 @@
         "topo_ep_count": "Endpoints",
         "topo_video_conn": "Video Connected",
         "topo_video_disc": "Video Lost",
+        "simulation_badge": "SIMULATION",
+        "simulation_revision": "Revision",
         "topo_zoom_hint": "Scroll to zoom · Drag to pan · Click for details",
         "topo_reset": "Reset",
         "detail_close": "Close",

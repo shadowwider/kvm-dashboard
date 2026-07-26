@@ -1,195 +1,76 @@
-# KVM Simulator Pro — 使用说明
+# KVM 本地 SNMP 测试服务器
 
-可配置的 G&D KVM SNMP 模拟器，用于验证 kvm-dashboard 前后端是否正常工作。
+新的本地测试服务器位于 `backend/simulator/`，用于让 Dashboard 后端与前端在没有现场设备时验证 SNMP 轮询、快速离线检测、正式 Trap、模块状态、端口状态和**明确标记为模拟数据**的 CPU→CON 路由展示。
 
----
+它不是生产设备代理，也不代表 Dashboard 已自动支持所有厂商 Profile。
 
-## 快速启动
+## 运行方式
 
-```bash
-# 在 backend 目录下，使用项目虚拟环境
-cd /path/to/kvm-dashboard/backend
+### 1. 启动 Dashboard 后端
 
-# Windows
-.venv\Scripts\python.exe kvm_simulator.py
+在 `backend/.env` 添加本地专用配置（不要提交真实 token）：
 
-# Linux / macOS
-.venv/bin/python kvm_simulator.py
+```ini
+SIMULATOR_BRIDGE_ENABLED=true
+SIMULATOR_BRIDGE_TOKEN=local_dev_simulator_token
 ```
 
-启动后：
-- **Web 控制台**：http://localhost:8888
-- **SNMP 第 1 台交换机**：UDP 11161
-- **Trap 发送目标**：127.0.0.1:10162（后端监听端口）
-
----
-
-## 环境变量（可选）
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `SIM_BASE_PORT` | `11160` | SNMP 端口从 BASE_PORT+1 开始分配 |
-| `SIM_WEB_PORT` | `8888` | Web 控制台端口 |
-| `TRAP_TARGET_HOST` | `127.0.0.1` | Trap 发送目标 IP |
-| `SNMP_TRAP_PORT` | `10162` | Trap 发送目标端口 |
-| `SNMP_COMMUNITY` | `public` | SNMP 社区字符串 |
+然后启动后端：
 
 ```bash
-# 示例：自定义端口
-SIM_BASE_PORT=20000 SIM_WEB_PORT=9000 .venv/bin/python kvm_simulator.py
+cd backend
+.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
----
+### 2. 启动 Dashboard 前端
 
-## 对接 KVM Dashboard
+```bash
+cd frontend
+npm run dev
+```
 
-模拟器启动后，需要在 KVM Dashboard 管理后台手动添加设备：
+### 3. 启动模拟器
 
-1. 打开 http://localhost:8000/admin（或 Dashboard 的管理页面）
-2. 添加设备：
-   - **Host**：`127.0.0.1`
-   - **Port**：`11161`（第 1 台），`11162`（第 2 台）……
-   - **Community**：`public`
-3. 保存后，后端轮询器会自动开始采集数据
+```bash
+cd backend
+set SIMULATOR_BRIDGE_TOKEN=local_dev_simulator_token
+set SIM_DASHBOARD_URL=http://127.0.0.1:8000/api/v1
+set SIM_RUN_ID=local-simulator
+.venv\Scripts\python.exe -m simulator
+```
 
----
+打开 `http://127.0.0.1:8888`，选择场景并执行状态/路由操作。模拟器会先更新其 SNMP 可读状态，再发送正式 Trap，然后调用本地桥接注册并同步 Dashboard。
 
-## Web 控制台使用
+## 场景
 
-### 添加 / 删除交换机
+| 场景 | 用途 | Dashboard 当前轮询能力 |
+|---|---|---|
+| `ccdc-regression` | 现有 CCDC 风格 Dashboard 的端到端回归测试 | 完整轮询、状态列探测和 Trap 均可验证 |
+| `ccdm-matrix-basic` | MIB 调研支持的 CCDM 身份、端点、端口和模拟路由 fixture | 仅注册、拓扑/身份 fixture；当前生产 poller 不声明支持 |
+| `visionxs-pair` | VisionXS CPU/CON 独立设备 fixture | 仅注册、拓扑/身份 fixture |
+| `dp12-readonly` | DP1.2-MUX-ATC 只读 fixture | 仅注册、拓扑/身份 fixture；不实现 SNMP SET |
+| `all-profiles` | 同时展示所有 fixture | 仅 `ccdc-regression` 走当前完整轮询 |
 
-- 点击右上角 **＋ 添加交换机** → 输入名称（留空自动命名）
-- 新交换机会自动分配下一个可用 SNMP 端口
-- 点击左侧列表中交换机右上角的 **✕** 删除
+`ccdc-regression` 明确是历史 Dashboard 兼容场景，不应被当作厂商验证的 CCDC MIB 定义。其余 Profile 的 MIB/证据边界见 `docs/GD_MIB_COMPATIBILITY_AND_PROFILE_PLAN.md`。
 
-### 修改交换机系统状态
+## 可验证行为
 
-选中交换机后，在 **交换机状态** 区块中可直接修改：
+- **暂停 SNMP**：模拟设备管理网/电源不可达；Dashboard 一秒级健康探测应显示设备离线。
+- **CPU/CON 离线或在线**：先改变 SNMP 表状态，再发 `.32828.2.1.0.4` 通知；Dashboard 应更新端点和告警流。
+- **模拟路由**：CPU→CON 路由仅为 `simulation-declared` 测试数据，Topology 视图会标记为“模拟拓扑”，不代表 SNMP 发现的真实物理连接。
+- **重置**：恢复场景初始状态。
 
-| 字段 | 可操作内容 |
-|------|-----------|
-| 温度 (°C) | 直接输入数值 |
-| 主电源 / 冗余电源 | ON / OFF |
-| 网口 | UP / DOWN |
-| 风扇 1-4 (RPM) | 直接输入数值 |
+Trap 使用正式 G&D 通用布局：
 
-**快捷预设按钮**：
-- **模拟断电**：主电源 + 冗余电源同时断开
-- **模拟过温**：温度设为 72°C（超出告警阈值 55°C）
-- **恢复正常**：电源恢复、温度 45°C、风扇 3200 RPM
+```text
+notification = 1.3.6.1.4.1.32828.2.1.0.4
+level        = 1.3.6.1.4.1.32828.2.1.0.2
+message      = 1.3.6.1.4.1.32828.2.1.0.3
+```
 
-### 插入 / 拔出 CPU 和 CON
+## 安全边界
 
-- 点击端点列表底部的 **＋ 插入 CPU** 或 **＋ 插入 CON**
-- 系统自动分配下一个空闲 Row 号（对应 SNMP 表行索引）
-- 点击端点右上角的 **✕ 拔出** 移除该端点
-
-### 实时修改端点字段
-
-插入后可立即通过下拉框修改所有关键字段：
-
-**CPU 端点可控字段**：
-
-| 字段 | 可选值 | 说明 |
-|------|--------|------|
-| 在线状态 | online / ready / offline | deviceStatus |
-| 目标电源 | on / off | targetPower |
-| 视频线缆 | connected / notConnected | targetVideoCable |
-| 视频信号 | DP / HDMI / DVI-SL / DVI-DL / VGA / none | targetVideoSignal |
-| USB HID | initialized / connected / notConnected | targetUsbHid |
-| 访问状态 | local / remote / localExclusive / remoteExclusive | targetAccess |
-| 温度 | 数值输入 | temperature1 |
-| 网口 | up / down | networkInterface0 |
-
-**CON 端点可控字段**：
-
-| 字段 | 可选值 | 说明 |
-|------|--------|------|
-| 在线状态 | online / ready / offline | deviceStatus |
-| PS/2 键鼠 | 键盘+鼠标 / 仅键盘 / 仅鼠标 / none | consolePS2Connection |
-| USB 键鼠 | 键盘+鼠标 / 仅键盘 / 仅鼠标 / none | consoleUSBConnection |
-| 显示器连接 | connected / notConnected | displayConnection |
-| 显示器型号 | 文本输入 | displayType |
-| 画面冻结 | false / true | freeze |
-| 活跃 TX 口 | 1 / 2 | activeTransmissionPort |
-| 温度 | 数值输入 | temperature1 |
-| 网口 | up / down | networkInterface0 |
-
-### 发送 Trap 告警
-
-**手动发送**：
-1. 选择 Level（3=ERROR 常用，对应 Dashboard 的 warning 级别）
-2. 填入消息文本
-3. 点击 **发送 Trap**
-
-**快捷按钮**（自动填充常用消息）：
-
-| 按钮 | Level | 消息格式 |
-|------|-------|---------|
-| CPU 掉线 | 3 ERROR | `CPU module CPU-{sw_id}-001 went offline` |
-| CPU 上线 | 5 NOTICE | `CPU module CPU-{sw_id}-001 came online` |
-| CON 掉线 | 3 ERROR | `CON module CON-{sw_id}-001 went offline` |
-| CON 上线 | 5 NOTICE | `CON module CON-{sw_id}-001 came online` |
-| 温度告警 | 4 WARNING | `Temperature too high on KVM-SIM-{sw_id}: 72.0C` |
-| 电源告警 | 3 ERROR | `Main power failure on KVM-SIM-{sw_id}` |
-
-> **注意**：Trap 消息里的 `CPU-{sw_id}-001` 对应的是 SNMP 表的 `ep_id`（Column 2），后端 `trap_receiver.py` 通过匹配 `last_status.ep_id` / `last_status.con_id` 字段来定位端点并加上设备名称。要让告警显示完整的"交换机名/端点名"格式，需要先通过轮询让后端建立端点记录。
-
----
-
-## Trap Level 含义
-
-| Level | 名称 | Dashboard 严重度 |
-|-------|------|----------------|
-| 0 | EMERGENCY | critical |
-| 1 | ALERT | critical |
-| 2 | CRITICAL | critical |
-| 3 | ERROR | warning |
-| 4 | WARNING | warning |
-| 5 | NOTICE | info |
-
----
-
-## OID 对应关系（供调试）
-
-| SNMP OID | 字段 |
-|----------|------|
-| `1.3.6.1.4.1.32828.3.257.16.2.3.1.0` | 主电源 |
-| `1.3.6.1.4.1.32828.3.257.16.2.3.3.0` | 温度 |
-| `1.3.6.1.4.1.32828.3.257.16.1.2.2.3.1000.1.{col}.{row}` | CPU 端点表 |
-| `1.3.6.1.4.1.32828.3.257.16.1.1.2.3.1000.1.{col}.{row}` | CON 端点表 |
-| Trap Notification OID | `1.3.6.1.4.1.32828.2.1.0.4` |
-| Trap level varbind | `1.3.6.1.4.1.32828.2.1.0.2` |
-| Trap message varbind | `1.3.6.1.4.1.32828.2.1.0.3` |
-
----
-
-## 常见验证场景
-
-### 验证端点状态采集
-
-1. 模拟器启动 → Dashboard 添加设备 → 等待轮询（15-45 秒）
-2. Web 控制台将某个 CPU 的"在线状态"改为 `offline`
-3. 在 Dashboard 的矩阵视图中观察该 CPU 是否变红
-
-### 验证键鼠状态显示
-
-1. 将某个 CON 的 USB 键鼠改为 `仅键盘`
-2. 点击 Dashboard 中该 CON 查看详情
-3. 键鼠状态应显示"部分连接（警告）"
-
-### 验证 Trap 告警接收
-
-1. 确保后端已监听 Trap 端口（`SNMP_TRAP_PORT=10162`）
-2. 点击"CPU 掉线"快捷按钮
-3. Dashboard 右侧告警流应立即出现新告警，消息格式为"KVM-SIM-1/CPU-HOST-SW1-001 went offline"
-
-### 验证温度告警阈值
-
-1. 点击"模拟过温"预设（温度设为 72°C）
-2. 等待下次轮询后，Dashboard 设备卡片状态应变为 warning
-
-### 验证电源故障
-
-1. 点击"模拟断电"预设
-2. 轮询后设备状态变 warning；同时手动发送"电源告警"Trap 验证告警流
+- Dashboard 桥接默认关闭；仅本地显式 `SIMULATOR_BRIDGE_ENABLED=true` 后才开放。
+- 桥接仅创建、更新和删除以 `sim_<run_id>_` 开头且由对应 run 拥有的设备/端点。
+- DP 的 SNMP SET 在模拟器和 Dashboard 中均未启用。
+- 不要将模拟器桥接 Token、真实 community 或现场地址提交到仓库。

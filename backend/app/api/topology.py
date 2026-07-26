@@ -6,6 +6,7 @@ from typing import Any
 from app.database import get_db
 from app.models.device import Device
 from app.models.endpoint import Endpoint
+from app.models.simulator_run import SimulatorRun
 
 router = APIRouter()
 
@@ -96,10 +97,44 @@ async def get_device_topology(device_id: str, db: AsyncSession = Depends(get_db)
             "lineStyle": line_style
         })
 
+    simulation = None
+    if device.model_name and device.model_name.startswith("SIMULATION /"):
+        runs = await db.execute(select(SimulatorRun))
+        for run in runs.scalars():
+            for simulator_device in run.manifest.get("scenario", {}).get("devices", []):
+                expected_id = f"sim_{run.id}_{simulator_device['id']}"[:64]
+                if expected_id != device.id:
+                    continue
+                route_links = []
+                for route in simulator_device.get("routes", []):
+                    source = next((item for item in simulator_device.get("endpoints", []) if item["id"] == route["source_endpoint_id"]), None)
+                    target = next((item for item in simulator_device.get("endpoints", []) if item["id"] == route["target_endpoint_id"]), None)
+                    if not source or not target:
+                        continue
+                    route_links.append({
+                        "id": route["id"],
+                        "source": f"{device.id}_{source['module_type']}_{source['row']}",
+                        "target": f"{device.id}_{target['module_type']}_{target['row']}",
+                        "state": route["state"],
+                        "label": route.get("label") or "Simulation route",
+                        "evidence": "simulation-declared",
+                    })
+                simulation = {
+                    "run_id": run.id,
+                    "revision": run.revision,
+                    "profile": simulator_device["profile"],
+                    "evidence": simulator_device.get("evidence", "simulation-declared"),
+                    "routes": route_links,
+                }
+                break
+            if simulation:
+                break
+
     return {
         "device_id": device.id,
         "nodes": nodes,
         "links": links,
+        "simulation": simulation,
         "categories": [
             {"name": "KVM 交换机"},
             {"name": "终端节点"}

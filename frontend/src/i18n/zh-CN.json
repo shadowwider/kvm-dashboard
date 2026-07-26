@@ -36,6 +36,8 @@
         "topo_ep_count": "终端",
         "topo_video_conn": "视频已连接",
         "topo_video_disc": "视频断开",
+        "simulation_badge": "模拟拓扑",
+        "simulation_revision": "版本",
         "topo_zoom_hint": "滚轮缩放 · 拖拽平移 · 点击节点查看详情",
         "topo_reset": "重置",
         "detail_close": "关闭",
