@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_admin
@@ -23,6 +23,7 @@ class SimulatorManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     scenario_id: str = Field(min_length=1, max_length=64)
+    session_id: str = Field(min_length=1, max_length=64)
     revision: int = Field(ge=1)
     scenario: dict
 
@@ -49,22 +50,44 @@ async def reconcile_manifest(
     _ensure_enabled(x_simulator_token)
     run = await db.get(SimulatorRun, run_id)
     if not run:
-        run = SimulatorRun(id=run_id, scenario_id=body.scenario_id, revision=body.revision, manifest=body.model_dump())
+        run = SimulatorRun(
+            id=run_id,
+            scenario_id=body.scenario_id,
+            session_id=body.session_id,
+            revision=body.revision,
+            manifest=body.model_dump(),
+        )
         db.add(run)
-    elif body.revision < run.revision:
-        # Outbound reconciliations can finish out of order; never let an older
-        # simulator snapshot replace a newer topology/state manifest.
-        return {
-            "run_id": run_id,
-            "revision": run.revision,
-            "ignored_stale_revision": body.revision,
-            "bindings": [],
-        }
-    else:
+    elif run.session_id != body.session_id:
+        # A restarted simulator with the same friendly run ID starts a new epoch.
         run.scenario_id = body.scenario_id
+        run.session_id = body.session_id
         run.revision = body.revision
         run.manifest = body.model_dump()
         run.updated_at = datetime.now(timezone.utc)
+    else:
+        # Atomically claim this revision before applying the manifest. A stale
+        # request loses the conditional update and cannot overwrite newer state.
+        claimed = await db.execute(
+            update(SimulatorRun).where(
+                SimulatorRun.id == run_id,
+                SimulatorRun.session_id == body.session_id,
+                SimulatorRun.revision <= body.revision,
+            ).values(
+                scenario_id=body.scenario_id,
+                revision=body.revision,
+                manifest=body.model_dump(),
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+        if not claimed.rowcount:
+            current = await db.get(SimulatorRun, run_id)
+            return {
+                "run_id": run_id,
+                "revision": current.revision if current else None,
+                "ignored_stale_revision": body.revision,
+                "bindings": [],
+            }
 
     desired_ids: set[str] = set()
     bindings: list[dict] = []
