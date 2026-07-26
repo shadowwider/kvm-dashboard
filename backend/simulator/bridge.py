@@ -19,6 +19,7 @@ class DashboardBridge:
         self.requested_session_id = os.environ.get("SIM_SESSION_ID", uuid.uuid4().hex)
         self.session_started_at = int(time.time_ns())
         self.session_id: str | None = None
+        self.session_epoch: str | None = None
         self.token = os.environ.get("SIMULATOR_BRIDGE_TOKEN", "")
         self._reconcile_lock = threading.Lock()
 
@@ -35,6 +36,7 @@ class DashboardBridge:
         })
         if result.get("ok") and result["response"].get("session_id") == self.requested_session_id:
             self.session_id = self.requested_session_id
+            self.session_epoch = result["response"]["session_epoch"]
             return result
         if result.get("ok"):
             return {
@@ -60,6 +62,7 @@ class DashboardBridge:
         return {
             "scenario_id": snapshot["scenario"]["id"],
             "session_id": self.session_id,
+            "session_epoch": self.session_epoch,
             "revision": snapshot["revision"],
             "scenario": snapshot["scenario"],
         }

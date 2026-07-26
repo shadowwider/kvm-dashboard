@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
-import secrets
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_admin
@@ -25,6 +25,7 @@ class SimulatorManifest(BaseModel):
 
     scenario_id: str = Field(min_length=1, max_length=64)
     session_id: str = Field(min_length=1, max_length=64)
+    session_epoch: str = Field(min_length=1, max_length=64)
     revision: int = Field(ge=1)
     scenario: dict
 
@@ -62,21 +63,38 @@ async def start_session(
             id=run_id,
             scenario_id="pending",
             session_id=body.session_id,
+            session_epoch=secrets.token_urlsafe(24),
             session_started_at=body.session_started_at,
             revision=0,
             manifest={},
         )
         db.add(run)
-        await db.commit()
-        return {"run_id": run_id, "session_id": body.session_id, "revision": 0}
+        try:
+            await db.flush()
+        except IntegrityError:
+            # Another process won initial creation; reload it and arbitrate below.
+            await db.rollback()
+            run = await db.get(SimulatorRun, run_id)
+            if not run:
+                raise HTTPException(409, "无法建立模拟器会话")
+        else:
+            await db.commit()
+            return {
+                "run_id": run_id,
+                "session_id": body.session_id,
+                "session_epoch": run.session_epoch,
+                "revision": 0,
+            }
 
     # A delayed session-start from an older process may not supersede the active run.
+    epoch = secrets.token_urlsafe(24)
     claimed = await db.execute(
         update(SimulatorRun).where(
             SimulatorRun.id == run_id,
             SimulatorRun.session_started_at <= body.session_started_at,
         ).values(
             session_id=body.session_id,
+            session_epoch=epoch,
             session_started_at=body.session_started_at,
             revision=0,
             manifest={},
@@ -92,7 +110,7 @@ async def start_session(
             "ignored_superseded_session": body.session_id,
             "revision": current.revision if current else None,
         }
-    return {"run_id": run_id, "session_id": body.session_id, "revision": 0}
+    return {"run_id": run_id, "session_id": body.session_id, "session_epoch": epoch, "revision": 0}
 
 
 @router.put("/runs/{run_id}/manifest")
@@ -109,7 +127,7 @@ async def reconcile_manifest(
         # Callers must establish a session first; this avoids an in-flight stale
         # manifest creating or taking ownership of a run after a cleanup/restart.
         raise HTTPException(409, "模拟器会话尚未建立")
-    if run.session_id != body.session_id:
+    if run.session_id != body.session_id or run.session_epoch != body.session_epoch:
         return {
             "run_id": run_id,
             "revision": run.revision,
@@ -123,6 +141,7 @@ async def reconcile_manifest(
         update(SimulatorRun).where(
             SimulatorRun.id == run_id,
             SimulatorRun.session_id == body.session_id,
+            SimulatorRun.session_epoch == body.session_epoch,
             SimulatorRun.revision <= body.revision,
         ).values(
             scenario_id=body.scenario_id,
