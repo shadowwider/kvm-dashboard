@@ -60,11 +60,11 @@ G&D KVM 监控大屏系统，为上海机场 G&D ControlCenter-Compact 系列交
   1. 人工配置映射表
   2. 使用厂商专有 XML API（`ownerPort` 字段，见下文 2.4）
 
-### 2.3 Trap OID（已修正，三处对齐）
+### 2.3 Trap OID（历史 MIB 推导；运行时须兼容实际捕获）
 
-之前代码用的是错误的 `.5.x.x` 路径，本轮已修正。
+MIB 推导得到的布局是 `.32828.2.1.0.{2,3}`，但 2026-04-15 的实际捕获记录使用 `.32828.5.1.0.{2,3}`。运行时必须精确兼容两种布局，不能再将 `.5.x` 一律视为错误。
 
-正确 OID（来自 `GUD-SMI-MIB` + `GUD-GENERALTRAPS-MIB` 推导）：
+历史 MIB 推导的 OID：
 
 ```
 gudEnterprise       = 1.3.6.1.4.1.32828
@@ -77,21 +77,18 @@ level varbind OID      = .32828.2.1.0.2
 message varbind OID    = .32828.2.1.0.3
 ```
 
-涉及文件（三处保持一致）：
-- `backend/app/snmp/trap_receiver.py`：`_LEVEL_OID_MARKER = '32828.2.1.0.2'`
-- `backend/run_simulators_large.py`：`_TRAP_LEVEL_OID = "1.3.6.1.4.1.32828.2.1.0.2"`
-- `backend/kvm_simulator.py`：`_TRAP_LEVEL_OID = "1.3.6.1.4.1.32828.2.1.0.2"`
+运行时与模拟器可保留不同布局：
+- `backend/app/snmp/trap_receiver.py`：精确接受实际捕获 `.32828.5.1.0.{2,3}` 与历史 `.32828.2.1.0.{2,3}` 两组 OID。
+- `backend/run_simulators_large.py`、`backend/kvm_simulator.py`：仍可生成历史模拟器布局。
 
-### 2.4 Trap 日志不是真实设备产生的
+### 2.4 Trap 捕获证据与消息边界
 
-`logs/trap_raw.log` 的来源是**模拟器**，不是真实设备：
-- 真实设备 SNMP IP：`172.31.224.1`
-- Trap 日志 source IP：`172.19.0.1`（Docker 内网网关）
-- 真实设备只有 1 台交换机的模块（`CPU-1-xxx`，`CON-1-xxx`），而 Trap 日志有 3 台
+`backend/logs/trap_raw.log` 的记录确认了：
+- 通知 OID：`.32828.5.0.4`；级别/消息 varbind：`.32828.5.1.0.2` / `.32828.5.1.0.3`；
+- CPU/CON 模块消息可出现 `CPU module CPU-1-001 went offline` 与 `CON module CON-2-003 came online`；
+- `screen frozen`、`display disconnected` 等消息也会出现。
 
-**真实设备是否支持 Trap、Trap 消息的实际文本格式，目前没有真实样本可验证。**
-
-Trap 消息里的模块名格式（`CPU module CPU-1-001 went offline`）是模拟器 `run_simulators_large.py` 生成的，不是 MIB 约束的固定格式。
+因此仅精确的 `went offline` / `came online` 模块事件可修改端点在线状态；其余消息只保存和推送告警，不得覆盖端点在线状态。消息文本仍不是 MIB 的固定契约，新型号必须继续保留原始 varbind 后验证。
 
 ### 2.5 厂商 XML API（有端口映射能力，尚未集成）
 

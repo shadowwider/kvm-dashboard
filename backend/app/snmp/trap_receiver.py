@@ -74,12 +74,39 @@ _LEVEL_NAME: dict[int, str] = {
     3: 'ERROR',     4: 'WARNING', 5: 'NOTICE',
 }
 
-# G&D varbind OID marker（来自 GUD-GENERALTRAPS-MIB + GUD-SMI-MIB 推导）
-# gudGeneralNotifications = 1.3.6.1.4.1.32828.2.1.0
-# level   ::= { gudGeneralNotifications 2 } → 1.3.6.1.4.1.32828.2.1.0.2
-# message ::= { gudGeneralNotifications 3 } → 1.3.6.1.4.1.32828.2.1.0.3
-_LEVEL_OID_MARKER   = '32828.2.1.0.2'
-_MESSAGE_OID_MARKER = '32828.2.1.0.3'
+# 已观察到的设备/模拟器 Trap 使用 .32828.5.1.0.{2,3}；同时保留旧 MIB
+# 推导布局 .32828.2.1.0.{2,3} 的兼容性。必须精确匹配，避免误把其他 varbind 当作级别/消息。
+_LEVEL_OIDS = {
+    "1.3.6.1.4.1.32828.5.1.0.2",
+    "1.3.6.1.4.1.32828.2.1.0.2",
+}
+_MESSAGE_OIDS = {
+    "1.3.6.1.4.1.32828.5.1.0.3",
+    "1.3.6.1.4.1.32828.2.1.0.3",
+}
+
+
+def _normalize_oid(oid: object) -> str:
+    return str(oid).lstrip(".")
+
+
+def parse_trap_varbinds(var_binds) -> tuple[list[dict], int | None, str | None]:
+    """Extract raw binds plus G&D level/message from observed or legacy layouts."""
+    raw_binds: list[dict] = []
+    trap_level: int | None = None
+    trap_message: str | None = None
+    for oid, val in var_binds:
+        oid_str = _normalize_oid(oid)
+        val_str = val.prettyPrint()
+        raw_binds.append({"oid": oid_str, "value": val_str})
+        if oid_str in _LEVEL_OIDS:
+            try:
+                trap_level = int(val_str)
+            except (ValueError, TypeError):
+                pass
+        elif oid_str in _MESSAGE_OIDS:
+            trap_message = val_str
+    return raw_binds, trap_level, trap_message
 
 
 def _start_trap_receiver(main_loop: asyncio.AbstractEventLoop):
@@ -107,22 +134,7 @@ def _start_trap_receiver(main_loop: asyncio.AbstractEventLoop):
             pass
 
         # ── 解析所有 varbinds ──────────────────────────────
-        raw_binds: list[dict] = []
-        trap_level: int | None = None
-        trap_message: str | None = None
-
-        for oid, val in var_binds:
-            oid_str = str(oid)
-            val_str = val.prettyPrint()
-            raw_binds.append({'oid': oid_str, 'value': val_str})
-
-            if _LEVEL_OID_MARKER in oid_str:
-                try:
-                    trap_level = int(val_str)
-                except (ValueError, TypeError):
-                    pass
-            elif _MESSAGE_OID_MARKER in oid_str:
-                trap_message = val_str
+        raw_binds, trap_level, trap_message = parse_trap_varbinds(var_binds)
 
         # ── 原始数据全量记录（调试用，轮转文件，受 SNMP_RAW_LOG_ENABLED 控制）──
         if _raw_log_enabled:
@@ -203,8 +215,12 @@ async def _save_trap(
         device_name = source_ip
         enhanced_message = message
 
-        match = re.search(r'(CPU|CON) module ((CPU|CON)-\d+-\d+)', message)
-        if match and ("went offline" in message or "came online" in message):
+        match = re.search(r'\b(CPU|CON) module ((CPU|CON)-\d+-\d+)\b', message)
+        if (
+            match
+            and match.group(1) == match.group(3)
+            and ("went offline" in message or "came online" in message)
+        ):
             module_type_str = match.group(1)   # 'CPU' 或 'CON'
             module_id = match.group(2)          # e.g. 'CPU-1-001'
             action = "went offline" if "went offline" in message else "came online"

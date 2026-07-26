@@ -17,7 +17,7 @@ from pysnmp.hlapi.asyncio import (
     getCmd, bulkCmd,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, insert
+from sqlalchemy import or_, select, update, insert
 from app.database import AsyncSessionLocal
 from app.models.device import Device
 from app.models.endpoint import Endpoint
@@ -288,18 +288,16 @@ async def probe_device_health(device: Device) -> tuple[bool, bool, float]:
     async with lock:
         if reachable:
             _health_failures.pop(device.id, None)
-            # 健康周期加载的快照已经不是 offline 时，无需每秒访问数据库。
-            if device.last_status == "offline":
-                async with AsyncSessionLocal() as db:
-                    current = await db.get(Device, device.id)
-                    if current and current.last_status == "offline":
-                        await db.execute(
-                            update(Device).where(Device.id == device.id).values(
-                                last_status="online", last_health_check=now
-                            )
-                        )
-                        await db.commit()
+            # 每一次成功都写入探测时间；它既是运维新鲜度指标，也用于拒绝过期完整轮询的离线写入。
+            async with AsyncSessionLocal() as db:
+                current = await db.get(Device, device.id)
+                if current:
+                    values = {"last_health_check": now}
+                    if current.last_status == "offline":
+                        values["last_status"] = "online"
                         transitioned = True
+                    await db.execute(update(Device).where(Device.id == device.id).values(**values))
+                    await db.commit()
             if transitioned:
                 logger.warning(
                     "device_health_recovered device_id=%s host=%s elapsed_ms=%.1f",
@@ -485,8 +483,10 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
     alerts_to_create: list[dict] = []
 
     # ── 读取 sysObjectID ──────────────────────────────────────────
-    SYS_OBJECT_ID_OID = "1.3.6.1.2.1.1.2.0"
-    sys_oid = "1.3.6.1.4.1.32828.3.257.16"  # 默认 GUD-CCDC
+    # 已学习的厂商 sysObjectID 优先；首次/型号变化时由完整轮询验证并持久化。
+    sys_oid = device.system_oid or "1.3.6.1.4.1.32828.3.257.16"  # 默认 GUD-CCDC
+    discovered_system_oid = None
+    rich_probe_started_at = now
     try:
         _, raw_sys_oid = await _snmp_get(device.host, device.port, device.community, SYS_OBJECT_ID_OID)
         if raw_sys_oid:
@@ -494,23 +494,39 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                 sys_oid_str = ".".join(str(x) for x in raw_sys_oid.asTuple())
             else:
                 sys_oid_str = str(raw_sys_oid).lstrip(".")
-            if "32828" in sys_oid_str:
+            # 只接受 G&D enterprise 子树，避免错误地把任意包含 32828 的字符串用于表 OID。
+            if sys_oid_str.startswith("1.3.6.1.4.1.32828."):
                 sys_oid = sys_oid_str
+                discovered_system_oid = sys_oid_str
         else:
-            # sysObjectID 获取失败，判定为离线，提前结束以免后续所有 OID 全部卡超时
-            logger.warning(f"设备 {device.id} (IP: {device.host}) 连接超时，判定离线，跳过深度轮询。")
+            # 完整轮询的失败请求可能早于健康探测成功；不得覆盖后者的可达性状态。
+            logger.warning(f"设备 {device.id} (IP: {device.host}) 完整轮询 sysObjectID 超时，跳过深度轮询。")
             async with AsyncSessionLocal() as db:
-                await db.execute(update(Device).where(Device.id == device.id).values(last_poll=now, last_status="offline"))
+                result = await db.execute(
+                    update(Device).where(
+                        Device.id == device.id,
+                        or_(
+                            Device.last_health_check.is_(None),
+                            Device.last_health_check <= rich_probe_started_at,
+                        ),
+                    ).values(last_poll=now, last_status="offline")
+                )
                 await db.commit()
-            await ws_manager.broadcast({
-                "type": "device_update",
-                "device_id": device.id,
-                "online_status": "offline",
-                "reachability": "offline",
-                "reason": "snmp_rich_poll_timeout",
-                "status": {},
-                "timestamp": now.isoformat(),
-            })
+            if result.rowcount:
+                await ws_manager.broadcast({
+                    "type": "device_update",
+                    "device_id": device.id,
+                    "online_status": "offline",
+                    "reachability": "offline",
+                    "reason": "snmp_rich_poll_timeout",
+                    "status": {},
+                    "timestamp": now.isoformat(),
+                })
+            else:
+                logger.info(
+                    "忽略过期完整轮询离线结果：设备 %s 在请求开始后已通过健康探测确认可达",
+                    device.id,
+                )
             return
     except Exception as e:
         logger.warning(f"获取 {device.id} sysObjectID 失败: {e}")
@@ -733,7 +749,9 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                 last_poll=now,
                 last_status=device_online_status,
                 last_metrics=full_metrics,
-                endpoint_count=ep_count
+                endpoint_count=ep_count,
+                # 仅写入经 sysObjectID 验证的 G&D enterprise OID；供快速状态列探测复用。
+                system_oid=discovered_system_oid or device.system_oid,
             )
         )
 
