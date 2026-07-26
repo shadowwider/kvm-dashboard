@@ -45,7 +45,33 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 |------|------|--------|------|
 | `SNMP_DEFAULT_COMMUNITY` | string | `public` | SNMP v2c Community 字符串（轮询时使用） |
 | `SNMP_TRAP_PORT` | int | `10162` | SNMP Trap 监听 UDP 端口。Docker 中为容器内端口，宿主机侧同名变量控制映射端口 |
-| `SNMP_POLL_INTERVAL` | int | `45` | 主动轮询间隔（秒）。已有 Trap 实时告警，45s 已足够；不建议低于 15s |
+| `SNMP_POLL_INTERVAL` | int | `45` | **完整指标**轮询间隔（秒）：GET/WALK、时序归档和阈值告警。不要为了设备失联检测而降低此值。 |
+| `SNMP_HEALTH_POLL_ENABLED` | bool | `true` | 是否启用轻量 SNMP 可达性探测。 |
+| `SNMP_HEALTH_POLL_INTERVAL` | float | `1.0` | 交换机 `sysObjectID` 快速探测间隔（秒）。 |
+| `SNMP_HEALTH_TIMEOUT` | float | `0.25` | 每次快速探测的 UDP 超时（秒）。 |
+| `SNMP_HEALTH_RETRIES` | int | `1` | 快速探测重试次数；默认总请求预算约 0.5 秒。 |
+| `SNMP_HEALTH_CONCURRENCY` | int | `20` | 同时快速探测的设备数；必须按设备规模核算。 |
+| `SNMP_HEALTH_FAILURE_THRESHOLD` | int | `1` | 达到多少次失败探测后才将交换机置为离线。增加该值会降低误报，但可能超过 2 秒目标。 |
+| `SNMP_ENDPOINT_STATUS_POLL_ENABLED` | bool | `true` | 每个健康周期额外读取 CPU、CON 和物理端口的**状态列**；不执行完整指标 WALK，端口与模块索引不会被假定为一一对应。 |
+
+### 双速 SNMP 运行方式
+
+- **整台交换机、管理网或交换机电源断开**：设备无法发送 Trap，因此由 `sysObjectID` 健康探测负责。默认 1 秒调度 + 约 0.5 秒 SNMP 重试预算，目标为 1–2 秒；实际结果受网络、设备数和并发容量限制。
+- **CPU/CON 模块**：已识别的 `went offline` / `came online` Trap 会立即更新端点状态；每秒状态列探测和完整轮询用于复核。
+- **物理端口/网线**：读取 `portTable.portStatus` 并实时推送 `up/down/noModule/moduleDeactivated` 变化。未取得真实设备 OID 对照样本前，系统不会将 portTable 行索引自动等同于 CPU/CON 模块索引。
+- 管理界面旧的设备 `poll_interval` 字段不参与任何运行时调度，已从编辑界面移除；它不能用于设置一秒轮询。
+
+容量估算：
+
+```text
+预计最坏扫描时间 = ceil(活跃设备数 / SNMP_HEALTH_CONCURRENCY)
+                 × (SNMP_HEALTH_TIMEOUT × (SNMP_HEALTH_RETRIES + 1)
+                    + SNMP_HEALTH_TIMEOUT)
+
+第二项为每台设备可达后并行读取 CPU、CON 和物理端口三个状态列的一次无重试请求预算。
+```
+
+该值必须小于 `SNMP_HEALTH_POLL_INTERVAL`。`/api/v1/health` 的 `health_probe.capacity_degraded`、`estimated_scan_seconds` 和周期日志会报告无法满足该约束的部署。
 
 > **SNMP Trap 端口说明**：G&D 设备默认发送到 UDP 162。生产环境一般使用非特权端口（如 10162）映射：
 > - 宿主机防火墙将 `162/udp` 转发到 `10162/udp`，或直接用 `iptables PREROUTING`
@@ -118,7 +144,16 @@ ADMIN_PASSWORD=admin123                              # ← 建议修改
 # ── SNMP ────────────────────────────────────────────
 SNMP_DEFAULT_COMMUNITY=public
 SNMP_TRAP_PORT=10162
+# 完整指标采集（不要因快速失联检测而降低）
 SNMP_POLL_INTERVAL=45
+# 快速交换机、模块和原始物理端口状态检测
+SNMP_HEALTH_POLL_ENABLED=true
+SNMP_HEALTH_POLL_INTERVAL=1
+SNMP_HEALTH_TIMEOUT=0.25
+SNMP_HEALTH_RETRIES=1
+SNMP_HEALTH_CONCURRENCY=20
+SNMP_HEALTH_FAILURE_THRESHOLD=1
+SNMP_ENDPOINT_STATUS_POLL_ENABLED=true
 SNMP_RAW_LOG_ENABLED=true
 
 # ── 日志 ────────────────────────────────────────────

@@ -198,15 +198,16 @@ async def _save_trap(
         # 消息里用的是 ep_id / con_id（Column 2），不是 ep_name / con_name（Column 4）
         endpoint_id = None
         endpoint_name = None
+        endpoint_status_update = None
         device_id = source_ip
         device_name = source_ip
         enhanced_message = message
 
         match = re.search(r'(CPU|CON) module ((CPU|CON)-\d+-\d+)', message)
-        if match:
+        if match and ("went offline" in message or "came online" in message):
             module_type_str = match.group(1)   # 'CPU' 或 'CON'
             module_id = match.group(2)          # e.g. 'CPU-1-001'
-            action = "went offline" if "offline" in message else "came online"
+            action = "went offline" if "went offline" in message else "came online"
             # last_status JSON 里对应的键名
             id_field = "ep_id" if module_type_str == "CPU" else "con_id"
 
@@ -223,6 +224,11 @@ async def _save_trap(
 
             if endpoint:
                 endpoint_id = endpoint.id
+                status_field = "ep_device_status" if module_type_str == "CPU" else "con_device_status"
+                status_value = "offline" if action == "went offline" else "online"
+                endpoint.last_status = {**(endpoint.last_status or {}), status_field: status_value}
+                endpoint.updated_at = timestamp
+                endpoint_status_update = {status_field: status_value}
 
                 # ── 3. 从端点反查所属设备 ──────────────────────────
                 device = await db.get(Device, endpoint.device_id)
@@ -293,7 +299,21 @@ async def _save_trap(
         ))
         await db.commit()
 
-    # ── 6. 广播 WebSocket ─────────────────────────────────────
+    # ── 6. 已验证的模块状态 Trap 立即更新大屏，并以轻量 SNMP 查询复核 ──
+    if endpoint_id and endpoint_status_update:
+        await ws_manager.broadcast({
+            "type": "endpoint_update",
+            "device_id": device_id,
+            "endpoint_id": endpoint_id,
+            "last_status": endpoint_status_update,
+            "reason": "snmp_trap",
+            "timestamp": timestamp.isoformat(),
+        })
+        # 延后到当前事务完成后运行；失败只影响复核，不影响已收到的 Trap 状态。
+        from app.snmp.poller import probe_device_endpoint_statuses
+        asyncio.create_task(probe_device_endpoint_statuses(device_id))
+
+    # ── 7. 广播 Trap 告警 ──────────────────────────────────────
     await ws_manager.broadcast({
         "type": "trap_received",
         "source_ip": source_ip,

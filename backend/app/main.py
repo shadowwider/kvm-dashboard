@@ -17,7 +17,7 @@ from app.config import get_settings
 from app.database import engine, AsyncSessionLocal, Base
 from app.models import *  # noqa: 注册所有模型到 Base
 from app.api.router import api_router
-from app.snmp.poller import run_poll_cycle
+from app.snmp.poller import health_monitor_state, run_health_probe_cycle, run_poll_cycle
 from app.snmp.trap_receiver import start_trap_receiver
 from app.auth.jwt import hash_password
 from app.models.user import User
@@ -44,6 +44,7 @@ async def _migrate_columns():
         ("devices",        "model_name",    "ALTER TABLE devices ADD COLUMN model_name VARCHAR(128)"),
         ("devices",        "last_metrics",  "ALTER TABLE devices ADD COLUMN last_metrics TEXT"),
         ("devices",        "endpoint_count","ALTER TABLE devices ADD COLUMN endpoint_count INTEGER DEFAULT 0"),
+        ("devices",        "last_health_check", "ALTER TABLE devices ADD COLUMN last_health_check TIMESTAMP WITH TIME ZONE"),
         ("users",          "updated_at",    "ALTER TABLE users ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
         ("status_metrics", "id",            "ALTER TABLE status_metrics ADD COLUMN id BIGSERIAL"),
         ("alerts",         "endpoint_id",   "ALTER TABLE alerts ADD COLUMN endpoint_id VARCHAR(128)"),
@@ -182,11 +183,30 @@ async def lifespan(app: FastAPI):
         max_instances=1,
         coalesce=True,
     )
+    if settings.snmp_health_poll_enabled:
+        scheduler.add_job(
+            run_health_probe_cycle,
+            trigger="interval",
+            seconds=settings.snmp_health_poll_interval,
+            id="snmp_health_probe",
+            max_instances=1,
+            coalesce=True,
+        )
     scheduler.start()
-    logger.info(f"SNMP 轮询调度器已启动（间隔 {settings.snmp_poll_interval}s）")
+    logger.info(f"SNMP 完整轮询调度器已启动（间隔 {settings.snmp_poll_interval}s）")
+    if settings.snmp_health_poll_enabled:
+        logger.info(
+            "SNMP 可达性探测调度器已启动（间隔 %ss，超时 %ss，重试 %s，并发 %s）",
+            settings.snmp_health_poll_interval,
+            settings.snmp_health_timeout,
+            settings.snmp_health_retries,
+            settings.snmp_health_concurrency,
+        )
 
-    # 启动时立即执行一次轮询
+    # 启动时立即执行一次完整轮询及一次轻量可达性探测。
     asyncio.create_task(run_poll_cycle())
+    if settings.snmp_health_poll_enabled:
+        asyncio.create_task(run_health_probe_cycle())
 
     yield
 
@@ -233,6 +253,15 @@ def create_app() -> FastAPI:
             "status": "ok" if db_ok else "degraded",
             "database": "connected" if db_ok else "disconnected",
             "scheduler": scheduler.running,
+            "health_probe": {
+                "enabled": settings.snmp_health_poll_enabled,
+                "interval_seconds": settings.snmp_health_poll_interval,
+                "timeout_seconds": settings.snmp_health_timeout,
+                "retries": settings.snmp_health_retries,
+                "concurrency": settings.snmp_health_concurrency,
+                "failure_threshold": settings.snmp_health_failure_threshold,
+                **health_monitor_state,
+            },
         }
 
     return app

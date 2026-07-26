@@ -8,7 +8,7 @@ function DevicesTab({ t, showToast }) {
     const [editDevice, setEditDevice] = useState(null); // null=新增, object=编辑
     const [form, setForm] = useState({
         id: '', name: '', host: '', port: 161,
-        community: 'public', location: '', description: '', poll_interval: 60
+        community: 'public', location: '', description: ''
     });
 
     // Fetch devices
@@ -29,7 +29,7 @@ function DevicesTab({ t, showToast }) {
     // Open modal
     const openAdd = () => {
         setEditDevice(null);
-        setForm({ id: '', name: '', host: '', port: 161, community: 'public', location: '', description: '', poll_interval: 60 });
+        setForm({ id: '', name: '', host: '', port: 161, community: 'public', location: '', description: '' });
         setShowModal(true);
     };
 
@@ -43,7 +43,6 @@ function DevicesTab({ t, showToast }) {
             community: device.community,
             location: device.location || '',
             description: device.description || '',
-            poll_interval: device.poll_interval,
         });
         setShowModal(true);
     };
@@ -60,7 +59,8 @@ function DevicesTab({ t, showToast }) {
         }
         try {
             if (editDevice) {
-                const { id, ...body } = form;
+                const body = { ...form };
+                delete body.id;
                 await api.patch(`/devices/${editDevice.id}`, body);
             } else {
                 await api.post('/devices', form);
@@ -134,7 +134,6 @@ function DevicesTab({ t, showToast }) {
                             <th>{t('admin.devices.host')}</th>
                             <th>{t('admin.devices.port')}</th>
                             <th>{t('admin.devices.community')}</th>
-                            <th>{t('admin.devices.poll_interval')}</th>
                             <th>{t('admin.devices.status')}</th>
                             <th>{t('admin.devices.actions')}</th>
                         </tr>
@@ -147,7 +146,6 @@ function DevicesTab({ t, showToast }) {
                                 <td>{d.host}</td>
                                 <td>{d.port}</td>
                                 <td>{d.community}</td>
-                                <td>{d.poll_interval}s</td>
                                 <td>
                                     <span className={`status-badge ${d.is_active ? (d.last_status || 'online') : 'inactive'}`}>
                                         <span className={`status-dot ${d.is_active ? (d.last_status || 'online') : 'offline'}`}></span>
@@ -222,14 +220,6 @@ function DevicesTab({ t, showToast }) {
                             <input
                                 value={form.community}
                                 onChange={(e) => setForm({ ...form, community: e.target.value })}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('admin.devices.poll_interval')}</label>
-                            <input
-                                type="number"
-                                value={form.poll_interval}
-                                onChange={(e) => setForm({ ...form, poll_interval: parseInt(e.target.value) || 60 })}
                             />
                         </div>
                         <div className="form-group">

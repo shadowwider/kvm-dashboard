@@ -20,6 +20,8 @@ class Device(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     poll_interval: Mapped[int] = mapped_column(Integer, default=60)  # 秒
     last_poll: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 最近一次轻量 sysObjectID 可达性探测；last_poll 只表示完整指标轮询。
+    last_health_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_status: Mapped[str | None] = mapped_column(String(16), nullable=True)  # online/offline/warning
     last_metrics: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 存储最近一次轮询的设备指标及端口状态
     endpoint_count: Mapped[int] = mapped_column(Integer, default=0)

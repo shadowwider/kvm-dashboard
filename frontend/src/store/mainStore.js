@@ -155,8 +155,57 @@ export const useStore = create((set, get) => ({
                       }
                     : d
             );
-            return { devices: updatedDevices };
+            const isReachabilityUpdate = Object.prototype.hasOwnProperty.call(deviceUpdate, 'reachability');
+            const updatedEndpoints = isReachabilityUpdate
+                ? state.endpoints.map(ep => {
+                    if (ep.device_id !== deviceUpdate.device_id) return ep;
+                    const { device_reachability: _previousReachability, ...endpoint } = ep;
+                    return deviceUpdate.reachability === 'offline'
+                        ? { ...endpoint, device_reachability: 'offline' }
+                        : endpoint;
+                })
+                : state.endpoints;
+            return { devices: updatedDevices, endpoints: updatedEndpoints };
         });
+    },
+
+    // Websocket Action: Trap 已确认的 CPU/CON 模块状态更新。
+    updateEndpointState: (endpointUpdate) => {
+        set((state) => ({
+            endpoints: state.endpoints.map(ep =>
+                ep.id === endpointUpdate.endpoint_id
+                    ? {
+                        ...ep,
+                        last_status: { ...ep.last_status, ...endpointUpdate.last_status },
+                        updated_at: endpointUpdate.timestamp,
+                    }
+                    : ep
+            ),
+        }));
+    },
+
+    // Websocket Action: 物理端口状态独立于 CPU/CON 模块索引显示。
+    updatePortState: (portUpdate) => {
+        set((state) => ({
+            devices: state.devices.map(device => {
+                if (device.id !== portUpdate.device_id) return device;
+                const metrics = device.last_metrics || {};
+                return {
+                    ...device,
+                    last_metrics: {
+                        ...metrics,
+                        ports: {
+                            ...(metrics.ports || {}),
+                            [portUpdate.port_index]: {
+                                ...((metrics.ports || {})[portUpdate.port_index] || {}),
+                                port_status: portUpdate.status,
+                                mapping_verified: portUpdate.mapping_verified,
+                            },
+                        },
+                    },
+                };
+            }),
+        }));
     },
 
     // Websocket Action: 收到新的告警

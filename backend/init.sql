@@ -25,8 +25,9 @@ CREATE TABLE IF NOT EXISTS devices (
     location VARCHAR(200),
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE,
-    poll_interval INTEGER DEFAULT 60,
+    poll_interval INTEGER DEFAULT 60, -- legacy：不控制运行时轮询频率
     last_poll TIMESTAMPTZ,
+    last_health_check TIMESTAMPTZ,
     last_status VARCHAR(20) DEFAULT 'unknown', -- online, offline, warning
     system_oid VARCHAR(255), -- 用于动态 OID 映射
     model_name VARCHAR(128), -- 例如: ControlCenter-Compact-8C

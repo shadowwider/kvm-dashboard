@@ -5,7 +5,7 @@ const useWebSocket = useWebSocketLib.default || useWebSocketLib;
 import { useStore } from '../store/mainStore';
 
 const useSystemWebSocket = () => {
-    const { updateDeviceState, prependNewAlerts, fetchAll } = useStore();
+    const { updateDeviceState, updateEndpointState, updatePortState, prependNewAlerts, fetchAll } = useStore();
 
     // Get current host automatically from browser location
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -13,7 +13,7 @@ const useSystemWebSocket = () => {
     const wsUrl = `${protocol}//${window.location.host}/api/v1/ws/monitor`;
 
     const { lastJsonMessage, readyState } = useWebSocket(wsUrl, {
-        shouldReconnect: (closeEvent) => true,
+        shouldReconnect: () => true,
         reconnectAttempts: 10,
         reconnectInterval: 3000,
     });
@@ -25,6 +25,10 @@ const useSystemWebSocket = () => {
 
         if (type === 'device_update') {
             updateDeviceState(lastJsonMessage);
+        } else if (type === 'endpoint_update') {
+            updateEndpointState(lastJsonMessage);
+        } else if (type === 'port_update') {
+            updatePortState(lastJsonMessage);
         } else if (type === 'new_alerts' || type === 'trap_received') {
             const now = new Date().toISOString();
             const rawAlerts = lastJsonMessage.alerts || [{

@@ -26,6 +26,7 @@ const hasMouse = (value) => value === 'mouse' || value === 'keyboardMouse';
 const hasKnownValue = (value) => value !== undefined && value !== null && value !== '';
 
 export function getEndpointDeviceState(ep) {
+    if (ep?.device_reachability === 'offline') return 'offline';
     const st = ep?.last_status || {};
     if (ep?.module_type === 'con') {
         return st.con_device_status || 'offline';
@@ -77,6 +78,7 @@ export function getConKeyboardMouseState(status = {}) {
 }
 
 export function getEndpointStatus(ep) {
+    if (ep?.device_reachability === 'offline') return 'offline';
     const st = ep?.last_status || {};
 
     if (ep?.module_type === 'con') {

@@ -68,13 +68,32 @@ _init_poll_raw_logger()
 
 # ─── 配置 ─────────────────────────────────────────────────────────
 CONCURRENCY_LIMIT = 20      # 同时最多轮询 N 台设备
-SNMP_TIMEOUT = 3             # SNMP 请求超时 (秒)
-SNMP_RETRIES = 1             # 超时重试次数
+SNMP_TIMEOUT = 3             # 完整指标轮询的 SNMP 请求超时 (秒)
+SNMP_RETRIES = 1             # 完整指标轮询的超时重试次数
 BULK_MAX_REPETITIONS = 25    # GETBULK 每批返回行数
 WALK_MAX_ITERATIONS = 100    # WALK 防止无限循环
 ALERT_DEDUP_MINUTES = 10     # 告警去重窗口 (分钟)
 BATCH_INSERT_SIZE = 5000     # 每批 INSERT 行数
 TRAP_POLL_COOLDOWN = 10      # Trap 触发轮询冷却时间 (秒)，避免与定时轮询并发写冲突
+SYS_OBJECT_ID_OID = "1.3.6.1.2.1.1.2.0"
+
+# 轻量路径与完整指标轮询隔离：可达性探测不执行 WALK/写指标；可选状态列探测仅查询三列。
+_health_failures: dict[str, int] = {}
+_health_port_statuses: dict[str, dict[str, str]] = {}
+_health_device_locks: dict[str, asyncio.Lock] = {}
+_endpoint_status_locks: dict[str, asyncio.Lock] = {}
+_health_device_locks_guard = asyncio.Lock()
+health_monitor_state: dict[str, object] = {
+    "last_started_at": None,
+    "last_finished_at": None,
+    "last_duration_ms": None,
+    "active_devices": 0,
+    "successes": 0,
+    "failures": 0,
+    "transitions": 0,
+    "max_probe_ms": 0,
+    "capacity_degraded": False,
+}
 
 # ─── SnmpEngine 池 ────────────────────────────────────────────────
 _engine_pool: list[SnmpEngine] = []
@@ -112,15 +131,23 @@ async def _return_engine(eng: SnmpEngine, discard: bool = False):
             _discard_engine(eng)
 
 
-async def _snmp_get(host: str, port: int, community: str, oid: str) -> tuple[str, any]:
-    """单个 OID GET 查询，返回 (oid, raw_value)"""
+async def _snmp_get(
+    host: str,
+    port: int,
+    community: str,
+    oid: str,
+    *,
+    timeout: float = SNMP_TIMEOUT,
+    retries: int = SNMP_RETRIES,
+) -> tuple[str, any]:
+    """单个 OID GET 查询，返回 (oid, raw_value)。"""
     engine = await _get_engine()
     failed = False
     try:
         error_indication, error_status, error_index, var_binds = await getCmd(
             engine,
             CommunityData(community, mpModel=1),
-            UdpTransportTarget((host, port), timeout=SNMP_TIMEOUT, retries=SNMP_RETRIES),
+            UdpTransportTarget((host, port), timeout=timeout, retries=retries),
             ContextData(),
             ObjectType(ObjectIdentity(oid)),
         )
@@ -141,19 +168,28 @@ async def _snmp_get(host: str, port: int, community: str, oid: str) -> tuple[str
         await _return_engine(engine, discard=failed)
 
 
-async def _snmp_walk(host: str, port: int, community: str, base_oid: str) -> dict[str, any]:
-    """SNMP WALK via pysnmp v6 bulkCmd (SnmpEngine 复用)"""
+async def _snmp_walk(
+    host: str,
+    port: int,
+    community: str,
+    base_oid: str,
+    *,
+    timeout: float = SNMP_TIMEOUT + 2,
+    retries: int = SNMP_RETRIES,
+    max_iterations: int = WALK_MAX_ITERATIONS,
+) -> dict[str, any]:
+    """SNMP WALK via pysnmp v6 bulkCmd (SnmpEngine 复用)。"""
     engine = await _get_engine()
     results = {}
     next_oid = base_oid
     base_tuple = tuple(int(x) for x in base_oid.lstrip(".").split("."))
     failed = False
     try:
-        for iteration in range(WALK_MAX_ITERATIONS):
+        for iteration in range(max_iterations):
             error_indication, error_status, error_index, var_bind_table = await bulkCmd(
                 engine,
                 CommunityData(community, mpModel=1),
-                UdpTransportTarget((host, port), timeout=SNMP_TIMEOUT + 2, retries=SNMP_RETRIES),
+                UdpTransportTarget((host, port), timeout=timeout, retries=retries),
                 ContextData(),
                 0, BULK_MAX_REPETITIONS,
                 ObjectType(ObjectIdentity(next_oid)),
@@ -206,6 +242,237 @@ async def _snmp_walk(host: str, port: int, community: str, base_oid: str) -> dic
     return results
 
 
+async def _get_health_device_lock(device_id: str) -> asyncio.Lock:
+    async with _health_device_locks_guard:
+        return _health_device_locks.setdefault(device_id, asyncio.Lock())
+
+
+async def _broadcast_health_transition(
+    device_id: str,
+    status: str,
+    now: datetime,
+    reason: str,
+):
+    await ws_manager.broadcast({
+        "type": "device_update",
+        "device_id": device_id,
+        "online_status": status,
+        "reachability": status,
+        "reason": reason,
+        "last_health_check": now.isoformat(),
+        "timestamp": now.isoformat(),
+    })
+
+
+async def probe_device_health(device: Device) -> tuple[bool, bool, float]:
+    """只读取 sysObjectID 的快速可达性探测。
+
+    返回 (reachable, transitioned, elapsed_ms)。此路径不能执行 WALK、写指标或更新端点。
+    """
+    settings = _get_settings()
+    started = _time.monotonic()
+    _, raw_sys_oid = await _snmp_get(
+        device.host,
+        device.port,
+        device.community,
+        SYS_OBJECT_ID_OID,
+        timeout=settings.snmp_health_timeout,
+        retries=settings.snmp_health_retries,
+    )
+    elapsed_ms = (_time.monotonic() - started) * 1000
+    reachable = raw_sys_oid is not None
+    transitioned = False
+    now = datetime.now(timezone.utc)
+
+    lock = await _get_health_device_lock(device.id)
+    async with lock:
+        if reachable:
+            _health_failures.pop(device.id, None)
+            # 健康周期加载的快照已经不是 offline 时，无需每秒访问数据库。
+            if device.last_status == "offline":
+                async with AsyncSessionLocal() as db:
+                    current = await db.get(Device, device.id)
+                    if current and current.last_status == "offline":
+                        await db.execute(
+                            update(Device).where(Device.id == device.id).values(
+                                last_status="online", last_health_check=now
+                            )
+                        )
+                        await db.commit()
+                        transitioned = True
+            if transitioned:
+                logger.warning(
+                    "device_health_recovered device_id=%s host=%s elapsed_ms=%.1f",
+                    device.id, device.host, elapsed_ms,
+                )
+                await _broadcast_health_transition(device.id, "online", now, "snmp_health_probe_recovered")
+        else:
+            failures = _health_failures.get(device.id, 0) + 1
+            _health_failures[device.id] = failures
+            # 健康周期加载的快照已是离线时，不访问数据库或重复广播。
+            if failures >= settings.snmp_health_failure_threshold and device.last_status != "offline":
+                async with AsyncSessionLocal() as db:
+                    current = await db.get(Device, device.id)
+                    if current and current.last_status != "offline":
+                        await db.execute(
+                            update(Device).where(Device.id == device.id).values(
+                                last_status="offline", last_health_check=now
+                            )
+                        )
+                        await db.commit()
+                        transitioned = True
+                if transitioned:
+                    logger.warning(
+                        "device_health_offline device_id=%s host=%s failures=%s elapsed_ms=%.1f",
+                        device.id, device.host, failures, elapsed_ms,
+                    )
+                    await _broadcast_health_transition(device.id, "offline", now, "snmp_health_probe_timeout")
+
+    return reachable, transitioned, elapsed_ms
+
+
+async def probe_device_endpoint_statuses(device_id: str):
+    """按设备 ID 复核 CPU/CON 与物理端口状态，供已验证 Trap 触发。
+
+    此函数不是一秒健康循环的一部分；它只在 Trap 到达后执行。
+    """
+    async with AsyncSessionLocal() as db:
+        device = await db.get(Device, device_id)
+    if not device or not device.is_active:
+        return
+    await _probe_endpoint_statuses(device)
+
+
+async def _probe_endpoint_statuses(device: Device):
+    """快速读取 CPU/CON 状态列和物理端口状态列，不假设端口与模块索引对应。"""
+    settings = _get_settings()
+    from app.snmp.oid_map import CON_TABLE_ENTRY, ENDPOINT_TABLE_ENTRY, ENUM_MAPS, PORT_TABLE_ENTRY
+
+    sys_oid = device.system_oid or "1.3.6.1.4.1.32828.3.257.16"
+    probes = [
+        ("cpu", f"{ENDPOINT_TABLE_ENTRY}.5", "ep_device_status", ENUM_MAPS["device_status"]),
+        ("con", f"{CON_TABLE_ENTRY}.5", "con_device_status", ENUM_MAPS["device_status"]),
+        ("port", f"{PORT_TABLE_ENTRY}.2", "port_status", ENUM_MAPS["port_status"]),
+    ]
+    results = await asyncio.gather(*(
+        _snmp_walk(
+            device.host, device.port, device.community, base_oid.replace("{sys_oid}", sys_oid),
+            timeout=settings.snmp_health_timeout,
+            retries=0,
+            # 单个 GETBULK 最多返回 25 行，覆盖当前 20 端点部署而不把状态检测拖成深度 WALK。
+            max_iterations=1,
+        )
+        for _, base_oid, _, _ in probes
+    ), return_exceptions=True)
+
+    now = datetime.now(timezone.utc)
+    port_statuses = _health_port_statuses.setdefault(device.id, {})
+    async with _health_device_locks_guard:
+        status_lock = _endpoint_status_locks.setdefault(device.id, asyncio.Lock())
+    async with status_lock, AsyncSessionLocal() as db:
+        for (namespace, _, status_field, enum_map), result in zip(probes, results):
+            if isinstance(result, Exception) or not isinstance(result, dict):
+                continue
+            for full_oid, raw_value in result.items():
+                row_index = full_oid.rsplit(".", 1)[-1]
+                value_str, _ = parse_snmp_value(raw_value, "enum", enum_map)
+                if namespace == "port":
+                    previous = port_statuses.get(row_index)
+                    port_statuses[row_index] = value_str
+                    if previous is not None and previous != value_str:
+                        await ws_manager.broadcast({
+                            "type": "port_update",
+                            "device_id": device.id,
+                            "port_index": row_index,
+                            "status": value_str,
+                            "previous_status": previous,
+                            "timestamp": now.isoformat(),
+                            "mapping_verified": False,
+                        })
+                    continue
+
+                endpoint = await db.get(Endpoint, f"{device.id}_{namespace}_{row_index}")
+                if not endpoint:
+                    continue
+                previous_status = (endpoint.last_status or {}).get(status_field)
+                if previous_status == value_str:
+                    continue
+                endpoint.last_status = {**(endpoint.last_status or {}), status_field: value_str}
+                endpoint.updated_at = now
+                await ws_manager.broadcast({
+                    "type": "endpoint_update",
+                    "device_id": device.id,
+                    "endpoint_id": endpoint.id,
+                    "last_status": {status_field: value_str},
+                    "reason": "snmp_targeted_status_probe",
+                    "timestamp": now.isoformat(),
+                })
+        await db.commit()
+
+
+async def run_health_probe_cycle():
+    """并发运行轻量 sysObjectID 可达性探测，不与完整指标轮询共享限流。"""
+    settings = _get_settings()
+    if not settings.snmp_health_poll_enabled:
+        return
+
+    started_at = datetime.now(timezone.utc)
+    started = _time.monotonic()
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Device).where(Device.is_active == True))
+        devices = result.scalars().all()
+
+    semaphore = asyncio.Semaphore(settings.snmp_health_concurrency)
+    successes = failures = transitions = 0
+    max_probe_ms = 0.0
+
+    async def limited_probe(device: Device):
+        nonlocal successes, failures, transitions, max_probe_ms
+        async with semaphore:
+            try:
+                reachable, transitioned, elapsed_ms = await probe_device_health(device)
+                # 仅扫描三个状态列（CPU、CON、物理端口），使模块/网线事件无需等待完整 WALK。
+                if reachable and settings.snmp_endpoint_status_poll_enabled:
+                    await _probe_endpoint_statuses(device)
+                successes += int(reachable)
+                failures += int(not reachable)
+                transitions += int(transitioned)
+                max_probe_ms = max(max_probe_ms, elapsed_ms)
+            except Exception:
+                failures += 1
+                logger.exception("设备 %s 健康探测异常", device.id)
+
+    await asyncio.gather(*(limited_probe(device) for device in devices), return_exceptions=True)
+    duration_ms = (_time.monotonic() - started) * 1000
+    health_timeout_budget = settings.snmp_health_timeout * (settings.snmp_health_retries + 1)
+    # 每台设备在可达后还会并发查询 3 个单批状态列；这些查询不能从 SLO 容量估算中忽略。
+    per_device_budget = health_timeout_budget + settings.snmp_health_timeout
+    estimated_scan_seconds = ((len(devices) + settings.snmp_health_concurrency - 1) // settings.snmp_health_concurrency) * per_device_budget
+    capacity_degraded = estimated_scan_seconds > settings.snmp_health_poll_interval
+    health_monitor_state.update({
+        "last_started_at": started_at.isoformat(),
+        "last_finished_at": datetime.now(timezone.utc).isoformat(),
+        "last_duration_ms": round(duration_ms, 1),
+        "active_devices": len(devices),
+        "successes": successes,
+        "failures": failures,
+        "transitions": transitions,
+        "max_probe_ms": round(max_probe_ms, 1),
+        "capacity_degraded": capacity_degraded,
+        "estimated_scan_seconds": round(estimated_scan_seconds, 3),
+    })
+    if capacity_degraded:
+        logger.error(
+            "health_probe_capacity_degraded devices=%s concurrency=%s estimated_scan_seconds=%.3f interval=%.3f",
+            len(devices), settings.snmp_health_concurrency, estimated_scan_seconds,
+            settings.snmp_health_poll_interval,
+        )
+    logger.info(
+        "health_probe_cycle devices=%s successes=%s failures=%s transitions=%s duration_ms=%.1f max_probe_ms=%.1f",
+        len(devices), successes, failures, transitions, duration_ms, max_probe_ms,
+    )
+
+
 async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
     """轮询单台设备，写入时序数据并检测告警"""
     logger.info(f"开始轮询设备: {device.id} ({device.host})")
@@ -239,6 +506,8 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                 "type": "device_update",
                 "device_id": device.id,
                 "online_status": "offline",
+                "reachability": "offline",
+                "reason": "snmp_rich_poll_timeout",
                 "status": {},
                 "timestamp": now.isoformat(),
             })
@@ -490,6 +759,8 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
         "type": "device_update",
         "device_id": device.id,
         "online_status": device_online_status,
+        # 完整轮询成功同样要清除前端的父设备离线覆盖状态。
+        "reachability": "online",
         "status": device_status_summary,
         "last_metrics": full_metrics,
         "endpoint_count": ep_count,

@@ -25,8 +25,10 @@ class DeviceOut(BaseModel):
     location: Optional[str]
     description: Optional[str]
     is_active: bool
+    # Legacy compatibility field: runtime scheduling ignores this value.
     poll_interval: int
     last_poll: Optional[datetime]
+    last_health_check: Optional[datetime]
     last_status: Optional[str]
     last_metrics: Optional[dict]
     endpoint_count: Optional[int] = 0
