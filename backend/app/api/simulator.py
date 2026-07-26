@@ -51,6 +51,15 @@ async def reconcile_manifest(
     if not run:
         run = SimulatorRun(id=run_id, scenario_id=body.scenario_id, revision=body.revision, manifest=body.model_dump())
         db.add(run)
+    elif body.revision < run.revision:
+        # Outbound reconciliations can finish out of order; never let an older
+        # simulator snapshot replace a newer topology/state manifest.
+        return {
+            "run_id": run_id,
+            "revision": run.revision,
+            "ignored_stale_revision": body.revision,
+            "bindings": [],
+        }
     else:
         run.scenario_id = body.scenario_id
         run.revision = body.revision
