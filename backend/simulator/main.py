@@ -111,7 +111,12 @@ def update_route(device_id: str, route_id: str, patch: RouteStatePatch):
         result = runtime.patch_route(device_id, route_id, patch)
     except KeyError as exc:
         raise HTTPException(404, f"Unknown route: {exc.args[0]}") from exc
-    return {"revision": result.revision, "device_id": result.device_id}
+    reconcile = bridge.reconcile(runtime)
+    return {
+        "revision": result.revision,
+        "device_id": result.device_id,
+        "bridge": {"reconcile": reconcile},
+    }
 
 
 @app.post("/api/v1/traps")
@@ -124,7 +129,8 @@ def send_trap(request: TrapRequest):
 def reset_scenario():
     runtime = current_state()
     runtime.reset()
-    return runtime.snapshot()
+    reconcile = bridge.reconcile(runtime)
+    return {**runtime.snapshot(), "bridge": {"reconcile": reconcile}}
 
 
 @app.get("/", response_class=HTMLResponse)
