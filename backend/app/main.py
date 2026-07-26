@@ -49,6 +49,7 @@ async def _migrate_columns():
         ("status_metrics", "id",            "ALTER TABLE status_metrics ADD COLUMN id BIGSERIAL"),
         ("alerts",         "endpoint_id",   "ALTER TABLE alerts ADD COLUMN endpoint_id VARCHAR(128)"),
         ("simulator_runs", "session_id",    "ALTER TABLE simulator_runs ADD COLUMN session_id VARCHAR(64)"),
+        ("simulator_runs", "session_started_at", "ALTER TABLE simulator_runs ADD COLUMN session_started_at BIGINT DEFAULT 0"),
     ]
     async with engine.begin() as conn:
         if settings.is_sqlite:

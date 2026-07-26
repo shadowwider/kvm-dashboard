@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import secrets
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, select, update
@@ -28,6 +29,13 @@ class SimulatorManifest(BaseModel):
     scenario: dict
 
 
+class SimulatorSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: str = Field(min_length=1, max_length=64)
+    session_started_at: int = Field(ge=1)
+
+
 def _ensure_enabled(x_simulator_token: str | None) -> None:
     if not settings.simulator_bridge_enabled:
         raise HTTPException(404, "本地模拟器桥接未启用")
@@ -37,6 +45,54 @@ def _ensure_enabled(x_simulator_token: str | None) -> None:
 
 def _device_id(run_id: str, simulator_id: str) -> str:
     return f"sim_{run_id}_{simulator_id}"[:64]
+
+
+@router.post("/runs/{run_id}/sessions")
+async def start_session(
+    run_id: str,
+    body: SimulatorSessionRequest,
+    x_simulator_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Make one bridge session authoritative; manifests from older sessions are rejected."""
+    _ensure_enabled(x_simulator_token)
+    run = await db.get(SimulatorRun, run_id)
+    if not run:
+        run = SimulatorRun(
+            id=run_id,
+            scenario_id="pending",
+            session_id=body.session_id,
+            session_started_at=body.session_started_at,
+            revision=0,
+            manifest={},
+        )
+        db.add(run)
+        await db.commit()
+        return {"run_id": run_id, "session_id": body.session_id, "revision": 0}
+
+    # A delayed session-start from an older process may not supersede the active run.
+    claimed = await db.execute(
+        update(SimulatorRun).where(
+            SimulatorRun.id == run_id,
+            SimulatorRun.session_started_at <= body.session_started_at,
+        ).values(
+            session_id=body.session_id,
+            session_started_at=body.session_started_at,
+            revision=0,
+            manifest={},
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    await db.commit()
+    if not claimed.rowcount:
+        current = await db.get(SimulatorRun, run_id)
+        return {
+            "run_id": run_id,
+            "session_id": current.session_id if current else None,
+            "ignored_superseded_session": body.session_id,
+            "revision": current.revision if current else None,
+        }
+    return {"run_id": run_id, "session_id": body.session_id, "revision": 0}
 
 
 @router.put("/runs/{run_id}/manifest")
@@ -50,44 +106,39 @@ async def reconcile_manifest(
     _ensure_enabled(x_simulator_token)
     run = await db.get(SimulatorRun, run_id)
     if not run:
-        run = SimulatorRun(
-            id=run_id,
+        # Callers must establish a session first; this avoids an in-flight stale
+        # manifest creating or taking ownership of a run after a cleanup/restart.
+        raise HTTPException(409, "模拟器会话尚未建立")
+    if run.session_id != body.session_id:
+        return {
+            "run_id": run_id,
+            "revision": run.revision,
+            "ignored_superseded_session": body.session_id,
+            "bindings": [],
+        }
+
+    # Atomically claim this revision before applying the manifest. A stale
+    # request loses the conditional update and cannot overwrite newer state.
+    claimed = await db.execute(
+        update(SimulatorRun).where(
+            SimulatorRun.id == run_id,
+            SimulatorRun.session_id == body.session_id,
+            SimulatorRun.revision <= body.revision,
+        ).values(
             scenario_id=body.scenario_id,
-            session_id=body.session_id,
             revision=body.revision,
             manifest=body.model_dump(),
+            updated_at=datetime.now(timezone.utc),
         )
-        db.add(run)
-    elif run.session_id != body.session_id:
-        # A restarted simulator with the same friendly run ID starts a new epoch.
-        run.scenario_id = body.scenario_id
-        run.session_id = body.session_id
-        run.revision = body.revision
-        run.manifest = body.model_dump()
-        run.updated_at = datetime.now(timezone.utc)
-    else:
-        # Atomically claim this revision before applying the manifest. A stale
-        # request loses the conditional update and cannot overwrite newer state.
-        claimed = await db.execute(
-            update(SimulatorRun).where(
-                SimulatorRun.id == run_id,
-                SimulatorRun.session_id == body.session_id,
-                SimulatorRun.revision <= body.revision,
-            ).values(
-                scenario_id=body.scenario_id,
-                revision=body.revision,
-                manifest=body.model_dump(),
-                updated_at=datetime.now(timezone.utc),
-            )
-        )
-        if not claimed.rowcount:
-            current = await db.get(SimulatorRun, run_id)
-            return {
-                "run_id": run_id,
-                "revision": current.revision if current else None,
-                "ignored_stale_revision": body.revision,
-                "bindings": [],
-            }
+    )
+    if not claimed.rowcount:
+        current = await db.get(SimulatorRun, run_id)
+        return {
+            "run_id": run_id,
+            "revision": current.revision if current else None,
+            "ignored_stale_revision": body.revision,
+            "bindings": [],
+        }
 
     desired_ids: set[str] = set()
     bindings: list[dict] = []
