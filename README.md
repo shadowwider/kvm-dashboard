@@ -36,7 +36,8 @@
 3. **🔧 物理端口逻辑** 👉 `docs/port_mapping_logic.md`（**必读**：解释如何通过 Column 1 映射机架位置）
 4. **💡 生产避坑教训** 👉 `tasks/lessons.md`（包含并发限流、SNMP 库兼容性处理）
 5. **📝 进度追踪清单** 👉 `tasks/todo.md`（项目大阶段总揽）
-6. **🎮 仿真器指南** 👉 `help/README.md`（如何使用可视化工具 Sim-Pro 进行压力测试）
+6. **🎮 本地 SNMP 模拟器指南** 👉 `backend/kvm_simulator_README.md`（启动本地后端、前端和多 Profile 模拟场景的人工测试步骤）
+7. **🧭 G&D 设备架构与 MIB Profile** 👉 `docs/GD_MIB_COMPATIBILITY_AND_PROFILE_PLAN.md`（中心矩阵、DP 小矩阵、独立 VisionXS 端点及数据源边界）
 
 ---
 

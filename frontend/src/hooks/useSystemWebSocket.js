@@ -30,7 +30,8 @@ const useSystemWebSocket = () => {
         } else if (type === 'port_update') {
             updatePortState(lastJsonMessage);
         } else if (type === 'simulation_topology_update') {
-            fetchTopology(lastJsonMessage.device_id);
+            // A scenario may add/remove whole devices, so topology-only refresh is insufficient.
+            fetchAll();
         } else if (type === 'new_alerts' || type === 'trap_received') {
             const now = new Date().toISOString();
             const rawAlerts = lastJsonMessage.alerts || [{

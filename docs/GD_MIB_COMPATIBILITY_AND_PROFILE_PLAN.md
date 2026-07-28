@@ -78,6 +78,61 @@ Profile 不是“每台设备一套接收服务”，而是一个可版本化的
 
 `cc160` 与 `ccdm` 资料包中的六个 MIB 文件 SHA-256 相同，属于同一 `ccdm_matrix` Profile，不是两个协议。
 
+### 4.1 厂商设备的三种监控/拓扑架构
+
+以下是后续接入、前端建模和模拟测试应使用的三种架构。它们是**产品/管理拓扑**，不是要求每台设备配一套 Trap 接收器；Dashboard 仍只需要一个统一 Trap Receiver，并按 Profile 解析来源设备和 varbind。
+
+#### A. 中心矩阵汇总型：ControlCenter / CCDM / CCDC
+
+```text
+多个 CPU / Target ─┐
+                  ├── ControlCenter Matrix ── 多个 CON / Console
+多个 CPU / Target ─┘
+```
+
+矩阵本身是一个 SNMP Agent，也是模块库存的权威来源：它汇报机箱、板卡、电源、风扇、网络、端口，以及下挂 CPU/CON/DWC 等模块状态。适合大型矩阵和大量下挂端点。
+
+- 对应 Profile：`ccdc_legacy`、`ccdm_matrix`。
+- 设备归属、槽位/模块存在性、矩阵所见模块状态，应以矩阵为权威来源。
+- `ccdc_legacy` 是当前 Dashboard 的历史兼容模型；`ccdm_matrix` 是有本批 MIB 资料支持的不同产品模型，不能仅替换 OID 前缀就当作相同设备。
+
+#### B. 小型通道矩阵型：DP1.2-MUX-ATC
+
+```text
+若干 CPU / Video Channel ── DP MUX ── 若干 Console / Video Channel
+```
+
+DP 是独立的小型 KVM/视频通道切换器：它自身汇报 CPU、CPU video、console video 通道、当前 selected channel，以及本机电源/风扇/网络等状态。它是局部矩阵，但数据模型是**通道模型**，不是大型 ControlCenter 的 CPU/CON 模块表。
+
+- 对应 Profile：`dp12_mux_atc`。
+- 本批 MIB 确认通道/视频表及部分可写控制 OID；当前系统与模拟器均只做只读监控，不启用 SNMP SET。
+- 现场可能按业务组合少量 CPU/CON，但具体数量、端口和路由必须以实际型号/固件/MIB 为准，不能从索引范围推断。
+
+#### C. 独立端点自报型：VisionXS CPU / VisionXS CON
+
+```text
+Dashboard ── SNMP ── VisionXS CPU
+Dashboard ── SNMP ── VisionXS CON
+```
+
+CPU 和 CON 各自都是独立 SNMP Agent，不依赖中心矩阵代为汇报。它们能报告本机身份、固件、温度、风扇、网络、视频、USB、显示和链路等信息。
+
+- 对应 Profile：`visionxs_cpu`、`visionxs_con`。
+- 应在 Dashboard 中作为独立 Device/Node，而不是伪装成某一矩阵下的一行 endpoint。
+- 若同一实体同时被矩阵和本机 SNMP 看到：矩阵负责模块归属/槽位，本机负责温度、SFP、显示、USB 等端点细节；不能让两个来源互相无条件覆盖。
+
+### 4.2 数据源优先级与路由边界
+
+| 事实 | 首选权威来源 | 不应做的推断 |
+|---|---|---|
+| 矩阵中是否存在模块、所属槽位 | 中心矩阵 | 不能从端点自己的在线状态推导槽位 |
+| 独立 CPU/CON 本机温度、视频、USB、显示/SFP | 独立端点 SNMP | 不能由矩阵通用端口表替代全部细节 |
+| DP 当前选择的通道 | DP MUX | 不能由 CPU/CON 局部字段猜测 |
+| CPU→CON 业务路由 | 矩阵/DP 的已验证路由或配置接口 | 不能根据物理端口行号、视频字段或 UI 排列推断 |
+| 设备网络可达性 | 该 SNMP Agent 的健康探测 | Trap 不能替代断网/断电检测 |
+
+本地模拟器中的 CPU→CON 连线仅为 `simulation-declared` 测试路由，必须在 UI 中标记为模拟数据；它不主张厂商 SNMP 已经提供真实路由发现。
+
 ## 5. Trap：正式 MIB 与日志证据
 
 ### 5.1 厂商 MIB 定义的通用 Trap
