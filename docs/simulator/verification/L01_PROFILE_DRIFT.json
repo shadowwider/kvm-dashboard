@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "purpose": "L1-to-L2 diagnostic; non-zero means Profile repair remains",
+  "golden_source_policy": "local curated device dictionary snapshot; original MIB not reverified in this run",
+  "profiles": {
+    "ccdm_matrix": {
+      "profile_id": "ccdm_matrix",
+      "golden_file": "backend/tests/golden/simulator/ccdm.objects.json",
+      "golden_evidence_status": "local-device-dictionary-snapshot",
+      "golden_table_count": 20,
+      "current_table_count": 15,
+      "golden_gettable_leaf_count": 142,
+      "current_declared_leaf_count": 134,
+      "missing_definition_oids": [
+        "1.3.6.1.4.1.32828.3.257.10.1.1.2.3.1000.1.30",
+        "1.3.6.1.4.1.32828.3.257.10.1.1.2.3.1001.1.2",
+        "1.3.6.1.4.1.32828.3.257.10.1.1.2.3.1001.1.3",
+        "1.3.6.1.4.1.32828.3.257.10.1.1.2.3.1002.1.2",
+        "1.3.6.1.4.1.32828.3.257.10.1.1.2.3.1002.1.3",
+        "1.3.6.1.4.1.32828.3.257.10.1.2.2.3.1001.1.2",
+        "1.3.6.1.4.1.32828.3.257.10.1.2.2.3.1001.1.3",
+        "1.3.6.1.4.1.32828.3.257.10.1.2.2.3.1002.1.2",
+        "1.3.6.1.4.1.32828.3.257.10.1.2.2.3.1002.1.3",
+        "1.3.6.1.4.1.32828.3.257.10.1.3.2.3.1001.1.2",
+        "1.3.6.1.4.1.32828.3.257.10.1.3.2.3.1001.1.3"
+      ],
+      "unexpected_definition_oids": [
+        "1.3.6.1.4.1.32828.3.257.10.2.3.1",
+        "1.3.6.1.4.1.32828.3.257.10.2.3.2",
+        "1.3.6.1.4.1.32828.3.257.10.2.3.3"
+      ],
+      "duplicate_definition_oids": [],
+      "invalid_literal_defaults": [
+        {
+          "oid": "1.3.6.1.4.1.32828.3.257.10.1.2.2.3.1000.1.12",
+          "name": "targetUsbHid",
+          "table": "cpu_modules",
+          "default": 3,
+          "reasons": [
+            "not in enum [0, 1, 2]"
+          ]
+        },
+        {
+          "oid": "1.3.6.1.4.1.32828.3.257.10.1.2.2.3.1000.1.13",
+          "name": "targetVideoCable",
+          "table": "cpu_modules",
+          "default": 5,
+          "reasons": [
+            "not in enum [0, 1]"
+          ]
+        },
+        {
+          "oid": "1.3.6.1.4.1.32828.3.257.10.1.2.2.3.1000.1.14",
+          "name": "targetVideoCable1",
+          "table": "cpu_modules",
+          "default": 5,
+          "reasons": [
+            "not in enum [0, 1]"
+          ]
+        },
+        {
+          "oid": "1.3.6.1.4.1.32828.3.257.10.1.2.2.3.1000.1.15",
+          "name": "targetVideoCable2",
+          "table": "cpu_modules",
+          "default": 5,
+          "reasons": [
+            "not in enum [0, 1]"
+          ]
+        }
+      ],
+      "explicit_fixture_row_tables": [
+        {
+          "table": "fanTable",
+          "row_source": "range",
+          "configured_row_count": 20
+        },
+        {
+          "table": "powerSupplyTable",
+          "row_source": "range",
+          "configured_row_count": 3
+        },
+        {
+          "table": "ioCardCatTable",
+          "row_source": "range",
+          "configured_row_count": 19
+        },
+        {
+          "table": "ioCardCatPortTable",
+          "row_source": "matrix",
+          "configured_row_count": 304
+        },
+        {
+          "table": "ioCardFiberTable",
+          "row_source": "range",
+          "configured_row_count": 19
+        },
+        {
+          "table": "ioCardFiberPortTable",
+          "row_source": "matrix",
+          "configured_row_count": 304
+        },
+        {
+          "table": "ioCardMultiTable",
+          "row_source": "range",
+          "configured_row_count": 19
+        },
+        {
+          "table": "ioCardMultiPortTable",
+          "row_source": "matrix",
+          "configured_row_count": 304
+        },
+        {
+          "table": "ioCardTrunkTable",
+          "row_source": "range",
+          "configured_row_count": 19
+        },
+        {
+          "table": "ioCardTrunkPortTable",
+          "row_source": "matrix",
+          "configured_row_count": 304
+        },
+        {
+          "table": "dwc_modules",
+          "row_source": "range",
+          "configured_row_count": 1
+        },
+        {
+          "table": "dwcVideoChannelTable",
+          "row_source": "matrix",
+          "configured_row_count": 1
+        },
+        {
+          "table": "dwcLinkChannelTable",
+          "row_source": "matrix",
+          "configured_row_count": 1
+        }
+      ],
+      "matches_l1_golden": false
+    },
+    "visionxs_cpu": {
+      "profile_id": "visionxs_cpu",
+      "golden_file": "backend/tests/golden/simulator/visionxs_cpu.objects.json",
+      "golden_evidence_status": "local-device-dictionary-snapshot",
+      "golden_table_count": 2,
+      "current_table_count": 2,
+      "golden_gettable_leaf_count": 28,
+      "current_declared_leaf_count": 28,
+      "missing_definition_oids": [],
+      "unexpected_definition_oids": [],
+      "duplicate_definition_oids": [],
+      "invalid_literal_defaults": [],
+      "explicit_fixture_row_tables": [
+        {
+          "table": "videoChannelTable",
+          "row_source": "range",
+          "configured_row_count": 4
+        },
+        {
+          "table": "linkChannelTable",
+          "row_source": "range",
+          "configured_row_count": 2
+        }
+      ],
+      "matches_l1_golden": true
+    },
+    "visionxs_con": {
+      "profile_id": "visionxs_con",
+      "golden_file": "backend/tests/golden/simulator/visionxs_con.objects.json",
+      "golden_evidence_status": "local-device-dictionary-snapshot",
+      "golden_table_count": 2,
+      "current_table_count": 2,
+      "golden_gettable_leaf_count": 27,
+      "current_declared_leaf_count": 27,
+      "missing_definition_oids": [],
+      "unexpected_definition_oids": [],
+      "duplicate_definition_oids": [],
+      "invalid_literal_defaults": [],
+      "explicit_fixture_row_tables": [
+        {
+          "table": "displayTable",
+          "row_source": "range",
+          "configured_row_count": 4
+        },
+        {
+          "table": "linkChannelTable",
+          "row_source": "range",
+          "configured_row_count": 2
+        }
+      ],
+      "matches_l1_golden": true
+    },
+    "dp12_mux_atc": {
+      "profile_id": "dp12_mux_atc",
+      "golden_file": "backend/tests/golden/simulator/dp12_mux_atc.objects.json",
+      "golden_evidence_status": "local-device-dictionary-snapshot",
+      "golden_table_count": 4,
+      "current_table_count": 4,
+      "golden_gettable_leaf_count": 35,
+      "current_declared_leaf_count": 35,
+      "missing_definition_oids": [],
+      "unexpected_definition_oids": [],
+      "duplicate_definition_oids": [],
+      "invalid_literal_defaults": [],
+      "explicit_fixture_row_tables": [
+        {
+          "table": "cpuChannelTable",
+          "row_source": "range",
+          "configured_row_count": 4
+        },
+        {
+          "table": "cpuChannelVideoTable",
+          "row_source": "matrix",
+          "configured_row_count": 4
+        },
+        {
+          "table": "consoleVideoTable",
+          "row_source": "range",
+          "configured_row_count": 4
+        },
+        {
+          "table": "fanTable",
+          "row_source": "range",
+          "configured_row_count": 2
+        }
+      ],
+      "matches_l1_golden": true
+    }
+  },
+  "ok": false
+}

@@ -18,7 +18,7 @@ from app.database import engine, AsyncSessionLocal, Base
 from app.models import *  # noqa: 注册所有模型到 Base
 from app.api.router import api_router
 from app.snmp.poller import health_monitor_state, run_health_probe_cycle, run_poll_cycle
-from app.snmp.trap_receiver import start_trap_receiver
+from app.snmp.trap_receiver import start_trap_receiver, trap_receiver_status
 from app.auth.jwt import hash_password
 from app.models.user import User
 from app.models.oid_registry import OIDRegistry
@@ -256,6 +256,7 @@ def create_app() -> FastAPI:
             "status": "ok" if db_ok else "degraded",
             "database": "connected" if db_ok else "disconnected",
             "scheduler": scheduler.running,
+            "trap_receiver": trap_receiver_status(),
             "health_probe": {
                 "enabled": settings.snmp_health_poll_enabled,
                 "interval_seconds": settings.snmp_health_poll_interval,

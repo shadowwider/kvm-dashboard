@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "fixture_id": "gud-general-notification-formal-v1",
+  "kind": "trap-evidence-contract",
+  "layout_id": "gud-general-notification-formal",
+  "evidence_status": "local-device-dictionary-snapshot-and-field-capture-confirmed",
+  "source_assurance": "local-curated-snapshot-not-verified-against-original-mib-in-this-run",
+  "profile_applicability": {
+    "local_device_dictionary_defined": [
+      "ccdm_matrix",
+      "visionxs_cpu",
+      "visionxs_con",
+      "dp12_mux_atc"
+    ],
+    "capture_observed_only": [
+      "ccdc_legacy"
+    ],
+    "notes": [
+      "The repository does not contain a verified CCDC/CCC device dictionary, so the field capture does not promote ccdc_legacy beyond capture-observed-only.",
+      "The local device dictionaries do not prove that every product or firmware enables or emits this notification.",
+      "This run did not read or re-verify original MIB files; protocol facts were transcribed only from repository device dictionaries."
+    ]
+  },
+  "notification": {
+    "name": "generalNotification",
+    "oid": "1.3.6.1.4.1.32828.2.1.0.4",
+    "syntax": "NOTIFICATION-TYPE",
+    "vendor_objects_in_declared_order": [
+      "level",
+      "message"
+    ]
+  },
+  "snmpv2_notification_envelope": [
+    {
+      "name": "sysUpTime.0",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "role": "standard-envelope",
+      "required_for_capture_fixture": true
+    },
+    {
+      "name": "snmpTrapOID.0",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "role": "standard-envelope",
+      "required_for_capture_fixture": true,
+      "expected_value": "1.3.6.1.4.1.32828.2.1.0.4"
+    }
+  ],
+  "vendor_objects": [
+    {
+      "name": "level",
+      "oid": "1.3.6.1.4.1.32828.2.1.0.2",
+      "syntax": "Integer32",
+      "max_access": "read-only",
+      "enum": null,
+      "severity_mapping": null,
+      "required_for_capture_fixture": true,
+      "source": "docs/reference/docs/devices/ccdm-controlcenter-digital.md:136-142"
+    },
+    {
+      "name": "message",
+      "oid": "1.3.6.1.4.1.32828.2.1.0.3",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "required_for_capture_fixture": true,
+      "source": "docs/reference/docs/devices/ccdm-controlcenter-digital.md:136-142"
+    }
+  ],
+  "matching_contract": {
+    "notification_oid_must_equal": "1.3.6.1.4.1.32828.2.1.0.4",
+    "required_vendor_varbind_oids": [
+      "1.3.6.1.4.1.32828.2.1.0.2",
+      "1.3.6.1.4.1.32828.2.1.0.3"
+    ],
+    "single_oid_match_is_sufficient": false,
+    "unknown_varbinds": "preserve",
+    "raw_level": "preserve-as-integer",
+    "raw_message": "preserve-as-text"
+  },
+  "semantic_limits": {
+    "vendor_level_enum_defined": false,
+    "vendor_severity_mapping_defined": false,
+    "trigger_conditions_defined": false,
+    "recovery_semantics_defined": false,
+    "destination_or_port_defined": false,
+    "snmp_version_defined": false,
+    "acknowledgement_or_retry_defined": false,
+    "message_templates_are_structured_mib_contract": false
+  },
+  "repository_document_evidence": {
+    "module": "GUD-GENERALTRAPS-MIB",
+    "module_revision": "1.0",
+    "last_updated": "2009-01-14T14:07:00Z",
+    "sha256": "d575b112175e1e23b98f98afb97e053bc86ad4fe2a10df8d137f595c160fc1e9",
+    "metadata_provenance": "transcribed-from-local-device-dictionaries-not-reverified-against-original-mib-in-this-run",
+    "repository_sources": [
+      "docs/reference/docs/devices/ccdm-controlcenter-digital.md:136-142",
+      "docs/reference/docs/devices/visionxs-cpu-con.md:89-97",
+      "docs/reference/docs/devices/dp12-mux-atc.md:114-120",
+      "docs/reference/docs/devices/cc160-controlcenter-digital.md:119-125"
+    ],
+    "interaction_boundary_source": "docs/GD_MIB_COMPATIBILITY_AND_PROFILE_PLAN.md:136-162",
+    "source_policy": "Only repository device dictionaries and the repository compatibility plan were used; original MIB files were not read or re-verified in this run."
+  },
+  "capture_evidence": {
+    "classification": "field-device-capture-confirmed",
+    "classification_source": "docs/GD_MIB_COMPATIBILITY_AND_PROFILE_PLAN.md:152-162",
+    "source_log": "logs/trap_raw.log",
+    "source_log_sha256_at_extraction": "98ba5e5e9b3c3ac24f76eb96a20ec21b6e10457a2fbe59c866bb27f3959216a1",
+    "capture_date": "2026-07-20",
+    "source_address_class": "field-private-address-redacted",
+    "matching_records": 36,
+    "observed_raw_levels": [
+      0,
+      2,
+      5
+    ],
+    "observed_varbind_oid_order": [
+      "1.3.6.1.2.1.1.3.0",
+      "1.3.6.1.6.3.1.1.4.1.0",
+      "1.3.6.1.4.1.32828.2.1.0.2",
+      "1.3.6.1.4.1.32828.2.1.0.3"
+    ],
+    "fixture_rows": [
+      {
+        "row_id": "formal-field-redacted-entered-state",
+        "source_locator": "logs/trap_raw.log:17",
+        "notification_oid": "1.3.6.1.4.1.32828.2.1.0.4",
+        "level_raw": 2,
+        "message_redacted": "<device> entered critical state: 'Offline'",
+        "interpretation": "capture-observation-only"
+      },
+      {
+        "row_id": "formal-field-redacted-left-state",
+        "source_locator": "logs/trap_raw.log:21",
+        "notification_oid": "1.3.6.1.4.1.32828.2.1.0.4",
+        "level_raw": 2,
+        "message_redacted": "<device> left critical state: 'Online'",
+        "interpretation": "capture-observation-only"
+      },
+      {
+        "row_id": "formal-field-redacted-user-test",
+        "source_locator": "logs/trap_raw.log:6",
+        "notification_oid": "1.3.6.1.4.1.32828.2.1.0.4",
+        "level_raw": 0,
+        "message_redacted": "<matrix> user-activated test message",
+        "interpretation": "capture-observation-only"
+      }
+    ]
+  }
+}

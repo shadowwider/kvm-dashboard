@@ -164,6 +164,8 @@ async def reconcile_manifest(
     bindings: list[dict] = []
     for simulator_device in body.scenario.get("devices", []):
         simulator_id = simulator_device["id"]
+        simulator_host = simulator_device.get("host", "127.0.0.1")
+        simulator_port = simulator_device["snmp_port"]
         dashboard_id = _device_id(run_id, simulator_id)
         desired_ids.add(dashboard_id)
         device = await db.get(Device, dashboard_id)
@@ -171,8 +173,8 @@ async def reconcile_manifest(
             device = Device(
                 id=dashboard_id,
                 name=simulator_device["name"],
-                host="127.0.0.1",
-                port=simulator_device["snmp_port"],
+                host=simulator_host,
+                port=simulator_port,
                 community=settings.snmp_default_community,
                 system_oid=simulator_device["system_oid"],
                 model_name=f"SIMULATION / {simulator_device['profile']}",
@@ -182,8 +184,8 @@ async def reconcile_manifest(
             db.add(device)
         else:
             device.name = simulator_device["name"]
-            device.host = "127.0.0.1"
-            device.port = simulator_device["snmp_port"]
+            device.host = simulator_host
+            device.port = simulator_port
             device.system_oid = simulator_device["system_oid"]
             device.model_name = f"SIMULATION / {simulator_device['profile']}"
             device.is_active = True
@@ -218,7 +220,13 @@ async def reconcile_manifest(
             Endpoint.device_id == dashboard_id,
             ~Endpoint.id.in_(desired_endpoint_ids),
         ))
-        bindings.append({"simulator_device_id": simulator_id, "dashboard_device_id": dashboard_id, "profile": simulator_device["profile"]})
+        bindings.append({
+            "simulator_device_id": simulator_id,
+            "dashboard_device_id": dashboard_id,
+            "profile": simulator_device["profile"],
+            "host": simulator_host,
+            "port": simulator_port,
+        })
 
     existing = await db.execute(select(Device).where(Device.id.like(f"sim_{run_id}_%")))
     for device in existing.scalars():

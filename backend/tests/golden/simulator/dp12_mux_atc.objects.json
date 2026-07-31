@@ -1,0 +1,1567 @@
+{
+  "schema_version": 1,
+  "manifest_kind": "simulator-mib-object-golden",
+  "profile_id": "dp12_mux_atc",
+  "product": "DP1.2-MUX-ATC",
+  "evidence_status": "local-device-dictionary-snapshot",
+  "source_contract": {
+    "authority": "local-curated-device-dictionary-snapshot",
+    "source_assurance": "local-curated-snapshot-not-verified-against-original-mib-in-this-run",
+    "generator": "backend/tools/build_simulator_mib_golden.py",
+    "independent_of_simulator_profiles": true,
+    "prohibited_inputs": [
+      "backend/simulator/profiles.py",
+      "PROFILE_DEFINITIONS",
+      "repository-external-source-paths"
+    ]
+  },
+  "source_documents": [
+    {
+      "path": "docs/reference/docs/devices/dp12-mux-atc.md",
+      "sha256": "a9ee1de87d583e96797e0315c8a11c64ac8ae903053c1e94457a2c7ce8d193ec",
+      "line_count": 173
+    }
+  ],
+  "sys_object_id": {
+    "oid": "1.3.6.1.4.1.32828.3.1792.17",
+    "match": "exact",
+    "source": {
+      "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+      "line_start": 15,
+      "line_end": 15,
+      "upstream_reference_as_recorded": "dp/GUD-SMI-MIB.txt:26-31,45-49,315-319,340-346",
+      "upstream_reference_reverified_in_this_run": false
+    }
+  },
+  "object_count": 47,
+  "gettable_count": 35,
+  "not_accessible_count": 12,
+  "table_count": 4,
+  "tables": [
+    {
+      "name": "cpuChannelTable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelTable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000",
+      "entry_name": "cpuChannelEntry",
+      "entry_oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1",
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "index_ranges": {
+        "cpuChannelIndex": {
+          "min": 1,
+          "max": 4
+        }
+      },
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelVideoTable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelVideoTable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001",
+      "entry_name": "cpuChannelVideoEntry",
+      "entry_oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001.1",
+      "index_order": [
+        "cpuChannelIndex",
+        "cpuChannelVideoIndex"
+      ],
+      "index_ranges": {
+        "cpuChannelIndex": {
+          "min": 1,
+          "max": 4
+        },
+        "cpuChannelVideoIndex": {
+          "min": 1,
+          "max": 4
+        }
+      },
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:400-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "consoleVideoTable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::consoleVideoTable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002",
+      "entry_name": "consoleVideoEntry",
+      "entry_oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1",
+      "index_order": [
+        "consoleVideoIndex"
+      ],
+      "index_ranges": {
+        "consoleVideoIndex": {
+          "min": 1,
+          "max": 4
+        }
+      },
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 89,
+        "line_end": 89,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:451-505",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "fanTable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::fanTable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1003",
+      "entry_name": "fanTableEntry",
+      "entry_oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1003.1",
+      "index_order": [
+        "fanIndex"
+      ],
+      "index_ranges": {
+        "fanIndex": {
+          "min": 1,
+          "max": 20
+        }
+      },
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 99,
+        "line_end": 99,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:511-547",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    }
+  ],
+  "objects": [
+    {
+      "name": "deviceId",
+      "qualified_name": "GUD-DP12MUXATC-MIB::deviceId",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.1.1",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.1.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 44,
+        "line_end": 44,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:183-189",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "deviceCl",
+      "qualified_name": "GUD-DP12MUXATC-MIB::deviceCl",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.1.2",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.1.2.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 45,
+        "line_end": 45,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:191-197",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "deviceType",
+      "qualified_name": "GUD-DP12MUXATC-MIB::deviceType",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.1.3",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.1.3.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 46,
+        "line_end": 46,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:199-205",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "serialNumber",
+      "qualified_name": "GUD-DP12MUXATC-MIB::serialNumber",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.1.4",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.1.4.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 47,
+        "line_end": 47,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:207-213",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "etherAddress0",
+      "qualified_name": "GUD-DP12MUXATC-MIB::etherAddress0",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.1.5",
+      "kind": "scalar",
+      "syntax": "PhysAddress",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.1.5.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 48,
+        "line_end": 48,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:215-221",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "etherAddress1",
+      "qualified_name": "GUD-DP12MUXATC-MIB::etherAddress1",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.1.6",
+      "kind": "scalar",
+      "syntax": "PhysAddress",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.1.6.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 49,
+        "line_end": 49,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:223-229",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "firmwareVersion",
+      "qualified_name": "GUD-DP12MUXATC-MIB::firmwareVersion",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.2.1",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.2.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 50,
+        "line_end": 50,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:233-239",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "mainPower",
+      "qualified_name": "GUD-DP12MUXATC-MIB::mainPower",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1",
+      "kind": "scalar",
+      "syntax": "PowerStatus",
+      "max_access": "read-only",
+      "enum": {
+        "off": 0,
+        "on": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 58,
+        "line_end": 58,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:243-249",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "redundantPower",
+      "qualified_name": "GUD-DP12MUXATC-MIB::redundantPower",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.2",
+      "kind": "scalar",
+      "syntax": "PowerStatus",
+      "max_access": "read-only",
+      "enum": {
+        "off": 0,
+        "on": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.2.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 59,
+        "line_end": 59,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:251-257",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "temperature1",
+      "qualified_name": "GUD-DP12MUXATC-MIB::temperature1",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.3",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "Deg C",
+        "evidence": "description"
+      },
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.3.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 60,
+        "line_end": 60,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:259-266",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "consolePS2Connection",
+      "qualified_name": "GUD-DP12MUXATC-MIB::consolePS2Connection",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.7",
+      "kind": "scalar",
+      "syntax": "KeyboardMouseStatus",
+      "max_access": "read-only",
+      "enum": {
+        "none": 0,
+        "keyboard": 1,
+        "mouse": 2,
+        "keyboardMouse": 3
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.7.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 63,
+        "line_end": 63,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:286-292",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "consoleUSBConnection",
+      "qualified_name": "GUD-DP12MUXATC-MIB::consoleUSBConnection",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.8",
+      "kind": "scalar",
+      "syntax": "KeyboardMouseStatus",
+      "max_access": "read-only",
+      "enum": {
+        "none": 0,
+        "keyboard": 1,
+        "mouse": 2,
+        "keyboardMouse": 3
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.8.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 64,
+        "line_end": 64,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:294-300",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "powerCurrent",
+      "qualified_name": "GUD-DP12MUXATC-MIB::powerCurrent",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.500",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "A",
+        "evidence": "comment"
+      },
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.500.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 61,
+        "line_end": 61,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:268-275",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "powerVoltage",
+      "qualified_name": "GUD-DP12MUXATC-MIB::powerVoltage",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.501",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "V",
+        "evidence": "comment"
+      },
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.501.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 62,
+        "line_end": 62,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:277-284",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "networkInterface0",
+      "qualified_name": "GUD-DP12MUXATC-MIB::networkInterface0",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.506",
+      "kind": "scalar",
+      "syntax": "NetworkInterfaceStatus",
+      "max_access": "read-only",
+      "enum": {
+        "down": 0,
+        "up": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.506.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 65,
+        "line_end": 65,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:302-308",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "networkInterface1",
+      "qualified_name": "GUD-DP12MUXATC-MIB::networkInterface1",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.507",
+      "kind": "scalar",
+      "syntax": "NetworkInterfaceStatus",
+      "max_access": "read-only",
+      "enum": {
+        "down": 0,
+        "up": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.507.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 66,
+        "line_end": 66,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:310-316",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelTable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelTable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000",
+      "kind": "table",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelEntry",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelEntry",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1",
+      "kind": "entry",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelIndex",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelIndex",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.1",
+      "kind": "index",
+      "syntax": "Integer32",
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": {
+        "min": 1,
+        "max": 4
+      },
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelTargetUsbHid",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelTargetUsbHid",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.2",
+      "kind": "column",
+      "syntax": "UsbHidStatus",
+      "max_access": "read-only",
+      "enum": {
+        "notConnected": 0,
+        "connected": 1,
+        "initialized": 2
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.2.{cpuChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelTargetDevice",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelTargetDevice",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.3",
+      "kind": "column",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.3.{cpuChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelTargetPower",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelTargetPower",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.4",
+      "kind": "column",
+      "syntax": "PowerStatus",
+      "max_access": "read-only",
+      "enum": {
+        "off": 0,
+        "on": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.4.{cpuChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelTargetPS2",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelTargetPS2",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.5",
+      "kind": "column",
+      "syntax": "ConnectionStatus",
+      "max_access": "read-only",
+      "enum": {
+        "notConnected": 0,
+        "connected": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.5.{cpuChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelTargetUsb30",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelTargetUsb30",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.6",
+      "kind": "column",
+      "syntax": "Usb30Status",
+      "max_access": "read-only",
+      "enum": {
+        "inactive": 0,
+        "active": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1000.1.6.{cpuChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 68,
+        "line_end": 68,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:322-394",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelVideoTable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelVideoTable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001",
+      "kind": "table",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex",
+        "cpuChannelVideoIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:400-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelVideoEntry",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelVideoEntry",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001.1",
+      "kind": "entry",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex",
+        "cpuChannelVideoIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:400-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelVideoIndex",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelVideoIndex",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001.1.1",
+      "kind": "index",
+      "syntax": "Integer32",
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": {
+        "min": 1,
+        "max": 4
+      },
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex",
+        "cpuChannelVideoIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:400-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelVideoCable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelVideoCable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001.1.2",
+      "kind": "column",
+      "syntax": "ConnectionStatus",
+      "max_access": "read-only",
+      "enum": {
+        "notConnected": 0,
+        "connected": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex",
+        "cpuChannelVideoIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001.1.2.{cpuChannelIndex}.{cpuChannelVideoIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:400-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "cpuChannelVideoSignal",
+      "qualified_name": "GUD-DP12MUXATC-MIB::cpuChannelVideoSignal",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001.1.3",
+      "kind": "column",
+      "syntax": "VideoType",
+      "max_access": "read-only",
+      "enum": {
+        "none": 0,
+        "vga": 1,
+        "dvisl": 2,
+        "dvidl": 3,
+        "dmdp": 4,
+        "dp": 5,
+        "hdmi": 6
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "cpuChannelIndex",
+        "cpuChannelVideoIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1001.1.3.{cpuChannelIndex}.{cpuChannelVideoIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:400-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "consoleVideoTable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::consoleVideoTable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002",
+      "kind": "table",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "consoleVideoIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 89,
+        "line_end": 89,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:451-505",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "consoleVideoEntry",
+      "qualified_name": "GUD-DP12MUXATC-MIB::consoleVideoEntry",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1",
+      "kind": "entry",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "consoleVideoIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 89,
+        "line_end": 89,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:451-505",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "consoleVideoIndex",
+      "qualified_name": "GUD-DP12MUXATC-MIB::consoleVideoIndex",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1.1",
+      "kind": "index",
+      "syntax": "Integer32",
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": {
+        "min": 1,
+        "max": 4
+      },
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "consoleVideoIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 89,
+        "line_end": 89,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:451-505",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "displayConnection",
+      "qualified_name": "GUD-DP12MUXATC-MIB::displayConnection",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1.2",
+      "kind": "column",
+      "syntax": "ConnectionStatus",
+      "max_access": "read-only",
+      "enum": {
+        "notConnected": 0,
+        "connected": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "consoleVideoIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1.2.{consoleVideoIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 89,
+        "line_end": 89,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:451-505",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "displayType",
+      "qualified_name": "GUD-DP12MUXATC-MIB::displayType",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1.3",
+      "kind": "column",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "consoleVideoIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1.3.{consoleVideoIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 89,
+        "line_end": 89,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:451-505",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "freeze",
+      "qualified_name": "GUD-DP12MUXATC-MIB::freeze",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1.4",
+      "kind": "column",
+      "syntax": "Boolean",
+      "max_access": "read-only",
+      "enum": {
+        "false": 0,
+        "true": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "consoleVideoIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1002.1.4.{consoleVideoIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 89,
+        "line_end": 89,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:451-505",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "fanTable",
+      "qualified_name": "GUD-DP12MUXATC-MIB::fanTable",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1003",
+      "kind": "table",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "fanIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 99,
+        "line_end": 99,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:511-547",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "fanTableEntry",
+      "qualified_name": "GUD-DP12MUXATC-MIB::fanTableEntry",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1003.1",
+      "kind": "entry",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "fanIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 99,
+        "line_end": 99,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:511-547",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "fanIndex",
+      "qualified_name": "GUD-DP12MUXATC-MIB::fanIndex",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1003.1.1",
+      "kind": "index",
+      "syntax": "Integer32",
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": {
+        "min": 1,
+        "max": 20
+      },
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "fanIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 99,
+        "line_end": 99,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:511-547",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "fanSpeed",
+      "qualified_name": "GUD-DP12MUXATC-MIB::fanSpeed",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.3.1003.1.2",
+      "kind": "column",
+      "syntax": "Integer32",
+      "max_access": "read-only",
+      "enum": null,
+      "range": {
+        "min": 0,
+        "max": 10000
+      },
+      "unit": {
+        "value": "RPM",
+        "evidence": "description"
+      },
+      "default": null,
+      "index_order": [
+        "fanIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.3.1003.1.2.{fanIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 99,
+        "line_end": 99,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:511-547",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "selectedChannel",
+      "qualified_name": "GUD-DP12MUXATC-MIB::selectedChannel",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.4.1",
+      "kind": "scalar",
+      "syntax": "Integer32",
+      "max_access": "read-write",
+      "enum": null,
+      "range": {
+        "min": 1,
+        "max": 4
+      },
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": true,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.4.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 130,
+        "line_end": 130,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:550-557",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "disableSwitching",
+      "qualified_name": "GUD-DP12MUXATC-MIB::disableSwitching",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.5.1",
+      "kind": "scalar",
+      "syntax": "Boolean",
+      "max_access": "read-write",
+      "enum": {
+        "false": 0,
+        "true": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": true,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.5.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 131,
+        "line_end": 131,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:561-568",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "disableFrontkeys",
+      "qualified_name": "GUD-DP12MUXATC-MIB::disableFrontkeys",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.5.2",
+      "kind": "scalar",
+      "syntax": "Boolean",
+      "max_access": "read-write",
+      "enum": {
+        "false": 0,
+        "true": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": true,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.5.2.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 132,
+        "line_end": 132,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:570-577",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "disableHotkeys",
+      "qualified_name": "GUD-DP12MUXATC-MIB::disableHotkeys",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.5.3",
+      "kind": "scalar",
+      "syntax": "Boolean",
+      "max_access": "read-write",
+      "enum": {
+        "false": 0,
+        "true": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": true,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.5.3.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 133,
+        "line_end": 133,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:579-586",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "disableSerialPort",
+      "qualified_name": "GUD-DP12MUXATC-MIB::disableSerialPort",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.5.4",
+      "kind": "scalar",
+      "syntax": "Boolean",
+      "max_access": "read-write",
+      "enum": {
+        "false": 0,
+        "true": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": true,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.5.4.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 134,
+        "line_end": 134,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:588-595",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "disableRemoteControlApi",
+      "qualified_name": "GUD-DP12MUXATC-MIB::disableRemoteControlApi",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.5.5",
+      "kind": "scalar",
+      "syntax": "Boolean",
+      "max_access": "read-write",
+      "enum": {
+        "false": 0,
+        "true": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": true,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.5.5.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 135,
+        "line_end": 135,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:597-604",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "generalErrorCode",
+      "qualified_name": "GUD-DP12MUXATC-MIB::generalErrorCode",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.1000.1",
+      "kind": "scalar",
+      "syntax": "Integer32",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.1000.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 111,
+        "line_end": 111,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:607-613",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "generalErrorMessage",
+      "qualified_name": "GUD-DP12MUXATC-MIB::generalErrorMessage",
+      "module": "GUD-DP12MUXATC-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.1792.17.2.1000.2",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.1792.17.2.1000.2.0",
+      "source": {
+        "document": "docs/reference/docs/devices/dp12-mux-atc.md",
+        "line_start": 112,
+        "line_end": 112,
+        "upstream_reference_as_recorded": "dp/GUD-DP12MUXATC-MIB.txt:615-621",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    }
+  ],
+  "boundaries": [
+    "Object definitions are distinct from runtime table rows.",
+    "Index ranges are syntax bounds, not evidence that every row exists.",
+    "No fixture rows or simulator defaults are part of this manifest."
+  ]
+}

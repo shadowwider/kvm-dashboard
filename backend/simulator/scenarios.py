@@ -1,4 +1,7 @@
+import os
+
 from .models import (
+    AddressMode,
     EvidenceStatus,
     OnlineState,
     ProfileId,
@@ -11,12 +14,33 @@ from .models import (
 from .profiles import PROFILE_DEFINITIONS
 
 
+def address_mode() -> AddressMode:
+    raw_mode = os.environ.get("SIM_ADDRESS_MODE", AddressMode.PORT.value).strip().lower()
+    try:
+        return AddressMode(raw_mode)
+    except ValueError as exc:
+        allowed = ", ".join(mode.value for mode in AddressMode)
+        raise ValueError(f"Unsupported SIM_ADDRESS_MODE={raw_mode!r}; expected one of: {allowed}") from exc
+
+
+def normalize_device_addresses(devices: list[ScenarioDevice], mode: AddressMode | str | None = None) -> list[ScenarioDevice]:
+    selected_mode = AddressMode(mode or address_mode())
+    normalized: list[ScenarioDevice] = []
+    for index, device in enumerate(devices, start=1):
+        if selected_mode == AddressMode.LOOPBACK:
+            normalized.append(device.model_copy(update={"host": f"127.0.1.{index}", "snmp_port": 161}))
+        else:
+            normalized.append(device.model_copy(update={"host": device.host or "127.0.0.1"}))
+    return normalized
+
+
 def _device(profile: ProfileId, device_id: str, name: str, port: int, endpoints=None, ports=None, routes=None):
     spec = PROFILE_DEFINITIONS[profile]
     return ScenarioDevice(
         id=device_id,
         name=name,
         profile=profile,
+        host="127.0.0.1",
         snmp_port=port,
         system_oid=spec["system_oid"],
         evidence=spec["evidence"],
@@ -60,10 +84,18 @@ def built_in_scenarios() -> dict[str, ScenarioDefinition]:
     vision_cpu = _device(ProfileId.VISIONXS_CPU, "sim-vision-cpu-01", "SIM / VisionXS CPU", 11163)
     vision_con = _device(ProfileId.VISIONXS_CON, "sim-vision-con-01", "SIM / VisionXS CON", 11164)
     dp = _device(ProfileId.DP12_MUX, "sim-dp12-01", "SIM / DP12 MUX", 11165)
+    scenarios = {
+        "ccdc-regression": ("Legacy dashboard regression", [legacy]),
+        "ccdm-matrix-basic": ("Vendor-backed CCDM matrix fixture", [ccdm]),
+        "visionxs-pair": ("Vendor-backed VisionXS CPU/CON fixtures", [vision_cpu, vision_con]),
+        "dp12-readonly": ("Vendor-backed DP12 read-only fixture", [dp]),
+        "all-profiles": ("All profile fixtures", [legacy, ccdm, vision_cpu, vision_con, dp]),
+    }
     return {
-        "ccdc-regression": ScenarioDefinition(id="ccdc-regression", title="Legacy dashboard regression", devices=[legacy]),
-        "ccdm-matrix-basic": ScenarioDefinition(id="ccdm-matrix-basic", title="Vendor-backed CCDM matrix fixture", devices=[ccdm]),
-        "visionxs-pair": ScenarioDefinition(id="visionxs-pair", title="Vendor-backed VisionXS CPU/CON fixtures", devices=[vision_cpu, vision_con]),
-        "dp12-readonly": ScenarioDefinition(id="dp12-readonly", title="Vendor-backed DP12 read-only fixture", devices=[dp]),
-        "all-profiles": ScenarioDefinition(id="all-profiles", title="All profile fixtures", devices=[legacy, ccdm, vision_cpu, vision_con, dp]),
+        scenario_id: ScenarioDefinition(
+            id=scenario_id,
+            title=title,
+            devices=normalize_device_addresses(devices),
+        )
+        for scenario_id, (title, devices) in scenarios.items()
     }

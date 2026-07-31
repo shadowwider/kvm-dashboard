@@ -44,7 +44,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 | 变量 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `SNMP_DEFAULT_COMMUNITY` | string | `public` | SNMP v2c Community 字符串（轮询时使用） |
-| `SNMP_TRAP_PORT` | int | `10162` | SNMP Trap 监听 UDP 端口。Docker 中为容器内端口，宿主机侧同名变量控制映射端口 |
+| `SNMP_TRAP_PORT` | int | 代码默认 `162`；L0/Docker 显式使用 `10162` | SNMP Trap 监听 UDP 端口。不要依赖默认值；Dashboard 与 Simulator 必须显式设为相同端口。Docker 中为容器内端口，宿主机侧同名变量控制映射端口 |
 | `SNMP_POLL_INTERVAL` | int | `45` | **完整指标**轮询间隔（秒）：GET/WALK、时序归档和阈值告警。不要为了设备失联检测而降低此值。 |
 | `SNMP_HEALTH_POLL_ENABLED` | bool | `true` | 是否启用轻量 SNMP 可达性探测。 |
 | `SNMP_HEALTH_POLL_INTERVAL` | float | `1.0` | 交换机 `sysObjectID` 快速探测间隔（秒）。 |

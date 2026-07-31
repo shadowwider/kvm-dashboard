@@ -1,0 +1,1077 @@
+{
+  "schema_version": 1,
+  "manifest_kind": "simulator-mib-object-golden",
+  "profile_id": "visionxs_con",
+  "product": "VisionXS CON independent endpoint",
+  "evidence_status": "local-device-dictionary-snapshot",
+  "source_contract": {
+    "authority": "local-curated-device-dictionary-snapshot",
+    "source_assurance": "local-curated-snapshot-not-verified-against-original-mib-in-this-run",
+    "generator": "backend/tools/build_simulator_mib_golden.py",
+    "independent_of_simulator_profiles": true,
+    "prohibited_inputs": [
+      "backend/simulator/profiles.py",
+      "PROFILE_DEFINITIONS",
+      "repository-external-source-paths"
+    ]
+  },
+  "source_documents": [
+    {
+      "path": "docs/reference/docs/devices/visionxs-cpu-con.md",
+      "sha256": "89bb18253bb0a8160e64d0ad5f04fdd1108950c95d688f95d7ad94de4aa01f57",
+      "line_count": 137
+    }
+  ],
+  "sys_object_id": {
+    "oid": "1.3.6.1.4.1.32828.3.769.768",
+    "match": "exact",
+    "source": {
+      "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+      "line_start": 18,
+      "line_end": 18,
+      "upstream_reference_as_recorded": "vision/GUD-SMI-MIB.txt:26-31,45-49,187-193,277-283",
+      "upstream_reference_reverified_in_this_run": false
+    }
+  },
+  "object_count": 33,
+  "gettable_count": 27,
+  "not_accessible_count": 6,
+  "table_count": 2,
+  "tables": [
+    {
+      "name": "videoChannelTable",
+      "qualified_name": "GUD-VISIONXSCON-MIB::videoChannelTable",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1000",
+      "entry_name": "videoChannelEntry",
+      "entry_oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1",
+      "index_order": [
+        "videoChannelIndex"
+      ],
+      "index_ranges": {
+        "videoChannelIndex": {
+          "min": 1,
+          "max": 4
+        }
+      },
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 83,
+        "line_end": 83,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:31-38,58-65,312-366",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "linkChannelTable",
+      "qualified_name": "GUD-VISIONXSCON-MIB::linkChannelTable",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001",
+      "entry_name": "linkChannelEntry",
+      "entry_oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1",
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "index_ranges": {
+        "linkChannelIndex": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    }
+  ],
+  "objects": [
+    {
+      "name": "deviceId",
+      "qualified_name": "GUD-VISIONXSCON-MIB::deviceId",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.1.1",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.1.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 73,
+        "line_end": 73,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:168-206",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "deviceCl",
+      "qualified_name": "GUD-VISIONXSCON-MIB::deviceCl",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.1.2",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.1.2.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 73,
+        "line_end": 73,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:168-206",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "deviceType",
+      "qualified_name": "GUD-VISIONXSCON-MIB::deviceType",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.1.3",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.1.3.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 73,
+        "line_end": 73,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:168-206",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "serialNumber",
+      "qualified_name": "GUD-VISIONXSCON-MIB::serialNumber",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.1.4",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.1.4.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 73,
+        "line_end": 73,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:168-206",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "etherAddress0",
+      "qualified_name": "GUD-VISIONXSCON-MIB::etherAddress0",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.1.5",
+      "kind": "scalar",
+      "syntax": "PhysAddress",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.1.5.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 73,
+        "line_end": 73,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:168-206",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "firmwareVersion",
+      "qualified_name": "GUD-VISIONXSCON-MIB::firmwareVersion",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.2.1",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.2.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 74,
+        "line_end": 74,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:209-215",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "mainPower",
+      "qualified_name": "GUD-VISIONXSCON-MIB::mainPower",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1",
+      "kind": "scalar",
+      "syntax": "PowerStatus",
+      "max_access": "read-only",
+      "enum": {
+        "off": 0,
+        "on": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 75,
+        "line_end": 75,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:40-47,218-232",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "redundantPower",
+      "qualified_name": "GUD-VISIONXSCON-MIB::redundantPower",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.2",
+      "kind": "scalar",
+      "syntax": "PowerStatus",
+      "max_access": "read-only",
+      "enum": {
+        "off": 0,
+        "on": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.2.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 75,
+        "line_end": 75,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:40-47,218-232",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "temperature1",
+      "qualified_name": "GUD-VISIONXSCON-MIB::temperature1",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.3",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "Deg C",
+        "evidence": "commented-units"
+      },
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.3.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 76,
+        "line_end": 76,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:234-250",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "consoleUSBConnection",
+      "qualified_name": "GUD-VISIONXSCON-MIB::consoleUSBConnection",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.9",
+      "kind": "scalar",
+      "syntax": "KeyboardMouseStatus",
+      "max_access": "read-only",
+      "enum": {
+        "none": 0,
+        "keyboard": 1,
+        "mouse": 2,
+        "keyboardMouse": 3
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.9.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 78,
+        "line_end": 78,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:86-95,260-266",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "transparentUsbLink",
+      "qualified_name": "GUD-VISIONXSCON-MIB::transparentUsbLink",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.10",
+      "kind": "scalar",
+      "syntax": "TransparentUsbLinkStatus",
+      "max_access": "read-only",
+      "enum": {
+        "down": 0,
+        "up": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "defined-not-in-compliance-group",
+      "optional_group": null,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.10.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 79,
+        "line_end": 79,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:77-84,268-274",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "transparentUsbSfpModule",
+      "qualified_name": "GUD-VISIONXSCON-MIB::transparentUsbSfpModule",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.16",
+      "kind": "scalar",
+      "syntax": "SfpModuleStatus",
+      "max_access": "read-only",
+      "enum": {
+        "noModule": 0,
+        "moduleDeactivated": 1,
+        "down": 2,
+        "up": 3
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "defined-not-in-compliance-group",
+      "optional_group": null,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.16.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:97-106,276-306",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "transparentUsbTxPower",
+      "qualified_name": "GUD-VISIONXSCON-MIB::transparentUsbTxPower",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.17",
+      "kind": "scalar",
+      "syntax": "Integer32",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "uW",
+        "evidence": "description"
+      },
+      "default": null,
+      "index_order": [],
+      "compliance": "defined-not-in-compliance-group",
+      "optional_group": null,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.17.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:97-106,276-306",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "transparentUsbRxPower",
+      "qualified_name": "GUD-VISIONXSCON-MIB::transparentUsbRxPower",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.18",
+      "kind": "scalar",
+      "syntax": "Integer32",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "uW",
+        "evidence": "description"
+      },
+      "default": null,
+      "index_order": [],
+      "compliance": "defined-not-in-compliance-group",
+      "optional_group": null,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.18.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:97-106,276-306",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "transparentUsbSfpType",
+      "qualified_name": "GUD-VISIONXSCON-MIB::transparentUsbSfpType",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.19",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "defined-not-in-compliance-group",
+      "optional_group": null,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.19.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 80,
+        "line_end": 80,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:97-106,276-306",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "fan1",
+      "qualified_name": "GUD-VISIONXSCON-MIB::fan1",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.502",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "RPM",
+        "evidence": "commented-units"
+      },
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.502.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 76,
+        "line_end": 76,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:234-250",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "networkInterface0",
+      "qualified_name": "GUD-VISIONXSCON-MIB::networkInterface0",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.506",
+      "kind": "scalar",
+      "syntax": "NetworkInterfaceStatus",
+      "max_access": "read-only",
+      "enum": {
+        "down": 0,
+        "up": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.506.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 77,
+        "line_end": 77,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:49-56,252-258",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "videoChannelTable",
+      "qualified_name": "GUD-VISIONXSCON-MIB::videoChannelTable",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1000",
+      "kind": "table",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "videoChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 83,
+        "line_end": 83,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:31-38,58-65,312-366",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "videoChannelEntry",
+      "qualified_name": "GUD-VISIONXSCON-MIB::videoChannelEntry",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1",
+      "kind": "entry",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "videoChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 83,
+        "line_end": 83,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:31-38,58-65,312-366",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "videoChannelIndex",
+      "qualified_name": "GUD-VISIONXSCON-MIB::videoChannelIndex",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1.1",
+      "kind": "index",
+      "syntax": "Integer32",
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": {
+        "min": 1,
+        "max": 4
+      },
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "videoChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 83,
+        "line_end": 83,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:31-38,58-65,312-366",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "displayConnection",
+      "qualified_name": "GUD-VISIONXSCON-MIB::displayConnection",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1.2",
+      "kind": "column",
+      "syntax": "ConnectionStatus",
+      "max_access": "read-only",
+      "enum": {
+        "notConnected": 0,
+        "connected": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "videoChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1.2.{videoChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 83,
+        "line_end": 83,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:31-38,58-65,312-366",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "displayType",
+      "qualified_name": "GUD-VISIONXSCON-MIB::displayType",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1.3",
+      "kind": "column",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "videoChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1.3.{videoChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 83,
+        "line_end": 83,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:31-38,58-65,312-366",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "freeze",
+      "qualified_name": "GUD-VISIONXSCON-MIB::freeze",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1.4",
+      "kind": "column",
+      "syntax": "Boolean",
+      "max_access": "read-only",
+      "enum": {
+        "false": 0,
+        "true": 1
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "videoChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1000.1.4.{videoChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 83,
+        "line_end": 83,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:31-38,58-65,312-366",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "linkChannelTable",
+      "qualified_name": "GUD-VISIONXSCON-MIB::linkChannelTable",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001",
+      "kind": "table",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "linkChannelEntry",
+      "qualified_name": "GUD-VISIONXSCON-MIB::linkChannelEntry",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1",
+      "kind": "entry",
+      "syntax": null,
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "linkChannelIndex",
+      "qualified_name": "GUD-VISIONXSCON-MIB::linkChannelIndex",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.1",
+      "kind": "index",
+      "syntax": "Integer32",
+      "max_access": "not-accessible",
+      "enum": null,
+      "range": {
+        "min": 1,
+        "max": 8
+      },
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "compliance": "unlisted",
+      "optional_group": null,
+      "gettable": false,
+      "writable": false,
+      "instance_rule": "none",
+      "get_oid_template": null,
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "link",
+      "qualified_name": "GUD-VISIONXSCON-MIB::link",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.2",
+      "kind": "column",
+      "syntax": "LinkStatus",
+      "max_access": "read-only",
+      "enum": {
+        "down": 0,
+        "up": 1,
+        "crossed": 2
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.2.{linkChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "sfpModule",
+      "qualified_name": "GUD-VISIONXSCON-MIB::sfpModule",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.3",
+      "kind": "column",
+      "syntax": "SfpModuleStatus",
+      "max_access": "read-only",
+      "enum": {
+        "noModule": 0,
+        "moduleDeactivated": 1,
+        "down": 2,
+        "up": 3
+      },
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.3.{linkChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "sfpTxPower",
+      "qualified_name": "GUD-VISIONXSCON-MIB::sfpTxPower",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.4",
+      "kind": "column",
+      "syntax": "Integer32",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "uW",
+        "evidence": "description"
+      },
+      "default": null,
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.4.{linkChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "sfpRxPower",
+      "qualified_name": "GUD-VISIONXSCON-MIB::sfpRxPower",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.5",
+      "kind": "column",
+      "syntax": "Integer32",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": {
+        "value": "uW",
+        "evidence": "description"
+      },
+      "default": null,
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.5.{linkChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "sfpType",
+      "qualified_name": "GUD-VISIONXSCON-MIB::sfpType",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.6",
+      "kind": "column",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [
+        "linkChannelIndex"
+      ],
+      "compliance": "mandatory",
+      "optional_group": false,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "index-suffix",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.3.1001.1.6.{linkChannelIndex}",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 85,
+        "line_end": 85,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:67-75,97-106,373-445",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "generalErrorCode",
+      "qualified_name": "GUD-VISIONXSCON-MIB::generalErrorCode",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.1000.1",
+      "kind": "scalar",
+      "syntax": "Integer32",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.1000.1.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 81,
+        "line_end": 81,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:449-463",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    },
+    {
+      "name": "generalErrorMessage",
+      "qualified_name": "GUD-VISIONXSCON-MIB::generalErrorMessage",
+      "module": "GUD-VISIONXSCON-MIB",
+      "oid": "1.3.6.1.4.1.32828.3.769.768.2.1000.2",
+      "kind": "scalar",
+      "syntax": "DisplayString",
+      "max_access": "read-only",
+      "enum": null,
+      "range": null,
+      "unit": null,
+      "default": null,
+      "index_order": [],
+      "compliance": "optional",
+      "optional_group": true,
+      "gettable": true,
+      "writable": false,
+      "instance_rule": "scalar-zero",
+      "get_oid_template": "1.3.6.1.4.1.32828.3.769.768.2.1000.2.0",
+      "source": {
+        "document": "docs/reference/docs/devices/visionxs-cpu-con.md",
+        "line_start": 81,
+        "line_end": 81,
+        "upstream_reference_as_recorded": "vision/GUD-VISIONXSCON-MIB.txt:449-463",
+        "upstream_reference_reverified_in_this_run": false
+      }
+    }
+  ],
+  "boundaries": [
+    "Object definitions are distinct from runtime table rows.",
+    "Index ranges are syntax bounds, not evidence that every row exists.",
+    "No fixture rows or simulator defaults are part of this manifest."
+  ]
+}

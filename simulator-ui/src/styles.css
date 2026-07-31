@@ -1,0 +1,85 @@
+:root {
+  color: #dbe8f6;
+  background: #07111d;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 1200px; }
+button, input, select, textarea { font: inherit; }
+button { border: 1px solid rgba(141, 170, 205, 0.28); background: rgba(22, 39, 60, 0.92); color: #dbe8f6; border-radius: 10px; padding: 9px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+button:hover:not(:disabled) { border-color: #67d4ff; transform: translateY(-1px); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+input, select, textarea { width: 100%; border: 1px solid rgba(141, 170, 205, 0.28); background: #0b1725; color: #e8f3ff; border-radius: 9px; padding: 8px; }
+select[multiple] { min-height: 96px; }
+textarea { resize: vertical; }
+
+.app-shell { min-height: 100vh; padding: 18px; background: radial-gradient(circle at top left, rgba(26, 96, 132, .34), transparent 34%), #07111d; }
+.runtime-toolbar { height: 84px; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 18px; padding: 14px 18px; border: 1px solid rgba(118, 152, 190, .2); background: rgba(8, 18, 30, .86); border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.28); }
+.eyebrow { color: #71c7ff; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: 24px; }
+h2 { font-size: 19px; }
+h3 { font-size: 14px; color: #a9c5df; }
+.toolbar-status, .toolbar-actions, .node-meta, .node-badges { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar-status { color: #b7c8dc; }
+.dot { width: 10px; height: 10px; border-radius: 99px; background: #53616f; box-shadow: 0 0 0 4px rgba(83, 97, 111, .12); }
+.dot.online { background: #56e39f; box-shadow: 0 0 0 4px rgba(86, 227, 159, .14); }
+.ws { border-radius: 999px; padding: 3px 8px; background: #17283a; color: #a9c5df; }
+.ws.online { color: #56e39f; }
+.ws.error { color: #ffb86b; }
+.primary { background: linear-gradient(135deg, #1e88e5, #19b5a5); border-color: transparent; color: white; font-weight: 700; }
+.full { width: 100%; justify-content: center; }
+.icon { padding: 8px; border-radius: 99px; }
+
+.main-grid { display: grid; grid-template-columns: 286px minmax(520px, 1fr) 390px; gap: 16px; margin-top: 16px; min-height: 590px; }
+.sidebar, .drawer, .trap-panel, .timeline, .canvas-card { border: 1px solid rgba(118, 152, 190, .2); background: rgba(9, 20, 33, .88); border-radius: 18px; overflow: hidden; }
+.sidebar { display: flex; flex-direction: column; gap: 14px; padding: 14px; }
+.panel { background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.055); border-radius: 14px; padding: 12px; }
+.panel-title { display: flex; align-items: center; gap: 8px; color: #eaf5ff; font-weight: 800; margin-bottom: 12px; }
+.topology-list, .palette { display: grid; gap: 8px; margin-bottom: 12px; }
+.topology-item, .palette-card { justify-content: space-between; text-align: left; display: flex; width: 100%; }
+.topology-item.active { border-color: #56e39f; background: rgba(86, 227, 159, .09); }
+.topology-item small, .palette-card span, .hint, .empty, .field-row small, .history-item small, .drawer-head p { color: #7f9ab6; font-size: 12px; }
+.palette-card { flex-direction: column; align-items: flex-start; }
+.hint { line-height: 1.5; }
+.canvas-card { position: relative; min-height: 590px; }
+.react-flow { background: linear-gradient(135deg, rgba(11, 26, 43, .96), rgba(8, 14, 24, .96)); }
+.react-flow__minimap { background: #0b1725; border-radius: 10px; }
+
+.sim-node { width: 238px; border: 1px solid rgba(126, 164, 205, .35); background: linear-gradient(160deg, rgba(20, 38, 59, .98), rgba(11, 23, 37, .98)); border-radius: 16px; padding: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.28); }
+.sim-node.selected { border-color: #67d4ff; box-shadow: 0 0 0 3px rgba(103, 212, 255, .12), 0 16px 40px rgba(0,0,0,.28); }
+.sim-node.offline { border-color: rgba(255, 112, 112, .55); }
+.node-header { display: flex; align-items: center; gap: 9px; font-weight: 800; color: #f5fbff; }
+.node-profile { margin-top: 5px; color: #71c7ff; font-size: 12px; }
+.node-meta { margin-top: 10px; justify-content: space-between; color: #a9c5df; font-size: 12px; }
+.node-badges { margin-top: 10px; }
+.badge { border-radius: 999px; padding: 3px 8px; background: rgba(86, 227, 159, .12); color: #56e39f; font-size: 11px; }
+.badge.offline { background: rgba(255, 112, 112, .12); color: #ff8c8c; }
+.badge.muted { background: rgba(141, 170, 205, .12); color: #9db4cc; }
+
+.drawer { padding: 14px; overflow-y: auto; }
+.empty-drawer { display: grid; place-items: center; color: #8fa9c4; padding: 28px; text-align: center; }
+.drawer-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.field-groups { display: grid; gap: 12px; margin-top: 12px; }
+.field-group { border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 12px; background: rgba(255,255,255,.025); }
+.field-group h3 { margin-bottom: 10px; }
+.field-row { display: grid; grid-template-columns: 1fr 150px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.055); }
+.field-row:first-of-type { border-top: 0; }
+.field-row span { min-width: 0; }
+.field-row strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field-row input[type="checkbox"] { width: auto; justify-self: start; transform: scale(1.2); }
+
+.bottom-grid { display: grid; grid-template-columns: 390px 1fr; gap: 16px; margin-top: 16px; min-height: 230px; }
+.trap-panel, .timeline { padding: 14px; }
+.trap-panel label { display: grid; gap: 7px; color: #a9c5df; margin-bottom: 10px; font-size: 13px; }
+.trap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.history { margin-top: 14px; display: grid; gap: 7px; }
+.history-item { border-radius: 10px; background: rgba(255,255,255,.04); padding: 8px; display: grid; gap: 4px; }
+.timeline-scroll { max-height: 194px; overflow-y: auto; display: grid; gap: 8px; }
+.timeline-event { display: grid; grid-template-columns: 80px 150px 1fr; gap: 10px; align-items: start; border-radius: 10px; background: rgba(255,255,255,.035); padding: 9px; }
+.timeline-event span { color: #7f9ab6; }
+.timeline-event strong { color: #71c7ff; }
+.timeline-event p { color: #c7d8ea; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

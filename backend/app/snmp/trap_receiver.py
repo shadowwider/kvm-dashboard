@@ -20,6 +20,8 @@ import asyncio
 import logging
 import logging.handlers
 import os
+import socket
+import threading
 from datetime import datetime, timezone
 
 from pysnmp.hlapi.asyncio import SnmpEngine
@@ -38,6 +40,15 @@ settings = get_settings()
 # ─── 原始 Trap 数据专用日志（轮转，调试用）───────────────────
 _raw_logger = logging.getLogger('snmp.trap.raw')
 _raw_log_enabled: bool = settings.snmp_raw_log_enabled
+_status_lock = threading.Lock()
+_receiver_status: dict = {
+    "state": "not_started",
+    "listen_host": "0.0.0.0",
+    "listen_port": settings.snmp_trap_port,
+    "detail": None,
+    "error_type": None,
+    "started_at": None,
+}
 
 
 def _init_raw_logger():
@@ -58,7 +69,35 @@ def _init_raw_logger():
     _raw_logger.propagate = False  # 不冒泡到 root logger
 
 
-_init_raw_logger()
+if _raw_log_enabled:
+    _init_raw_logger()
+
+
+def _set_receiver_status(
+    state: str,
+    *,
+    detail: str | None = None,
+    error_type: str | None = None,
+) -> None:
+    with _status_lock:
+        _receiver_status.update({
+            "state": state,
+            "listen_host": "0.0.0.0",
+            "listen_port": settings.snmp_trap_port,
+            "detail": detail,
+            "error_type": error_type,
+            "started_at": (
+                datetime.now(timezone.utc).isoformat()
+                if state == "running"
+                else _receiver_status.get("started_at")
+            ),
+        })
+
+
+def trap_receiver_status() -> dict:
+    """Return a small read-only startup/health snapshot."""
+    with _status_lock:
+        return dict(_receiver_status)
 
 # ─── G&D Trap 级别映射（GUD-GENERALTRAPS-MIB §9）────────────
 #   0=Emergency, 1=Alert, 2=Critical → critical
@@ -109,18 +148,40 @@ def parse_trap_varbinds(var_binds) -> tuple[list[dict], int | None, str | None]:
     return raw_binds, trap_level, trap_message
 
 
-def _start_trap_receiver(main_loop: asyncio.AbstractEventLoop):
+def _start_trap_receiver(
+    main_loop: asyncio.AbstractEventLoop,
+    ready_event: threading.Event | None = None,
+):
     """在后台线程中启动 SNMP Trap 监听（独立事件循环）"""
     thread_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(thread_loop)
 
-    snmp_engine = SnmpEngine()
-    config.addTransport(
-        snmp_engine,
-        udp.domainName,
-        udp.UdpTransport().openServerMode(("0.0.0.0", settings.snmp_trap_port)),
-    )
-    config.addV1System(snmp_engine, "trap-area", settings.snmp_default_community)
+    snmp_engine = None
+    try:
+        snmp_engine = SnmpEngine()
+        config.addTransport(
+            snmp_engine,
+            udp.domainName,
+            udp.UdpTransport().openServerMode(("0.0.0.0", settings.snmp_trap_port)),
+        )
+        config.addV1System(snmp_engine, "trap-area", settings.snmp_default_community)
+    except Exception as exc:
+        _set_receiver_status(
+            "failed",
+            detail=str(exc),
+            error_type=type(exc).__name__,
+        )
+        if ready_event:
+            ready_event.set()
+        logger.exception(
+            "SNMP Trap 接收器绑定失败，UDP %s:%s",
+            "0.0.0.0",
+            settings.snmp_trap_port,
+        )
+        if snmp_engine is not None and snmp_engine.transportDispatcher is not None:
+            snmp_engine.transportDispatcher.closeDispatcher()
+        thread_loop.close()
+        return
 
     def trap_callback(snmp_engine, state_reference, context_engine_id,
                       context_name, var_binds, cb_ctx):
@@ -171,13 +232,24 @@ def _start_trap_receiver(main_loop: asyncio.AbstractEventLoop):
 
     ntfrcv.NotificationReceiver(snmp_engine, trap_callback)
     snmp_engine.transportDispatcher.jobStarted(1)
+    _set_receiver_status("running")
+    if ready_event:
+        ready_event.set()
 
     try:
         snmp_engine.transportDispatcher.runDispatcher()
     except Exception as e:
-        logger.error(f"Trap 接收器错误: {e}")
+        _set_receiver_status(
+            "failed",
+            detail=str(e),
+            error_type=type(e).__name__,
+        )
+        logger.exception("Trap 接收器运行错误")
     finally:
         snmp_engine.transportDispatcher.closeDispatcher()
+        thread_loop.close()
+        if trap_receiver_status()["state"] == "running":
+            _set_receiver_status("stopped")
 
 
 async def _save_trap(
@@ -345,15 +417,54 @@ async def _save_trap(
     })
 
 
-async def start_trap_receiver():
-    """在后台守护线程中启动同步 Trap 监听器"""
-    import threading
-    loop = asyncio.get_event_loop()
+async def start_trap_receiver(startup_timeout: float = 5.0) -> dict:
+    """启动 Trap 监听，并等待后台线程确认 UDP 已成功绑定。"""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            probe.setsockopt(
+                socket.SOL_SOCKET,
+                socket.SO_EXCLUSIVEADDRUSE,
+                1,
+            )
+        probe.bind(("0.0.0.0", settings.snmp_trap_port))
+    except OSError as exc:
+        _set_receiver_status(
+            "failed",
+            detail=str(exc),
+            error_type=type(exc).__name__,
+        )
+        raise RuntimeError(
+            "SNMP Trap receiver failed to reserve "
+            f"udp://0.0.0.0:{settings.snmp_trap_port}: {exc}"
+        ) from exc
+    finally:
+        probe.close()
+
+    loop = asyncio.get_running_loop()
+    ready_event = threading.Event()
+    _set_receiver_status("starting")
     thread = threading.Thread(
         target=_start_trap_receiver,
-        args=(loop,),
+        args=(loop, ready_event),
         daemon=True,
         name="snmp-trap-receiver",
     )
     thread.start()
-    logger.info(f"SNMP Trap 接收器已启动，监听 UDP:{settings.snmp_trap_port}")
+    ready = await asyncio.to_thread(ready_event.wait, startup_timeout)
+    status = trap_receiver_status()
+    if not ready:
+        _set_receiver_status(
+            "failed",
+            detail=f"startup readiness timeout after {startup_timeout:.1f}s",
+            error_type="TimeoutError",
+        )
+        status = trap_receiver_status()
+    if status["state"] != "running":
+        raise RuntimeError(
+            "SNMP Trap receiver failed to bind "
+            f"udp://{status['listen_host']}:{status['listen_port']}: "
+            f"{status.get('detail') or 'unknown startup error'}"
+        )
+    logger.info("SNMP Trap 接收器已启动，监听 UDP:%s", settings.snmp_trap_port)
+    return status

@@ -1,0 +1,435 @@
+{
+  "schema_version": 2,
+  "purpose": "L1-to-L2 full-semantic Profile catalog and explicit fixture drift",
+  "golden_source_policy": "local curated device dictionary snapshot; original MIB not reverified in this run",
+  "runtime_catalog": "backend/simulator/catalog/l2_profiles.json",
+  "runtime_catalog_sha256": "fd0eabdc89b3a90ae632ea721cac813b0b7b7bd44dc122a9a37437613dd1ce7d",
+  "runtime_fixture_artifact": "backend/simulator/catalog/l2_default_fixtures.json",
+  "runtime_fixture_sha256": "57e634931337d41f0e55aaa4588f2cfa4146c66ec3ba5e59690c3d9285503a57",
+  "production_loader_read_paths": [
+    "backend/simulator/catalog/l2_profiles.json",
+    "backend/simulator/catalog/l2_default_fixtures.json"
+  ],
+  "production_loader_reads_test_goldens": false,
+  "profiles": {
+    "ccdc_legacy": {
+      "profile_id": "ccdc_legacy",
+      "golden_file": "backend/tests/golden/simulator/ccdc_legacy.objects.json",
+      "golden_evidence_status": "legacy-unverified",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=f8027d3567ac23259718f20a63363be2391599652c2255cf532b603a6d52d858",
+      "source_manifest_sha256": "f8027d3567ac23259718f20a63363be2391599652c2255cf532b603a6d52d858",
+      "golden_table_count": 0,
+      "current_table_count": 0,
+      "golden_gettable_leaf_count": 0,
+      "current_declared_leaf_count": 0,
+      "missing_definition_oids": [],
+      "unexpected_definition_oids": [],
+      "duplicate_definition_oids": [],
+      "semantic_differences": [],
+      "table_semantics_match": true,
+      "sys_object_id_matches": true,
+      "evidence_status_matches": true,
+      "invalid_literal_defaults": [],
+      "fixture_validation_errors": [],
+      "explicit_fixture_row_tables": [],
+      "default_row_provenance": {
+        "cpu_modules": "project-legacy-scenario-entities",
+        "con_modules": "project-legacy-scenario-entities",
+        "port_table": "project-legacy-scenario-entities"
+      },
+      "implicit_derived_tables": [],
+      "metadata_compact_bytes": 571,
+      "matches_l1_golden": true
+    },
+    "ccdm_matrix": {
+      "profile_id": "ccdm_matrix",
+      "golden_file": "backend/tests/golden/simulator/ccdm.objects.json",
+      "golden_evidence_status": "local-device-dictionary-snapshot",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=dc2fa2a8ef223348be2a49cf2456094099680a54ad58ee60838294ec042a952d",
+      "source_manifest_sha256": "dc2fa2a8ef223348be2a49cf2456094099680a54ad58ee60838294ec042a952d",
+      "golden_table_count": 20,
+      "current_table_count": 20,
+      "golden_gettable_leaf_count": 142,
+      "current_declared_leaf_count": 142,
+      "missing_definition_oids": [],
+      "unexpected_definition_oids": [],
+      "duplicate_definition_oids": [],
+      "semantic_differences": [],
+      "table_semantics_match": true,
+      "sys_object_id_matches": true,
+      "evidence_status_matches": true,
+      "invalid_literal_defaults": [],
+      "fixture_validation_errors": [],
+      "explicit_fixture_row_tables": [
+        {
+          "table": "dynamic_user_module_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "gud_ccdmdwc_mib_fan_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "table": "video_channel_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "table": "link_channel_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "table": "gud_ccdm_mib_fan_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "power_supply_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "io_card_cat_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "io_card_cat_port_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "table": "io_card_fiber_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "io_card_fiber_port_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "table": "io_card_multi_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "io_card_multi_port_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "table": "io_card_trunk_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "io_card_trunk_port_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "table": "user_module_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "target_module_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        }
+      ],
+      "default_row_provenance": {
+        "user_module_table": "explicit-static-fixture-filtered-by-scenario-endpoint",
+        "gud_ccdmcon_mib_fan_table": "no-default-rows",
+        "gud_ccdmcon_mib_gpio_table": "no-default-rows",
+        "target_module_table": "explicit-static-fixture-filtered-by-scenario-endpoint",
+        "gud_ccdmcpu_mib_fan_table": "no-default-rows",
+        "gud_ccdmcpu_mib_gpio_table": "no-default-rows",
+        "dynamic_user_module_table": "explicit-static-fixture",
+        "gud_ccdmdwc_mib_fan_table": "explicit-static-fixture",
+        "video_channel_table": "explicit-static-fixture",
+        "link_channel_table": "explicit-static-fixture",
+        "gud_ccdm_mib_fan_table": "explicit-static-fixture",
+        "power_supply_table": "explicit-static-fixture",
+        "io_card_cat_table": "explicit-static-fixture",
+        "io_card_cat_port_table": "explicit-static-fixture",
+        "io_card_fiber_table": "explicit-static-fixture",
+        "io_card_fiber_port_table": "explicit-static-fixture",
+        "io_card_multi_table": "explicit-static-fixture",
+        "io_card_multi_port_table": "explicit-static-fixture",
+        "io_card_trunk_table": "explicit-static-fixture",
+        "io_card_trunk_port_table": "explicit-static-fixture"
+      },
+      "implicit_derived_tables": [],
+      "metadata_compact_bytes": 127255,
+      "matches_l1_golden": true
+    },
+    "visionxs_cpu": {
+      "profile_id": "visionxs_cpu",
+      "golden_file": "backend/tests/golden/simulator/visionxs_cpu.objects.json",
+      "golden_evidence_status": "local-device-dictionary-snapshot",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=1fa9a8c4ca001cc33ec7c9fe6d7949fe8bb31472f505e028acdbecf1b9d0a08a",
+      "source_manifest_sha256": "1fa9a8c4ca001cc33ec7c9fe6d7949fe8bb31472f505e028acdbecf1b9d0a08a",
+      "golden_table_count": 2,
+      "current_table_count": 2,
+      "golden_gettable_leaf_count": 28,
+      "current_declared_leaf_count": 28,
+      "missing_definition_oids": [],
+      "unexpected_definition_oids": [],
+      "duplicate_definition_oids": [],
+      "semantic_differences": [],
+      "table_semantics_match": true,
+      "sys_object_id_matches": true,
+      "evidence_status_matches": true,
+      "invalid_literal_defaults": [],
+      "fixture_validation_errors": [],
+      "explicit_fixture_row_tables": [
+        {
+          "table": "video_channel_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "link_channel_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        }
+      ],
+      "default_row_provenance": {
+        "video_channel_table": "explicit-static-fixture",
+        "link_channel_table": "explicit-static-fixture"
+      },
+      "implicit_derived_tables": [],
+      "metadata_compact_bytes": 20685,
+      "matches_l1_golden": true
+    },
+    "visionxs_con": {
+      "profile_id": "visionxs_con",
+      "golden_file": "backend/tests/golden/simulator/visionxs_con.objects.json",
+      "golden_evidence_status": "local-device-dictionary-snapshot",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=d40bcf845ae091ef09071d335187bf8f49393b6226bc46c2be728f5581900b40",
+      "source_manifest_sha256": "d40bcf845ae091ef09071d335187bf8f49393b6226bc46c2be728f5581900b40",
+      "golden_table_count": 2,
+      "current_table_count": 2,
+      "golden_gettable_leaf_count": 27,
+      "current_declared_leaf_count": 27,
+      "missing_definition_oids": [],
+      "unexpected_definition_oids": [],
+      "duplicate_definition_oids": [],
+      "semantic_differences": [],
+      "table_semantics_match": true,
+      "sys_object_id_matches": true,
+      "evidence_status_matches": true,
+      "invalid_literal_defaults": [],
+      "fixture_validation_errors": [],
+      "explicit_fixture_row_tables": [
+        {
+          "table": "video_channel_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "link_channel_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        }
+      ],
+      "default_row_provenance": {
+        "video_channel_table": "explicit-static-fixture",
+        "link_channel_table": "explicit-static-fixture"
+      },
+      "implicit_derived_tables": [],
+      "metadata_compact_bytes": 20088,
+      "matches_l1_golden": true
+    },
+    "dp12_mux_atc": {
+      "profile_id": "dp12_mux_atc",
+      "golden_file": "backend/tests/golden/simulator/dp12_mux_atc.objects.json",
+      "golden_evidence_status": "local-device-dictionary-snapshot",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=8225e8ecc2d86c2a7c85ebd02040d2bdbbdd0e8b998880e25da77a128c1c81cf",
+      "source_manifest_sha256": "8225e8ecc2d86c2a7c85ebd02040d2bdbbdd0e8b998880e25da77a128c1c81cf",
+      "golden_table_count": 4,
+      "current_table_count": 4,
+      "golden_gettable_leaf_count": 35,
+      "current_declared_leaf_count": 35,
+      "missing_definition_oids": [],
+      "unexpected_definition_oids": [],
+      "duplicate_definition_oids": [],
+      "semantic_differences": [],
+      "table_semantics_match": true,
+      "sys_object_id_matches": true,
+      "evidence_status_matches": true,
+      "invalid_literal_defaults": [],
+      "fixture_validation_errors": [],
+      "explicit_fixture_row_tables": [
+        {
+          "table": "cpu_channel_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "cpu_channel_video_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "table": "console_video_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        },
+        {
+          "table": "fan_table",
+          "row_source": "explicit-fixture",
+          "configured_row_count": 1,
+          "index_tuples": [
+            [
+              1
+            ]
+          ]
+        }
+      ],
+      "default_row_provenance": {
+        "cpu_channel_table": "explicit-static-fixture",
+        "cpu_channel_video_table": "explicit-static-fixture",
+        "console_video_table": "explicit-static-fixture",
+        "fan_table": "explicit-static-fixture"
+      },
+      "implicit_derived_tables": [],
+      "metadata_compact_bytes": 27710,
+      "matches_l1_golden": true
+    }
+  },
+  "ok": true
+}

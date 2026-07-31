@@ -1,0 +1,108 @@
+{
+  "id": "topology-1785250256029",
+  "title": "Simulator topology 2026/7/28 22:50:56",
+  "devices": [
+    {
+      "id": "ccdc-legacy-1",
+      "name": "CCDC 矩阵",
+      "profile": "ccdc_legacy_unverified",
+      "host": "127.0.0.1",
+      "snmp_port": 11161,
+      "system_oid": null,
+      "evidence": null,
+      "position": {
+        "x": 189.0,
+        "y": 12.0
+      },
+      "endpoints": [],
+      "ports": [
+        {
+          "index": 1,
+          "status": "up"
+        },
+        {
+          "index": 2,
+          "status": "up"
+        },
+        {
+          "index": 3,
+          "status": "up"
+        },
+        {
+          "index": 4,
+          "status": "up"
+        },
+        {
+          "index": 5,
+          "status": "up"
+        },
+        {
+          "index": 6,
+          "status": "up"
+        },
+        {
+          "index": 7,
+          "status": "up"
+        },
+        {
+          "index": 8,
+          "status": "up"
+        },
+        {
+          "index": 9,
+          "status": "up"
+        },
+        {
+          "index": 10,
+          "status": "up"
+        },
+        {
+          "index": 11,
+          "status": "up"
+        },
+        {
+          "index": 12,
+          "status": "up"
+        },
+        {
+          "index": 13,
+          "status": "up"
+        },
+        {
+          "index": 14,
+          "status": "up"
+        },
+        {
+          "index": 15,
+          "status": "up"
+        },
+        {
+          "index": 16,
+          "status": "up"
+        },
+        {
+          "index": 17,
+          "status": "up"
+        },
+        {
+          "index": 18,
+          "status": "up"
+        },
+        {
+          "index": 19,
+          "status": "up"
+        },
+        {
+          "index": 20,
+          "status": "up"
+        }
+      ],
+      "routes": [],
+      "profile_state": {}
+    }
+  ],
+  "edges": [],
+  "read_only": false,
+  "source": "user",
+  "description": null
+}

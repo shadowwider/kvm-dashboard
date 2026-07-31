@@ -1,76 +1,415 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from .bridge import DashboardBridge
-from .models import EndpointStatePatch, RouteStatePatch, TrapRequest
+from .models import (
+    EndpointStatePatch,
+    RouteStatePatch,
+    RuntimeDeviceActionRequest,
+    RuntimeStatePatch,
+    TopologyDefinition,
+    TrapRequest,
+)
+from .profiles import profile_metadata
 from .scenarios import built_in_scenarios
 from .snmp_agent import SnmpAgent, send_formal_trap
-from .state import ScenarioState
+from .state import ScenarioState, TransitionResult
+from .topology_store import TopologyStore, topology_to_scenario
+
+logger = logging.getLogger(__name__)
 
 TRAP_HOST = os.environ.get("TRAP_TARGET_HOST", "127.0.0.1")
 TRAP_PORT = int(os.environ.get("SNMP_TRAP_PORT", "10162"))
 COMMUNITY = os.environ.get("SNMP_COMMUNITY", "public")
 SIMULATOR_HOST = os.environ.get("SIMULATOR_HOST", "127.0.0.1")
 SIMULATOR_PORT = int(os.environ.get("SIM_WEB_PORT", "8888"))
+UI_DIST = Path(__file__).resolve().parents[2] / "simulator-ui" / "dist"
 
 state: ScenarioState | None = None
+active_topology_id: str | None = None
 agents: dict[str, SnmpAgent] = {}
 bridge = DashboardBridge()
+store = TopologyStore()
+_ws_clients: set[WebSocket] = set()
+_event_loop: asyncio.AbstractEventLoop | None = None
 
 
 def current_state() -> ScenarioState:
     if state is None:
-        raise HTTPException(409, "No simulator scenario is loaded")
+        raise HTTPException(409, "No simulator topology is running")
     return state
+
+
+def _current_bindings() -> set[tuple[str, int]]:
+    if state is None:
+        return set()
+    return {(device.get("host", "127.0.0.1"), device["snmp_port"]) for device in state.snapshot()["scenario"].get("devices", [])}
+
+
+def _preflight_bindings(definition) -> None:
+    import socket
+
+    occupied_by_current = _current_bindings()
+    probes = []
+    try:
+        for device in definition.devices:
+            binding = (device.host or "127.0.0.1", device.snmp_port)
+            if binding in occupied_by_current:
+                continue
+            probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            try:
+                probe.bind(binding)
+            except OSError as exc:
+                probe.close()
+                raise OSError(f"UDP binding {binding[0]}:{binding[1]} is unavailable: {exc}") from exc
+            probes.append(probe)
+    finally:
+        for probe in probes:
+            probe.close()
+
+
+def _start_definition(definition, topology_id: str | None = None) -> ScenarioState:
+    global state, active_topology_id
+    try:
+        _preflight_bindings(definition)
+    except OSError as exc:
+        raise RuntimeError(f"Failed to reserve SNMP bindings for {topology_id or definition.id}: {exc}") from exc
+    stop_runtime(clear_state=True)
+    runtime = ScenarioState(definition)
+    started: dict[str, SnmpAgent] = {}
+    try:
+        for device in definition.devices:
+            agent = SnmpAgent(runtime, device.id, COMMUNITY)
+            agent.start()
+            started[device.id] = agent
+    except Exception:
+        for agent in started.values():
+            agent.stop()
+        raise
+    state = runtime
+    agents.update(started)
+    active_topology_id = topology_id or definition.id
+    bridge_result = bridge.reconcile(runtime)
+    if bridge_result.get("enabled") and not bridge_result.get("ok"):
+        logger.error(
+            "simulator_bridge_reconcile_failed topology_id=%s detail=%s",
+            active_topology_id,
+            bridge_result.get("detail", "unknown error"),
+        )
+    elif not bridge_result.get("enabled"):
+        logger.warning(
+            "simulator_bridge_disabled topology_id=%s detail=%s",
+            active_topology_id,
+            bridge_result.get("detail", "bridge disabled"),
+        )
+    return runtime
 
 
 def start_scenario(scenario_id: str) -> ScenarioState:
-    global state
-    stop_scenario()
     definition = built_in_scenarios().get(scenario_id)
     if not definition:
         raise HTTPException(404, f"Unknown scenario: {scenario_id}")
-    state = ScenarioState(definition)
-    for device in definition.devices:
-        agent = SnmpAgent(state, device.id, COMMUNITY)
-        agent.start()
-        agents[device.id] = agent
-    bridge.reconcile(state)
-    return state
+    return _start_definition(definition, scenario_id)
 
 
-def stop_scenario() -> None:
+def start_topology(topology_id: str) -> ScenarioState:
+    topology = store.get(topology_id)
+    definition = topology_to_scenario(topology)
+    return _start_definition(definition, topology_id)
+
+
+def stop_runtime(clear_state: bool = True) -> None:
+    global state, active_topology_id
     for agent in agents.values():
         agent.stop()
     agents.clear()
+    active_topology_id = None
+    if clear_state:
+        state = None
+
+
+async def _broadcast(message: dict) -> None:
+    stale = []
+    for ws in list(_ws_clients):
+        try:
+            await ws.send_json(message)
+        except Exception:
+            stale.append(ws)
+    for ws in stale:
+        _ws_clients.discard(ws)
+
+
+def _schedule_broadcast(message: dict) -> None:
+    if _event_loop and _event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(_broadcast(message), _event_loop)
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    loop.create_task(_broadcast(message))
+
+
+def _device_host(device_id: str | None) -> str | None:
+    if not device_id or state is None:
+        return None
+    try:
+        return state.device(device_id).get("host")
+    except KeyError:
+        return None
+
+
+def _send_result_trap(result: TransitionResult) -> bool:
+    if not result.trap:
+        return False
+    send_formal_trap(
+        result.trap.level,
+        result.trap.message,
+        TRAP_HOST,
+        TRAP_PORT,
+        COMMUNITY,
+        source_host=_device_host(result.device_id),
+        layout=result.trap.layout,
+    )
+    return True
+
+
+def _after_change(result: TransitionResult, event_type: str) -> dict:
+    trap_sent = _send_result_trap(result)
+    runtime = current_state()
+    reconcile = bridge.reconcile(runtime)
+    snapshot = runtime.snapshot()
+    payload = {
+        "type": event_type,
+        "revision": result.revision,
+        "device_id": result.device_id,
+        "event": result.event,
+        "trap_sent": trap_sent,
+        "state": snapshot,
+        "snapshot": snapshot,
+    }
+    _schedule_broadcast(payload)
+    return {"revision": result.revision, "device_id": result.device_id, "trap_sent": trap_sent, "bridge": {"reconcile": reconcile}}
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    start_scenario(os.environ.get("SIM_SCENARIO", "ccdc-regression"))
+    global _event_loop
+    _event_loop = asyncio.get_running_loop()
+    start_topology(os.environ.get("SIM_TOPOLOGY", os.environ.get("SIM_SCENARIO", "ccdc-regression")))
     yield
-    stop_scenario()
+    stop_runtime()
+    _event_loop = None
 
 
-app = FastAPI(title="KVM Simulator", version="2.0", lifespan=lifespan)
+app = FastAPI(title="KVM Simulator", version="3.0", lifespan=lifespan)
+if UI_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="simulator-ui-assets")
+
+
+@app.get("/api/v1/profiles")
+def get_profiles():
+    return profile_metadata()
+
+
+@app.get("/api/v1/status")
+def get_status():
+    """Small redacted status payload used by the L0 smoke verifier."""
+    snapshot = state.snapshot() if state is not None else None
+    scenario = snapshot.get("scenario", {}) if snapshot else {}
+    devices = scenario.get("devices", []) if isinstance(scenario, dict) else []
+    expected_agents = len(devices)
+    agent_details = [
+        agent.status()
+        for _, agent in sorted(agents.items())
+    ]
+    healthy_agents = sum(
+        1
+        for item in agent_details
+        if item["thread_alive"] and item["ready"] and not item["error_type"]
+    )
+    bridge_status = bridge.status()
+    bridge_failed = (
+        bridge_status["enabled"]
+        and isinstance(bridge_status["last_reconcile"], dict)
+        and bridge_status["last_reconcile"].get("ok") is not True
+    )
+    runtime_degraded = state is None or healthy_agents != expected_agents
+    return {
+        "status": "degraded" if runtime_degraded or bridge_failed else "ok",
+        "runtime": {
+            "running": state is not None,
+            "topology_id": active_topology_id,
+            "revision": snapshot.get("revision") if snapshot else None,
+            "device_count": expected_agents,
+        },
+        "agents": {
+            "expected": expected_agents,
+            "running": healthy_agents,
+            "device_ids": sorted(agents),
+            "bindings": agent_details,
+        },
+        "bridge": bridge_status,
+        "dashboard": {
+            "url": bridge_status["dashboard_url"],
+            "last_reconcile_ok": (
+                bridge_status["last_reconcile"].get("ok")
+                if isinstance(bridge_status["last_reconcile"], dict)
+                else None
+            ),
+        },
+        "trap": {
+            "target_host": TRAP_HOST,
+            "target_port": TRAP_PORT,
+            "receiver_verification": "dashboard-health-required",
+        },
+        "configuration": {
+            "simulator_host": SIMULATOR_HOST,
+            "web_port": SIMULATOR_PORT,
+            "address_mode": os.environ.get("SIM_ADDRESS_MODE", "port"),
+            "topology": os.environ.get(
+                "SIM_TOPOLOGY",
+                os.environ.get("SIM_SCENARIO", "ccdc-regression"),
+            ),
+            "bridge_token": "configured" if bridge.token else "not-configured",
+            "community": "configured" if "SNMP_COMMUNITY" in os.environ else "default",
+            "ui_mode": "built" if (UI_DIST / "index.html").is_file() else "fallback",
+        },
+    }
+
+
+@app.post("/api/v1/bridge/reconcile")
+def retry_bridge_reconcile():
+    """Explicitly re-check the current Dashboard run for L0 diagnostics."""
+    runtime = current_state()
+    result = bridge.reconcile(runtime)
+    status = bridge.status()
+    if not result.get("enabled"):
+        raise HTTPException(409, status)
+    if result.get("ok") is not True:
+        raise HTTPException(503, status)
+    return status
+
+
+@app.get("/api/v1/topologies")
+def list_topologies():
+    return [item.model_dump(mode="json") for item in store.list()]
+
+
+@app.post("/api/v1/topologies", status_code=201)
+def create_topology(topology: TopologyDefinition):
+    created = store.create(topology)
+    _schedule_broadcast({"type": "topology_created", "topology_id": created.id})
+    return created
+
+
+@app.get("/api/v1/topologies/{topology_id}")
+def get_topology(topology_id: str):
+    return store.get(topology_id)
+
+
+@app.put("/api/v1/topologies/{topology_id}")
+def update_topology(topology_id: str, topology: TopologyDefinition):
+    updated = store.update(topology_id, topology)
+    _schedule_broadcast({"type": "topology_updated", "topology_id": updated.id})
+    return updated
+
+
+@app.delete("/api/v1/topologies/{topology_id}", status_code=204)
+def delete_topology(topology_id: str):
+    store.delete(topology_id)
+    _schedule_broadcast({"type": "topology_deleted", "topology_id": topology_id})
+    return None
+
+
+@app.post("/api/v1/topologies/{topology_id}/start")
+def api_start_topology(topology_id: str):
+    runtime = start_topology(topology_id)
+    snapshot = runtime.snapshot()
+    _schedule_broadcast({"type": "topology_started", "topology_id": topology_id, "revision": snapshot["revision"]})
+    return snapshot
+
+
+@app.post("/api/v1/topologies/{topology_id}/stop")
+def api_stop_topology(topology_id: str):
+    if active_topology_id and active_topology_id != topology_id:
+        raise HTTPException(409, f"Running topology is {active_topology_id}")
+    stop_runtime()
+    _schedule_broadcast({"type": "topology_stopped", "topology_id": topology_id})
+    return {"stopped": True, "topology_id": topology_id}
+
+
+@app.patch("/api/v1/runtime/devices/{device_id}/state")
+def patch_runtime_device_state(device_id: str, patch: RuntimeStatePatch):
+    try:
+        result = current_state().patch_device_state(device_id, patch)
+    except KeyError as exc:
+        raise HTTPException(404, f"Unknown runtime path target: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _after_change(result, "runtime_state_patch")
+
+
+@app.post("/api/v1/runtime/devices/{device_id}/actions")
+def runtime_device_action(device_id: str, request: RuntimeDeviceActionRequest):
+    runtime = current_state()
+    if request.action.value == "restore" and device_id not in agents:
+        try:
+            runtime.device(device_id)
+        except KeyError as exc:
+            raise HTTPException(404, f"Unknown device: {exc.args[0]}") from exc
+        agent = SnmpAgent(runtime, device_id, COMMUNITY)
+        agent.start()
+        agents[device_id] = agent
+    try:
+        result = runtime.device_action(device_id, request.action)
+    except KeyError as exc:
+        if request.action.value == "restore" and device_id in agents:
+            agents.pop(device_id).stop()
+        raise HTTPException(404, f"Unknown device: {exc.args[0]}") from exc
+    except Exception:
+        if request.action.value == "restore" and device_id in agents:
+            agents.pop(device_id).stop()
+        raise
+    if request.action.value == "power_off" and device_id in agents:
+        agents.pop(device_id).stop()
+    return _after_change(result, "device_action")
+
+
+@app.websocket("/api/v1/ws")
+async def websocket_events(websocket: WebSocket):
+    await websocket.accept()
+    _ws_clients.add(websocket)
+    try:
+        await websocket.send_json({"type": "snapshot", "state": current_state().snapshot() if state else None})
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        _ws_clients.discard(websocket)
 
 
 @app.get("/api/v1/scenarios")
 def list_scenarios():
-    return [
-        {"id": item.id, "title": item.title, "devices": len(item.devices)}
-        for item in built_in_scenarios().values()
-    ]
+    return [{"id": item.id, "title": item.title, "devices": len(item.devices)} for item in built_in_scenarios().values()]
 
 
 @app.post("/api/v1/scenarios/{scenario_id}/load")
 def load_scenario(scenario_id: str):
     runtime = start_scenario(scenario_id)
+    _schedule_broadcast({"type": "topology_started", "topology_id": scenario_id, "revision": runtime.revision})
     return runtime.snapshot()
 
 
@@ -83,46 +422,57 @@ def get_state():
 def set_reachability(device_id: str, paused: bool):
     runtime = current_state()
     result = runtime.pause_device(device_id, paused)
+    _schedule_broadcast({"type": "device_reachability", "revision": result.revision, "device_id": device_id, "paused": paused})
     return {"revision": result.revision, "device_id": result.device_id, "paused": paused}
 
 
 @app.patch("/api/v1/devices/{device_id}/endpoints/{endpoint_id}")
 def update_endpoint(device_id: str, endpoint_id: str, patch: EndpointStatePatch):
-    runtime = current_state()
     try:
-        result = runtime.patch_endpoint(device_id, endpoint_id, patch)
+        result = current_state().patch_endpoint(device_id, endpoint_id, patch)
     except KeyError as exc:
         raise HTTPException(404, f"Unknown endpoint: {exc.args[0]}") from exc
-    if result.trap:
-        send_formal_trap(result.trap.level, result.trap.message, TRAP_HOST, TRAP_PORT, COMMUNITY)
-    reconcile = bridge.reconcile(runtime)
-    return {
-        "revision": result.revision,
-        "device_id": result.device_id,
-        "trap_sent": result.trap is not None,
-        "bridge": {"reconcile": reconcile},
-    }
+    return _after_change(result, "endpoint_state")
 
 
 @app.patch("/api/v1/devices/{device_id}/routes/{route_id}")
 def update_route(device_id: str, route_id: str, patch: RouteStatePatch):
-    runtime = current_state()
     try:
-        result = runtime.patch_route(device_id, route_id, patch)
+        result = current_state().patch_route(device_id, route_id, patch)
     except KeyError as exc:
         raise HTTPException(404, f"Unknown route: {exc.args[0]}") from exc
-    reconcile = bridge.reconcile(runtime)
-    return {
-        "revision": result.revision,
-        "device_id": result.device_id,
-        "bridge": {"reconcile": reconcile},
-    }
+    return _after_change(result, "route_state")
 
 
 @app.post("/api/v1/traps")
 def send_trap(request: TrapRequest):
-    send_formal_trap(request.level, request.message, TRAP_HOST, TRAP_PORT, COMMUNITY)
-    return {"sent": True, "notification_oid": "1.3.6.1.4.1.32828.2.1.0.4"}
+    runtime = current_state()
+    device_ids = request.device_ids if request.device_ids is not None else ([request.device_id] if request.device_id else [])
+    if not device_ids:
+        raise HTTPException(422, "At least one target device is required")
+    unique_device_ids = list(dict.fromkeys(device_ids))
+    missing = [device_id for device_id in unique_device_ids if not _device_host(device_id)]
+    if missing:
+        raise HTTPException(404, f"Unknown trap target device(s): {', '.join(missing)}")
+    preset_message = {
+        "offline": "entered critical state: 'Offline'",
+        "sfp_rx_power": "SFP Rx power changed",
+        "display_changed": "Display connection state changed",
+    }.get(request.preset or "")
+    message = preset_message or request.message
+    for device_id in unique_device_ids:
+        send_formal_trap(
+            request.level,
+            message,
+            TRAP_HOST,
+            TRAP_PORT,
+            COMMUNITY,
+            source_host=_device_host(device_id),
+            layout=request.layout,
+        )
+        _schedule_broadcast({"type": "trap_sent", "device_id": device_id, "level": request.level, "message": message, "layout": request.layout, "revision": runtime.revision})
+    notification_oid = "1.3.6.1.4.1.32828.5.1.0.4" if request.layout == "legacy" else "1.3.6.1.4.1.32828.2.1.0.4"
+    return {"sent": True, "count": len(unique_device_ids), "notification_oid": notification_oid}
 
 
 @app.post("/api/v1/reset")
@@ -130,23 +480,24 @@ def reset_scenario():
     runtime = current_state()
     runtime.reset()
     reconcile = bridge.reconcile(runtime)
+    _schedule_broadcast({"type": "reset", "revision": runtime.revision})
     return {**runtime.snapshot(), "bridge": {"reconcile": reconcile}}
 
 
 @app.get("/", response_class=HTMLResponse)
 def control_page():
+    if UI_DIST.exists():
+        return FileResponse(UI_DIST / "index.html")
     return """<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'><title>KVM Simulator</title>
 <style>body{font-family:system-ui;background:#101821;color:#dfe8f3;margin:32px;max-width:1100px}button,select{padding:8px;margin:3px;background:#213449;color:#dfe8f3;border:1px solid #4c718f;border-radius:4px}pre{background:#071018;padding:16px;overflow:auto;border-radius:6px}.offline{color:#ff7272}.active{color:#63d6a2}</style></head><body>
-<h1>KVM SNMP Simulator</h1><p>所有路由均为 <b>simulation-declared</b> 测试数据，不代表实机发现的连接。</p>
-<label>场景 <select id='scenario'></select></label><button onclick='loadScenario()'>加载场景</button><button onclick='resetScenario()'>重置</button><button onclick='refresh()'>刷新</button><div id='content'></div>
+<h1>KVM SNMP Simulator</h1><p>REST/WS runtime topology API is available under <code>/api/v1</code>. Build simulator-ui to replace this fallback page.</p>
+<label>拓扑 <select id='topology'></select></label><button onclick='startTopology()'>启动</button><button onclick='stopTopology()'>停止</button><button onclick='refresh()'>刷新</button><div id='content'></div>
 <script>
-async function api(path, options={}){const r=await fetch(path,{headers:{'Content-Type':'application/json'},...options});if(!r.ok)throw new Error(await r.text());return r.json()}
-async function boot(){let scenarios=await api('/api/v1/scenarios');document.querySelector('#scenario').innerHTML=scenarios.map(s=>`<option value="${s.id}">${s.title}</option>`).join('');refresh()}
-async function loadScenario(){await api('/api/v1/scenarios/'+scenario.value+'/load',{method:'POST'});refresh()}
-async function resetScenario(){await api('/api/v1/reset',{method:'POST'});refresh()}
-async function endpoint(device,endpoint,status){await api(`/api/v1/devices/${device}/endpoints/${endpoint}`,{method:'PATCH',body:JSON.stringify({status})});refresh()}
-async function route(device,id,state){await api(`/api/v1/devices/${device}/routes/${id}`,{method:'PATCH',body:JSON.stringify({state})});refresh()}
-async function reachability(device,paused){await api(`/api/v1/devices/${device}/reachability?paused=${paused}`,{method:'POST'});refresh()}
-async function refresh(){try{const x=await api('/api/v1/state');let h=`<p>Revision ${x.revision}</p>`;for(const d of x.scenario.devices){const paused=x.paused_devices.includes(d.id);h+=`<section><h2>${d.name} <small>${d.profile} / UDP ${d.snmp_port}</small></h2><button onclick="reachability('${d.id}',${!paused})">${paused?'恢复 SNMP':'暂停 SNMP（模拟断网）'}</button><h3>端点</h3>`;for(const e of d.endpoints){h+=`<div>${e.id} <b class="${e.status===0?'offline':'active'}">${['offline','online','ready'][e.status]}</b> <button onclick="endpoint('${d.id}','${e.id}',0)">离线 + Trap</button><button onclick="endpoint('${d.id}','${e.id}',1)">在线 + Trap</button></div>`}h+='<h3>模拟路由</h3>';for(const r of d.routes){h+=`<div>${r.source_endpoint_id} → ${r.target_endpoint_id}: <b>${r.state}</b> <button onclick="route('${d.id}','${r.id}','active')">连接</button><button onclick="route('${d.id}','${r.id}','disconnected')">断开</button></div>`}h+='</section>'}content.innerHTML=h+'<h3>完整状态</h3><pre>'+JSON.stringify(x,null,2)+'</pre>'}catch(e){content.innerHTML='<pre class="offline">'+e+'</pre>'}}
+async function api(path, options={}){const r=await fetch(path,{headers:{'Content-Type':'application/json'},...options});if(!r.ok)throw new Error(await r.text());return r.status===204?null:r.json()}
+async function boot(){let topologies=await api('/api/v1/topologies');document.querySelector('#topology').innerHTML=topologies.map(s=>`<option value="${s.id}">${s.title}</option>`).join('');refresh()}
+async function startTopology(){await api('/api/v1/topologies/'+topology.value+'/start',{method:'POST'});refresh()}
+async function stopTopology(){await api('/api/v1/topologies/'+topology.value+'/stop',{method:'POST'});refresh()}
+async function action(device,action){await api(`/api/v1/runtime/devices/${device}/actions`,{method:'POST',body:JSON.stringify({action})});refresh()}
+async function refresh(){try{const x=await api('/api/v1/state');let h=`<p>Revision ${x.revision}</p>`;for(const d of x.scenario.devices){const paused=x.paused_devices.includes(d.id);h+=`<section><h2>${d.name} <small>${d.profile} / ${d.host}:${d.snmp_port}</small></h2><button onclick="action('${d.id}','${paused?'restore':'disconnect'}')">${paused?'恢复':'断网'}</button><button onclick="action('${d.id}','power_off')">下电</button></section>`}content.innerHTML=h+'<h3>完整状态</h3><pre>'+JSON.stringify(x,null,2)+'</pre>'}catch(e){content.innerHTML='<pre class="offline">'+e+'</pre>'}}
 boot();setInterval(refresh,2000)
 </script></body></html>"""

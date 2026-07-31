@@ -38,18 +38,16 @@ def test_route_updates_keep_explicit_simulation_provenance():
     assert route["evidence"] == "simulation-declared"
 
 
-def test_only_legacy_profile_emits_dashboard_compatibility_tables():
-    legacy = built_in_scenarios()["ccdc-regression"].devices[0].model_dump(mode="json")
-    ccdm = built_in_scenarios()["ccdm-matrix-basic"].devices[0].model_dump(mode="json")
+def test_all_profiles_emit_profile_oid_tables():
+    scenarios = built_in_scenarios()
+    legacy = scenarios["ccdc-regression"].devices[0].model_dump(mode="json")
+    ccdm = scenarios["ccdm-matrix-basic"].devices[0].model_dump(mode="json")
 
     legacy_map = endpoint_oid_map(legacy)
     ccdm_map = endpoint_oid_map(ccdm)
 
     assert legacy_map[SYS_OBJECT_ID] == legacy["system_oid"]
     assert any(".1.2.2.3.1000.1." in oid for oid in legacy_map)
-    assert ccdm_map == {
-        SYS_OBJECT_ID: ccdm["system_oid"],
-        f"{ccdm['system_oid']}.2.1.1.0": ccdm["id"],
-        f"{ccdm['system_oid']}.2.1.3.0": ccdm["name"],
-        f"{ccdm['system_oid']}.2.2.1.0": "SIM-2026.07",
-    }
+    assert ccdm_map[SYS_OBJECT_ID] == ccdm["system_oid"]
+    assert any(".2.3.1000.1." in oid for oid in ccdm_map)
+    assert any(".1.2.2.3.1000.1." in oid for oid in ccdm_map)
