@@ -1,21 +1,23 @@
 # ADR-003：Optional 能力与 Fixture 行分离
 
-> 状态：Candidate，技术验证已通过；等待可审计 Git 基线
+> 状态：Accepted
 > 日期：2026-07-31
 > 决策范围：对象定义、optional 能力选择和 fixture 实际实例的边界；不定义运行时 PATCH 或 SNMP 缺失对象编码。
 
 ## 1. 下层契约依赖
 
 - `layers/L00_BASELINE_AND_ENVIRONMENT.md` /
-  status=`Accepted for Windows local port mode` / `commit=UNCOMMITTED`
+  status=`Accepted for Windows local port mode` /
+  `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`
 - `layers/L01_MIB_GOLDEN_CONTRACT.md` /
   status=`Accepted for local curated device dictionary snapshot` /
-  `commit=UNCOMMITTED`
+  `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`
 - `verification/L01_PROFILE_DRIFT.json` / schema=`1` / `ok=false`
-- `layers/L02_PROFILE_MODEL_CONTRACT.md` / status=`Candidate`
+- `layers/L02_PROFILE_MODEL_CONTRACT.md` / status=`Accepted` /
+  implementation baseline=`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`
 
-L1 Golden 的精确 SHA-256 见 L02 契约 1.1 节。当前 Git HEAD 只是工作区基线，
-不是未提交 L1/L2 工件的交付 commit。
+L1 Golden 的精确 SHA-256 见 L02 契约 1.1 节。L0/L1/L2 实际工件已由
+`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定。
 
 ## 2. 背景
 
@@ -282,4 +284,4 @@ L2 只返回“整个 fixture schema 有效/无效”。把校验后的 fixture 
 10. L0/L1/L2 专项、全回归和独立审计通过。
 
 结果记录到 `verification/L02_PROFILE_MODEL_REPORT.md`。实现、测试和独立
-复审已经通过；在形成可审计 Git commit 前，本 ADR 保持 `Candidate`。
+复审已经通过；实现与证据基线已提交，因此本 ADR 为 `Accepted`。

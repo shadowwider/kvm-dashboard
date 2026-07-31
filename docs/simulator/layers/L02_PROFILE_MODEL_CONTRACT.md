@@ -1,6 +1,6 @@
 # L02 Profile 领域模型契约
 
-> 状态：Candidate，技术验证已通过；等待可审计 Git 基线
+> 状态：Accepted
 > 更新日期：2026-07-31
 > 适用范围：把 L1 独立 Golden 转换为可版本化的 Profile schema；不处理运行时状态、UDP/SNMP、Trap 编码、Bridge、WebSocket 或 UI。
 > 来源保证：`local-curated-snapshot-not-verified-against-original-mib-in-this-run`
@@ -9,18 +9,18 @@
 
 | 下层交付 | 状态 | Git / 版本边界 | L2 使用方式 |
 |---|---|---|---|
-| `layers/L00_BASELINE_AND_ENVIRONMENT.md` | `Accepted for Windows local port mode` | `commit=UNCOMMITTED`；记录的基线 HEAD 为 `824c8bfed447ca831a05de3e432db62024f854e8` | 只继承 Windows 本地可复现环境和测试入口 |
-| `decisions/ADR-001-LOCAL_ADDRESS_MODES.md` | `Accepted for L0` | `commit=UNCOMMITTED`；同上 | 只继承本地 `port` 模式，不把地址模式写入 Profile 事实 |
-| `verification/L00_CURRENT_REPRODUCTIONS.md` | `Accepted for Windows local port mode` | `commit=UNCOMMITTED`；同上 | 继承测试环境、脏工作树和未验证 Docker 边界 |
-| `layers/L01_MIB_GOLDEN_CONTRACT.md` | `Accepted for local curated device dictionary snapshot` | `commit=UNCOMMITTED`；由本节 SHA-256 固定工件 | OID、SYNTAX、MAX-ACCESS、枚举、范围、单位、INDEX、optional 事实的唯一输入 |
-| `layers/L01_TRAP_EVIDENCE_CONTRACT.md` | `Accepted for local curated device dictionary snapshot` | `commit=UNCOMMITTED`；由本节 SHA-256 固定工件 | 仅保存 Trap evidence reference；L2 不复制或编码 varbind |
-| `verification/L01_MIB_COVERAGE_REPORT.md` | `Accepted for local curated device dictionary snapshot` | `commit=UNCOMMITTED` | 继承五 Profile 覆盖计数、CCDC 边界和未验证范围 |
-| `verification/L01_PROFILE_DRIFT.json` | L1→L2 起始诊断，`ok=false` | schema version `1`，`commit=UNCOMMITTED` | 保留 L2 修改前的历史差异，不覆盖、不作为厂家事实源 |
-| `verification/L02_PROFILE_CATALOG_DRIFT.json` | L2 当前全语义诊断 | schema version `2`，`commit=UNCOMMITTED` | 记录 L2 catalog、fixture 和完整语义投影的当前结果 |
+| `layers/L00_BASELINE_AND_ENVIRONMENT.md` | `Accepted for Windows local port mode` | `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 只继承 Windows 本地可复现环境和测试入口 |
+| `decisions/ADR-001-LOCAL_ADDRESS_MODES.md` | `Accepted for L0` | `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 只继承本地 `port` 模式，不把地址模式写入 Profile 事实 |
+| `verification/L00_CURRENT_REPRODUCTIONS.md` | `Accepted for Windows local port mode` | `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 继承测试环境和未验证 Docker 边界 |
+| `layers/L01_MIB_GOLDEN_CONTRACT.md` | `Accepted for local curated device dictionary snapshot` | `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`；由本节 SHA-256 固定工件 | OID、SYNTAX、MAX-ACCESS、枚举、范围、单位、INDEX、optional 事实的唯一输入 |
+| `layers/L01_TRAP_EVIDENCE_CONTRACT.md` | `Accepted for local curated device dictionary snapshot` | `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`；由本节 SHA-256 固定工件 | 仅保存 Trap evidence reference；L2 不复制或编码 varbind |
+| `verification/L01_MIB_COVERAGE_REPORT.md` | `Accepted for local curated device dictionary snapshot` | `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 继承五 Profile 覆盖计数、CCDC 边界和未验证范围 |
+| `verification/L01_PROFILE_DRIFT.json` | L1→L2 起始诊断，`ok=false` | schema version `1`，`commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 保留 L2 修改前的历史差异，不覆盖、不作为厂家事实源 |
+| `verification/L02_PROFILE_CATALOG_DRIFT.json` | L2 当前全语义诊断，`ok=true` | schema version `2`，`commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 记录 L2 catalog、fixture 和完整语义投影的当前结果 |
 
-当前仓库 HEAD 只能标识 L0 开始前的基线，不能证明未提交的 L0/L1/L2 工件已在
-该提交中。L2 在形成可审计 Git 提交前不得把上述 `UNCOMMITTED` 替换为
-`824c8bf...`，也不得据此把本契约标记为 `Accepted`。
+L0/L1/L2 实际工件已由提交
+`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定。该提交是 L3 可引用的
+实现与证据基线；原始 MIB 和现场设备仍不在本轮验收范围内。
 
 ### 1.1 L1 Golden 精确固定
 
@@ -356,8 +356,7 @@ profile_metadata(profile) -> schema-only serializable mapping
 10. 独立审计无 P0/P1；
 11. L0/L1/L2 工件形成可审计 Git 提交，上层可使用真实 `commit=<sha>` 引用。
 
-当前结论：
-`Candidate / technical verification passed / Git baseline pending`。
+当前结论：`Accepted`。
 `verification/L02_PROFILE_MODEL_REPORT.md` 已记录代码、工件、测试和独立
-复审结果；尚未完成的是包含 L0/L1/L2 实际工件的可审计 Git commit。该硬
-Gate 未满足前不得开始 L3 正式开发。
+复审结果；L0/L1/L2 实际工件已由
+`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定，L3 可以正式开发。

@@ -1,24 +1,25 @@
 # ADR-002：Profile 命名、身份与版本
 
-> 状态：Candidate，技术验证已通过；等待可审计 Git 基线
+> 状态：Accepted
 > 日期：2026-07-31
 > 决策范围：Profile、对象、内部字段和展示 key 的稳定身份；不定义运行时状态路径或 UI 文案。
 
 ## 1. 下层契约依赖
 
 - `layers/L00_BASELINE_AND_ENVIRONMENT.md` /
-  status=`Accepted for Windows local port mode` / `commit=UNCOMMITTED`
+  status=`Accepted for Windows local port mode` /
+  `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`
 - `layers/L01_MIB_GOLDEN_CONTRACT.md` /
   status=`Accepted for local curated device dictionary snapshot` /
-  `commit=UNCOMMITTED`
+  `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`
 - `layers/L01_TRAP_EVIDENCE_CONTRACT.md` /
   status=`Accepted for local curated device dictionary snapshot` /
-  `commit=UNCOMMITTED`
-- `layers/L02_PROFILE_MODEL_CONTRACT.md` / status=`Candidate`
+  `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`
+- `layers/L02_PROFILE_MODEL_CONTRACT.md` / status=`Accepted` /
+  implementation baseline=`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc`
 
-依赖工件的精确 SHA-256 见 L02 契约 1.1 节。当前 HEAD
-`824c8bfed447ca831a05de3e432db62024f854e8` 是工作区基线，不包含未提交的
-L1/L2 工件，不能替代真实交付 commit。
+依赖工件的精确 SHA-256 见 L02 契约 1.1 节。L0/L1/L2 实际工件已由
+`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定。
 
 ## 2. 背景
 
@@ -213,7 +214,7 @@ L1 OID、类型、权限、枚举或 INDEX 改变时，即使 Profile SemVer 判
 - 需要显式维护 vendor → canonical → label key 映射；
 - 首次迁移必须处理已有状态字段别名；
 - Profile 变更必须同时判断 SemVer 和 evidence revision；
-- 在形成 Git 提交前，L2 只能保持 Candidate。
+- 任何后续 schema 变更都必须形成新的可审计提交并重新执行 Gate。
 
 ## 7. 验收
 
@@ -231,4 +232,4 @@ L1 OID、类型、权限、枚举或 INDEX 改变时，即使 Profile SemVer 判
 
 实际命令和结果写入
 `verification/L02_PROFILE_MODEL_REPORT.md`。测试、全回归和独立复审已经
-通过；真实 Git baseline 尚未形成，因此本 ADR 保持 `Candidate`。
+通过；实现与证据基线已提交，因此本 ADR 为 `Accepted`。

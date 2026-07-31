@@ -1,8 +1,8 @@
 # L02 Profile 模型验证报告
 
-> 状态：Candidate / 技术验证已通过，等待可审计 Git 基线
+> 状态：Accepted
 > 更新日期：2026-07-31
-> 当前结论：Profile catalog、显式 fixture、专项测试、全回归和独立复审已完成；由于 L0/L1/L2 工件仍未提交，不能标记为 Accepted。
+> 当前结论：Profile catalog、显式 fixture、专项测试、全回归、独立复审和可审计 Git 基线均已完成。
 
 ## 1. 验证范围
 
@@ -30,20 +30,14 @@
 下层状态、当前工作树边界和七份 L1 Golden SHA-256 见
 `layers/L02_PROFILE_MODEL_CONTRACT.md` 1 节。
 
-当前基线 HEAD：
+L0/L1/L2 工件提交：
 
 ```text
-824c8bfed447ca831a05de3e432db62024f854e8
+f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc
 ```
 
-当前工件归属：
-
-```text
-L0/L1/L2 artifact commit = UNCOMMITTED
-```
-
-因此本报告不得把基线 HEAD 伪写成 L1/L2 交付 commit。正式 Accepted 前必须
-补上包含实际工件的可审计 commit。
+该提交包含本报告所验证的 L0/L1/L2 代码、catalog、fixture、golden、测试和
+文档工件，是 L3 的实现与证据基线。
 
 ## 3. L1 起始差异
 
@@ -171,13 +165,12 @@ generation≈4.09ms
 - 未执行 L3 PATCH、事务或运行时实例化；
 - 未执行 L4 Trap/SNMP 编码；
 - 未证明页面参数编辑、拓扑或拉线可用；
-- 当前工作树尚未形成 L2 可追溯 Git commit。
+- 未重新进行原始 MIB、现场设备和真实 UDP L4 验收。
 
 ## 8. Gate 判断
 
-当前判断：`Candidate / technical verification passed / Git baseline pending`。
+当前判断：`Accepted`。
 
-代码、静态工件、专项测试、全回归和独立审计的技术条件已满足。唯一尚未满足
-的硬 Gate 是：L0/L1/L2 工件仍在未提交工作树中，没有可供上层引用的真实
-`commit=<sha>`。在用户明确授权形成可审计提交前，本报告、L02 契约和两份
-ADR 保持 `Candidate`，不得开始 L3 正式开发。
+代码、静态工件、专项测试和独立审计已经通过；实际工件由
+`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定。L2 Gate 已满足，允许
+开始 L3；原始 MIB、现场设备和 L4 UDP/ASN.1 能力仍不属于本结论。

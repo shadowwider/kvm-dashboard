@@ -521,7 +521,7 @@
 |---|---|---:|
 | L0 环境与基线 | 已通过（Windows local port mode） | 是，允许 L1 |
 | L1 MIB golden | 已通过（local curated device dictionary snapshot） | 是，允许准备 L2 |
-| L2 Profile 模型 | 技术验证通过；缺可审计 Git 基线，仍为 Candidate | 否 |
+| L2 Profile 模型 | 已通过；实现与证据基线为 `f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 是，允许 L3 |
 | L3 状态模型 | 部分原子、缺强校验 | 否 |
 | L4 SNMP/Trap | 基本可通信、协议错误仍在 | 否 |
 | L5 生命周期/存储 | 非事务、清理不完整 | 否 |
@@ -534,6 +534,6 @@
 | L12 端到端发布 | 未达到 | 否 |
 
 L2 Profile 的代码、静态 catalog/fixture、全语义 drift、99 项后端回归和
-独立复审已经通过。当前唯一硬 Gate blocker 是 L0/L1/L2 工件仍未形成可审计
-Git commit，无法供 L3 文档填写真实 `commit=<sha>`。在用户明确授权提交前，
-L2 保持 Candidate，不进入 L3 正式开发。
+独立复审已经通过；实际工件由
+`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定。L2 已 Accepted，L3
+可以正式开发。

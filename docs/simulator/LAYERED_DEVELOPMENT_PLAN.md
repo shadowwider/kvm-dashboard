@@ -256,15 +256,16 @@ Golden 文件不能由 `PROFILE_DEFINITIONS` 生成。
 - SIM-STATE-003、SIM-UI-003 的 schema 根因关闭。
 
 当前状态（2026-07-31）：
-`Candidate / technical verification passed / Git baseline pending`。五个 typed
+`Accepted`。五个 typed
 Profile 已与 L1 Golden 做全字段投影，CCDM 为 20 表/142 个可读叶；默认
 fixture 已独立为静态显式工件，optional 默认关闭，metadata 不展开实例；
 后端全回归 99 项通过。证据见
 `verification/L02_PROFILE_MODEL_REPORT.md` 和
 `verification/L02_PROFILE_CATALOG_DRIFT.json`。
 
-L0/L1/L2 工件目前仍未形成可审计 Git commit，不能填写真实
-`commit=<sha>`，所以 L2 尚未 `Accepted`，不得开始 L3 正式开发。
+L0/L1/L2 实际工件已由
+`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定，L2 Gate 已满足，允许
+开始 L3 正式开发。
 
 ### 预计工作量
 
