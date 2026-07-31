@@ -6,14 +6,22 @@
 
 - 拓扑 API：`GET/POST/PUT/DELETE /api/v1/topologies`，内置 5 个只读 preset，由旧场景转换而来。
 - 运行控制：`POST /api/v1/topologies/{id}/start|stop`。
-- 状态操控：`PATCH /api/v1/runtime/devices/{id}/state`，支持英文路径，例如 `scalars.temperature1`、`ports[1].status`、`endpoints[CPU-1-001].status`、`tables.linkChannel[1].sfpRxPower`。
-- 设备动作：`POST /api/v1/runtime/devices/{id}/actions`，支持 `disconnect`、`pause`、`power_off`、`restore`。
+- 状态操控：`PATCH /api/v1/runtime/devices/{id}/state` 只接受由当前
+  L2 fixture 实例生成的 L3 规范路径，例如
+  `scalars.switch_temperature`、
+  `tables.target_module_table[1].device_status` 和
+  `tables.gud_ccdmdwc_mib_fan_table[1,1].fan_speed`。旧
+  `ports[...]`、`endpoints[...]`、厂家名和任意 nested path 会以 422 拒绝。
+- 设备动作：`POST /api/v1/runtime/devices/{id}/actions` 的 L3 规范动作是
+  `disconnect`、`power_off`、`restore`；旧 `pause` 仅在场景 facade
+  归一化为 disconnect，不建立第四种运行状态。
 - Trap 控制台 API：`POST /api/v1/traps`，支持单/多设备、`formal`/`legacy` layout、level/message。
 - WebSocket：`WS /api/v1/ws`，向 simulator-ui 推送 snapshot、状态事件、拓扑事件和 Trap 发送事件。
-- Profile/OID：当前声明式 Profile 覆盖 CCDC、CCDM、VisionXS CPU、VisionXS
-  CON、DP12 MUX，但不能统称为完整厂家 OID map。L1 静态对照显示 CCDM
-  当前仍是 15/20 张表、134/142 个可 GET 叶定义；Dashboard 现阶段仍只主动
-  poll CCDC legacy 形状。
+- Profile/OID：当前 L2 typed Profile 覆盖 CCDC、CCDM、VisionXS CPU、
+  VisionXS CON、DP12 MUX。Accepted L1/L2 静态对照中 CCDM 已达到
+  20/20 张表、142/142 个可 GET 叶，缺失、多余和非法 fixture 值均为 0。
+  这仍不等于已完成 L4 的真实 UDP/ASN.1 验证；Dashboard 现阶段也仍主要按
+  CCDC legacy 形状主动轮询。
 - 可视化 UI：根目录 `simulator-ui/` 是独立 React + Vite + `@xyflow/react` 项目，开发时连接模拟器 API，构建后可由模拟器 FastAPI 托管。
 
 ## 设备与 Profile
@@ -23,7 +31,7 @@
 | 模拟设备 | 类型 | 当前可验证范围 |
 |---|---|---|
 | `SIM / Legacy CCDC Matrix` | 历史 CCDC 风格中心矩阵 | Dashboard 端到端：SNMP 轮询、1 秒可达性、CPU/CON 状态、正式 Trap、端口和模拟路由 |
-| `SIM / CCDM Matrix` | ControlCenter-Digital 中心矩阵 | 当前 Profile 尚缺 5 表、11 个叶定义并多出 3 个无字典依据的公共 OID；只能作为 L2 整改 fixture |
+| `SIM / CCDM Matrix` | ControlCenter-Digital 中心矩阵 | L1/L2 静态 Profile 已达 20 表/142 可 GET 叶且零 drift；L3 typed state 已实例化实际 fixture，真实 UDP/ASN.1 行为待 L4 验证 |
 | `SIM / VisionXS CPU` | 独立 CPU SNMP Agent | 对象定义层与本地设备字典快照一致；真实 UDP/fixture 行与现场设备兼容仍待 L4 验证 |
 | `SIM / VisionXS CON` | 独立 CON SNMP Agent | 对象定义层与本地设备字典快照一致；真实 UDP/fixture 行与现场设备兼容仍待 L4 验证 |
 | `SIM / DP12 MUX` | 独立 DP 小型通道切换器 | 对象定义层与本地设备字典快照一致；6 个 read-write 是字典事实，但 SNMP SET 仍拒绝且真实协议待 L4 验证 |
@@ -138,8 +146,32 @@ cd H:\WORK\I\kvm-dashboard\backend
 
 ### C. 验证 CPU/CON 状态与 Trap
 
-1. 对 `CPU-1-001` 执行旧 endpoint patch 或 runtime state patch，将 status 改为 `0`。
-2. 模拟器会先改变 SNMP 状态，再发送正式 Trap：
+1. Legacy CCDC 的 `CPU-1-001` 继续使用专用 endpoint 兼容入口；它属于
+   project-domain 状态，不是厂家 Profile 通用 PATCH。
+2. CCDM 的 `CPU-CCDM-001` 使用规范 runtime path：
+
+```json
+{
+  "patches": [
+    {
+      "path": "tables.target_module_table[1].device_status",
+      "value": 0
+    }
+  ],
+  "emit_trap": true
+}
+```
+
+请求地址为
+`PATCH /api/v1/runtime/devices/sim-ccdm-01/state`。成功响应包含
+`revision`、`changed_paths`、`committed_values` 和 `idempotent`。
+任意一项类型、范围或路径非法时，整个 batch 拒绝，状态/revision/event
+均不改变。
+
+3. 专用 endpoint status 入口若用于 CCDM，会与同一 canonical table leaf
+   在一个 revision/event 内同步；`video_connected` 等没有显式 Profile
+   映射的字段不得解释为 SNMP OID 已改变。
+4. 状态型 Trap 的 formal 布局为：
 
 ```text
 notification = 1.3.6.1.4.1.32828.2.1.0.4
@@ -147,8 +179,9 @@ level        = 1.3.6.1.4.1.32828.2.1.0.2
 message      = 1.3.6.1.4.1.32828.2.1.0.3
 ```
 
-3. Dashboard 的端点矩阵、拓扑与告警流应反映该 CPU 离线。
-4. 将 status 改回 `1` 验证恢复。对 CON 重复同样动作。
+5. Dashboard 的端点矩阵、拓扑与告警流应反映其当前已支持的 CCDC 数据；
+   非 CCDC 的 Dashboard Profile 化属于 L6。
+6. 将 status 改回 `1` 验证恢复。对 CON 重复同样动作。
 
 ### D. 验证 Trap 控制台
 
@@ -179,10 +212,18 @@ curl -X POST http://127.0.0.1:18890/api/v1/traps \
 后端：
 
 ```bash
-cd H:\WORK\I\kvm-dashboard
-python -m py_compile backend/simulator/*.py backend/app/api/simulator.py
-cd backend
-.venv\Scripts\python.exe -m pytest tests/test_simulator_l0.py tests/test_trap_receiver_startup.py tests/test_health_probe.py tests/test_simulator_core.py tests/test_simulator_lifecycle.py tests/test_simulator_profiles.py tests/test_simulator_topologies.py tests/test_simulator_traps.py tests/test_simulator_ui_contract.py
+cd H:\WORK\I\kvm-dashboard\backend
+.venv\Scripts\python.exe -m compileall -q simulator tests
+.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+
+# L3 状态层专项
+.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider \
+  tests/test_simulator_l3_runtime_state.py \
+  tests/test_simulator_l3_integration.py \
+  tests/test_simulator_runtime_patch.py \
+  tests/test_simulator_core.py \
+  tests/test_simulator_lifecycle.py \
+  tests/test_simulator_ui_contract.py
 ```
 
 simulator-ui：

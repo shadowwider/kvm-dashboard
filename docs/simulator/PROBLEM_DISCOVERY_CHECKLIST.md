@@ -184,7 +184,7 @@
 
 - 严重度：P0
 - 所属层：L3 状态模型
-- 状态：未修复
+- 状态：L3 工作树已修复，技术 Gate 通过；待 L3 commit 固化
 - 证据：E2、E3
 - 位置：`backend/simulator/models.py`、`backend/simulator/state.py`
 - 发现：没有按 Profile 验证类型、枚举、范围、只读字段和结构字段。
@@ -193,12 +193,17 @@
   - patch 先完整 validate，再一次性 commit；
   - 失败时 state、revision、events、OID snapshot 均不变；
   - 禁止修改 ID、row、index、profile、host 等结构字段。
+- 关闭证据：L3 registry 逐实例绑定 L2 定义；strict type/enum/range/
+  UTF-8 length/optional 校验、100/101 batch 边界、后项失败 rollback 和
+  patch/action/reset/reset_all timestamp 故障注入均通过。详见
+  `verification/L03_RUNTIME_STATE_REPORT.md`。
 
 #### SIM-STATE-002：ports/endpoints 路径可写入不影响 OID 的任意字段
 
 - 严重度：P0
 - 所属层：L3
-- 状态：未修复
+- 状态：通用 runtime PATCH 根因已关闭；专用 endpoint/route 兼容入口归
+  L4/L7 映射边界
 - 证据：E3
 - 已复现：`ports[1].sfpRxPower` 返回 200，但渲染 OID 完全不变。
 - 影响：产生“页面显示修改成功、SNMP 没变化”的假成功。
@@ -206,18 +211,28 @@
   - 所有可写路径由实例化 Profile metadata 生成；
   - 不在路径索引中的字段必须 422；
   - 成功响应必须包含受影响的规范路径、revision 和新值。
+- 关闭证据：通用 PATCH 仅接受 `scalars.*` 和实际 fixture table leaf；
+  `ports[...]`、`endpoints[...]`、未实例化 row/optional、identity/index
+  全部在 commit 前拒绝；成功响应包含 `changed_paths`、
+  `committed_values`、`revision` 和 `idempotent`。
+- 上层边界：CCDM endpoint `status` 已显式同步 canonical table leaf；
+  `video_connected/display_connected/frozen` 等 domain-only 字段不得被
+  L4/L7 宣称为 SNMP OID 已同步。
 
 #### SIM-STATE-003：状态字段与 Profile 命名不一致
 
 - 严重度：P1
 - 所属层：L2、L3
-- 状态：L2 三层命名和双向 alias 已建立；L3 状态键/API 路径迁移待完成
+- 状态：L2 三层命名和映射已建立；L3 Core 规范 path 迁移已完成，待 commit
 - 示例：`temperature`/`temperature1`、`main_power`/`mainPower`、`powerCurrent` 等命名混杂。
 - 影响：UI fallback、设备动作和 Profile 渲染容易写入不同字段。
 - 关闭条件：
   - 定义规范字段名和厂家对象名的双向映射；
   - 内部字段名统一；
   - API 只暴露规范路径，MIB 名作为 metadata。
+- 关闭证据：L3 只以 L2 canonical field/table ID 构造 scalar、单索引和
+  复合索引 path；厂家名、OID、UI label 和 compatibility alias 不形成第二条
+  可写路径。action 不再按业务名猜写 power scalar。
 
 ### 5.4 SNMP Agent 与 Trap 编码
 
@@ -522,7 +537,7 @@
 | L0 环境与基线 | 已通过（Windows local port mode） | 是，允许 L1 |
 | L1 MIB golden | 已通过（local curated device dictionary snapshot） | 是，允许准备 L2 |
 | L2 Profile 模型 | 已通过；实现与证据基线为 `f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 是，允许 L3 |
-| L3 状态模型 | 部分原子、缺强校验 | 否 |
+| L3 状态模型 | Candidate；Core 技术 Gate 已通过，P0/P1=0，待真实 commit 与 Accepted 回填 | 否，尚未正式解锁 L4 |
 | L4 SNMP/Trap | 基本可通信、协议错误仍在 | 否 |
 | L5 生命周期/存储 | 非事务、清理不完整 | 否 |
 | L6 Dashboard 集成 | bridge 可注册、Profile/Trap 边界错误 | 否 |
@@ -533,7 +548,10 @@
 | L11 拓扑画布交互 | 原型存在、不能验收 | 否 |
 | L12 端到端发布 | 未达到 | 否 |
 
-L2 Profile 的代码、静态 catalog/fixture、全语义 drift、99 项后端回归和
-独立复审已经通过；实际工件由
-`f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定。L2 已 Accepted，L3
-可以正式开发。
+L2 Profile 的代码、静态 catalog/fixture、全语义 drift 和独立复审已经通过；
+实现工件由 `f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` 固定，Accepted
+状态由 `8060a2c19147db2a115e2e77e9a0f960afb692df` 固定。
+
+L3 当前专项 91 项、后端全量 176 项通过，独立复审结论为 Core
+`P0=0 / P1=0`。但 L3 增量仍未提交，因此三份合同保持 `Candidate`，不得
+按正式 Gate 已通过来启动 L4；下一步先提交并回填 L3 commit。

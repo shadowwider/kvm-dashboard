@@ -7,22 +7,22 @@ from simulator.state import ScenarioState
 
 
 def test_runtime_patch_is_atomic_when_later_path_fails():
-    runtime = ScenarioState(built_in_scenarios()["ccdc-regression"])
+    runtime = ScenarioState(built_in_scenarios()["ccdm-matrix-basic"])
     before = runtime.snapshot()
-    before_oids = endpoint_oid_map(runtime.device("sim-ccdc-01"), runtime.profile_state("sim-ccdc-01"))
+    before_oids = endpoint_oid_map(runtime.device("sim-ccdm-01"), runtime.profile_state("sim-ccdm-01"))
 
     patch = RuntimeStatePatch.model_validate({
         "patches": [
-            {"path": "scalars.temperature", "value": 61.5},
+            {"path": "scalars.switch_temperature", "value": "61.5"},
             {"path": "ports[999].status", "value": "down"},
         ]
     })
 
-    with pytest.raises(KeyError):
-        runtime.patch_device_state("sim-ccdc-01", patch)
+    with pytest.raises(ValueError):
+        runtime.patch_device_state("sim-ccdm-01", patch)
 
     assert runtime.snapshot() == before
-    assert endpoint_oid_map(runtime.device("sim-ccdc-01"), runtime.profile_state("sim-ccdc-01")) == before_oids
+    assert endpoint_oid_map(runtime.device("sim-ccdm-01"), runtime.profile_state("sim-ccdm-01")) == before_oids
 
 
 def test_runtime_patch_rejects_unknown_profile_scalar():
@@ -34,11 +34,11 @@ def test_runtime_patch_rejects_unknown_profile_scalar():
 
 
 def test_runtime_patch_updates_rendered_oid_value():
-    runtime = ScenarioState(built_in_scenarios()["ccdc-regression"])
-    patch = RuntimeStatePatch.model_validate({"patches": [{"path": "scalars.temperature", "value": 66.6}]})
+    runtime = ScenarioState(built_in_scenarios()["ccdm-matrix-basic"])
+    patch = RuntimeStatePatch.model_validate({"patches": [{"path": "scalars.switch_temperature", "value": "66.6"}]})
 
-    runtime.patch_device_state("sim-ccdc-01", patch)
-    device = runtime.device("sim-ccdc-01")
-    rendered = endpoint_oid_map(device, runtime.profile_state("sim-ccdc-01"))
+    runtime.patch_device_state("sim-ccdm-01", patch)
+    device = runtime.device("sim-ccdm-01")
+    rendered = endpoint_oid_map(device, runtime.profile_state("sim-ccdm-01"))
 
-    assert rendered[f"{device['system_oid']}.2.3.3.0"] == 66.6
+    assert rendered["1.3.6.1.4.1.32828.3.257.10.2.3.4.0"] == "66.6"

@@ -5,6 +5,14 @@
 > `docs/simulator/layers/L00_BASELINE_AND_ENVIRONMENT.md` 为准。
 > 本文件下方现有 `set NAME=value` 代码块全部是 **Windows CMD**，
 > 不能复制到 PowerShell。PowerShell 必须使用 `$env:NAME='value'`。
+>
+> L3 更新（2026-07-31）：运行时状态已改为 Profile/fixture 驱动的规范
+> path、强类型校验和原子 batch。当前正式验收入口是 REST API 与 L3
+> 测试，不是尚未进入 L8/L9 的页面编辑器。旧 `ports[...]`、
+> `endpoints[...]` 和任意 nested path 不能作为通用 runtime PATCH。
+> 规范路径、事务和状态机以
+> `docs/simulator/layers/L03_RUNTIME_STATE_CONTRACT.md`、
+> `docs/simulator/layers/L03_PATCH_PATH_AND_TRANSACTION_CONTRACT.md` 为准。
 
 ## 0. 启动前必须执行 L0 doctor
 
@@ -225,11 +233,12 @@ http://127.0.0.1:18890
 2. 确认 topology 是 `all-profiles`，或者手动启动/保存一个 topology。
 3. 打开 Dashboard：`http://127.0.0.1:3001`
 4. 到设备/管理页看是否出现 `SIM / ...` 设备。
-5. 在 Simulator UI 里做：
+5. 在当前 L3 阶段，先通过 REST API/自动化测试做：
    - disconnect / restore
    - power off / restore
-   - 修改 runtime 字段
+   - 用当前 device 的 L3 path registry 修改 scalar/table 实例值
    - 发送 Trap
+   页面编辑和拉线分别属于 L8–L11，不能作为 L3 完成依据。
 6. 在 Dashboard 里看：
    - 设备在线/离线变化
    - 端点状态变化

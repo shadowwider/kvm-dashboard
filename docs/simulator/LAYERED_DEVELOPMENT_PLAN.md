@@ -3,7 +3,9 @@
 > 状态：开发规划
 > 更新日期：2026-07-31
 > 配套问题清单：`docs/simulator/PROBLEM_DISCOVERY_CHECKLIST.md`
-> 目标：先完成可证明正确的 MIB、状态、协议和生命周期底座，再开发页面参数操作，最后开发端口级拖拽、拉线和拓扑交互。
+> 目标：L0–L3 固定事实和状态底座；剩余工作收敛为 L4 后端全部完成、
+> L5 前端全部完成与发布。后续权威执行计划见
+> `docs/simulator/TWO_STAGE_COMPLETION_PLAN.md`。
 
 ## 1. 为什么必须分层
 
@@ -25,15 +27,8 @@ flowchart TD
     L0["L0 环境与基线"] --> L1["L1 MIB 证据与独立 Golden"]
     L1 --> L2["L2 Profile 领域模型"]
     L2 --> L3["L3 类型化运行时状态"]
-    L3 --> L4["L4 SNMP 与 Trap 协议引擎"]
-    L4 --> L5["L5 Agent 生命周期与持久化"]
-    L5 --> L6["L6 Dashboard Bridge 与采集边界"]
-    L6 --> L7["L7 REST / WebSocket 契约"]
-    L7 --> L8["L8 UI 只读运行视图"]
-    L8 --> L9["L9 UI 全参数编辑"]
-    L9 --> L10["L10 拓扑领域模型"]
-    L10 --> L11["L11 拖拽、端口和拉线交互"]
-    L11 --> L12["L12 端到端验收与发布"]
+    L3 --> L4["L4 后端完成层"]
+    L4 --> L5["L5 前端完成与发布层"]
 ```
 
 ## 2. 逐层开发的硬规则
@@ -84,19 +79,12 @@ UI 原型可以提前用于讨论，但不得接入主运行链路、不得被�
 
 | 层 | 当前已有 | 可以保留 | 必须重做或补齐 |
 |---|---|---|---|
-| L0 | README、启动指南、pytest、Vite | 基本命令结构 | PowerShell/CMD 分离、配置检查、验收基线 |
-| L1 | MIB 差异台账、设备字典 | CCDM/VisionXS/DP 证据快照 | 独立机器可读 golden、legacy Trap fixture、CCDC 证据边界 |
-| L2 | `PROFILE_DEFINITIONS` | 声明式方向 | 公共字段误复用、缺表、值域、optional/instance 分离 |
-| L3 | `ScenarioState`、revision、working copy | 锁、snapshot、多 patch 工作副本 | 类型化值、路径注册、结构字段保护、差异事件 |
-| L4 | UDP Agent、GET/GETBULK、Trap sender | 每设备 Agent、基本正式 Trap | 缓存、错误可见性、协议边界、真实 UDP golden |
-| L5 | start/stop/action、TopologyStore | ready 等待、power off/restart | prepare/commit/rollback、lease cleanup、原子 JSON |
-| L6 | bridge session/epoch/manifest | session 防旧请求覆盖 | poll_mode、Profile 边界、Trap 身份、stop cleanup |
-| L7 | REST/WS 原型 | 大部分 endpoint 形状 | `/status`、错误模型、统一 snapshot/revision |
-| L8 | React Flow 页面骨架 | 视觉框架、事件时间线 | 后端事实源、活动拓扑同步、健康状态 |
-| L9 | 详情抽屉原型 | 表单组件方向 | metadata 契约、实例字段、虚拟化、提交结果 |
-| L10 | devices/endpoints/edges schema | 基本引用检查 | 端口语义、全局 ID、物理边/模拟路由、持久化版本 |
-| L11 | React Flow 节点和通用 Handle | 画布库 | 模块挂载、端口 Handle、合法连线、无损保存 |
-| L12 | 24 项后端测试、build/lint | 基础回归 | 独立 MIB、真实浏览器、故障注入和发布矩阵 |
+| L0 | Windows 本地基线、doctor/smoke | 已 Accepted | Docker/现场环境仍是外部边界 |
+| L1 | 五 Profile 对象 Golden、Trap Golden | 已 Accepted | 实机验证不在当前来源范围 |
+| L2 | typed Profile、显式 fixture、零 drift | 已 Accepted | 新厂家事实必须先升级 L1/L2 |
+| L3 | typed runtime、canonical path、atomic transaction | 技术 Gate 已通过，正在完成 Accepted Git Gate | L4 不能复制第二份状态模型 |
+| L4 | UDP/Trap/Bridge/API/lifecycle 原型 | 合并为一个后端完成层 | 见 `L04_BACKEND_COMPLETION_TASK_MANUAL.md` |
+| L5 | React/Vite/React Flow 页面原型 | 合并为一个前端完成与发布层 | 见 `L05_FRONTEND_COMPLETION_TASK_MANUAL.md` |
 
 ## 4. 分层实施计划
 
@@ -309,11 +297,28 @@ L0/L1/L2 实际工件已由
 - SIM-STATE-001/002/003 关闭；
 - 上层只能通过 L3 API 修改状态，不能操作内部 dict。
 
+当前状态（2026-07-31）：`Candidate / technical Gate passed`。L3 typed
+runtime、规范 path registry、强类型与 optional 校验、batch 原子提交、全局
+revision/event、确定性 action/reset、失败零副作用和防御性 snapshot 已实现。
+主 Agent 专项为 91 项通过，后端全量 176 项通过；独立子 Agent 复核结论为
+L3 Core `P0=0 / P1=0`。验证证据见
+`verification/L03_RUNTIME_STATE_REPORT.md`。
+
+当前 L3 增量尚未形成真实 Git commit，三份 L3 契约仍保持 `Candidate`。
+依照 2.1 Gate 规则，L4 尚未正式解锁；先提交 L3、回填 commit 并把契约状态
+改为 `Accepted`，然后才能开始 L4。
+
 ### 预计工作量
 
 4–6 工程日。
 
-## L4：纯协议渲染、SNMP Agent 与 Trap
+## 后续权威计划
+
+原 L4–L12 已于 2026-07-31 收敛为两层，正式范围、交付物、并行方式和 Gate
+以 `docs/simulator/TWO_STAGE_COMPLETION_PLAN.md` 及 L04/L05 任务手册为准。
+以下旧章节只保留为细项来源，不再是独立层级或独立开发 Gate。
+
+## 归档检查项：原 L4 纯协议渲染、SNMP Agent 与 Trap（非 Gate）
 
 ### 目标
 
@@ -360,7 +365,7 @@ L0/L1/L2 实际工件已由
 
 4–7 工程日。
 
-## L5：Agent Supervisor、生命周期与持久化
+## 归档检查项：原 L5 Agent Supervisor、生命周期与持久化（非 Gate）
 
 ### 目标
 
@@ -410,7 +415,7 @@ L0/L1/L2 实际工件已由
 
 4–6 工程日。
 
-## L6：Dashboard Bridge、采集边界与 Trap 身份
+## 归档检查项：原 L6 Dashboard Bridge、采集边界与 Trap 身份（非 Gate）
 
 ### 目标
 
@@ -457,7 +462,7 @@ L0/L1/L2 实际工件已由
 
 4–7 工程日。
 
-## L7：稳定 REST 与 WebSocket 契约
+## 归档检查项：原 L7 稳定 REST 与 WebSocket 契约（非 Gate）
 
 ### 目标
 
@@ -505,7 +510,7 @@ L0/L1/L2 实际工件已由
 
 3–5 工程日。
 
-## L8：Simulator UI 只读运行视图
+## 归档检查项：原 L8 Simulator UI 只读运行视图（非 Gate）
 
 ### 目标
 
@@ -546,7 +551,7 @@ L0/L1/L2 实际工件已由
 
 3–5 工程日。
 
-## L9：实例化全参数查看与编辑
+## 归档检查项：原 L9 实例化全参数查看与编辑（非 Gate）
 
 ### 目标
 
@@ -588,7 +593,7 @@ L0/L1/L2 实际工件已由
 
 4–7 工程日。
 
-## L10：拓扑领域模型与验证器
+## 归档检查项：原 L10 拓扑领域模型与验证器（非 Gate）
 
 ### 目标
 
@@ -641,7 +646,7 @@ L0/L1/L2 实际工件已由
 
 4–6 工程日。
 
-## L11：拓扑画布、拖拽、端口和拉线交互
+## 归档检查项：原 L11 拓扑画布、拖拽、端口和拉线交互（非 Gate）
 
 ### 目标
 
@@ -684,7 +689,7 @@ L0/L1/L2 实际工件已由
 
 5–8 工程日。
 
-## L12：端到端验收、文档和发布
+## 归档检查项：原 L12 端到端验收、文档和发布（非 Gate）
 
 ### 目标
 
@@ -763,14 +768,12 @@ L0/L1/L2 实际工件已由
 
 | 里程碑 | 包含层 | 可以对外宣称的能力 | 预计累计工作量 |
 |---|---|---|---:|
-| M1 协议底座可信 | L0–L2 | Profile 对象定义可审计，但尚不启动正式 UI | 8–14 日 |
-| M2 本地 Agent 可信 | L3–L5 | 状态、SNMP、Trap、生命周期可通过 API/脚本验收 | 20–33 日 |
-| M3 Dashboard 联调可信 | L6–L7 | 注册、采集边界、清理、API/WS 可验收 | 27–45 日 |
-| M4 参数控制台可用 | L8–L9 | 页面准确查看和修改全参数 | 34–57 日 |
-| M5 可视化组网可用 | L10–L11 | 端口级拖拽、挂载、拉线、保存和运行 | 43–71 日 |
-| M6 发布候选 | L12 | 全链路、失败恢复和环境矩阵通过 | 46–76 日 |
+| M0 底座 Accepted | L0–L3 | 厂家事实、Profile、fixture、状态和事务可审计 | 已完成/收口中 |
+| M1 后端完成 | 新 L4 | SNMP、Trap、生命周期、Bridge、API/WS 可独立验收 | 一个连续后端阶段 |
+| M2 前端与发布完成 | 新 L5 | 全参数、Trap、组网拉线、E2E 和发布候选 | 一个连续前端阶段 |
 
-估算为单人连续工程日，不包含厂家补件、现场设备等待和 Dashboard 多 Profile 生产采集器的完整重构。可并行的工作仅限于不共享契约的验证或文档整理；不得并行修改尚未 Accepted 的上下层契约。
+不再用九层累计天数管理工作。L4/L5 各做一次 Gate；前端可基于冻结的 API
+fixture 滚动接入，厂家补件和现场设备等待作为外部边界单列。
 
 ## 6. 建议的提交与分支策略
 
@@ -780,23 +783,21 @@ L0/L1/L2 实际工件已由
 codex/simulator-l00-baseline
 codex/simulator-l01-mib-golden
 codex/simulator-l02-profile-model
-...
-codex/simulator-l11-topology-editor
+codex/simulator-l03-runtime-state
+codex/simulator-l04-backend-completion
+codex/simulator-l05-frontend-completion
 ```
 
-每层至少分为：
+每个剩余完成层内部至少分为：
 
 1. 文档与 golden 基线；
 2. 实现；
 3. 测试与验证证据；
 4. README/运行手册更新。
 
-不建议在当前大量未提交修改上继续叠加 L1–L11。开始实施前应先决定：
-
-- 将当前改造作为只读参考并建立干净基线；或
-- 先把当前工作区按“文档、后端、UI、测试”拆成可审查提交。
-
-不得用 destructive reset 丢弃当前工作。
+L3 Accepted 后立即建立 L4 后端完成分支；L5 前端可在独立分支先做 UI shell，
+但写链路只合入已冻结的 L4 contract fixture。不得用 destructive reset 丢弃
+任何现有工作。
 
 ## 7. 第一轮建议任务
 
@@ -808,6 +809,11 @@ codex/simulator-l11-topology-editor
 4. 已完成：建立五 Profile golden schema；
 5. 已完成：建立 CCDM 202 对象、20 表独立 Golden；
 6. 已完成：用 Golden 明确输出 CCDM Profile drift；
-7. 已完成：L1 独立 Gate 审计；下一步准备 L2 Profile 重建。
+7. 已完成：L1 独立 Gate 审计；
+8. 已完成：L2 typed Profile/fixture 重建、独立审计和 Accepted commit；
+9. 已完成：L3 Core 实现与三轮独立审计，技术 Gate 为
+   `P0=0 / P1=0`；
+10. 下一步：提交 L3 实现/测试/文档，回填 commit 并将 L3 状态转为
+    `Accepted`，之后才进入 L4。
 
 第一轮结束时，页面外观不会增加功能，但项目会第一次拥有可靠的“厂家事实底座”和可重复验收基线。这是后续状态、Agent、API 和页面不再反复返工的前提。

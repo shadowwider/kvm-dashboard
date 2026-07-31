@@ -20,6 +20,7 @@ from .models import (
     TrapRequest,
 )
 from .profiles import profile_metadata
+from .runtime_paths import RuntimeTransitionError
 from .scenarios import built_in_scenarios
 from .snmp_agent import SnmpAgent, send_formal_trap
 from .state import ScenarioState, TransitionResult
@@ -188,19 +189,59 @@ def _send_result_trap(result: TransitionResult) -> bool:
 def _after_change(result: TransitionResult, event_type: str) -> dict:
     trap_sent = _send_result_trap(result)
     runtime = current_state()
-    reconcile = bridge.reconcile(runtime)
+    reconcile = (
+        {"skipped": "idempotent"}
+        if result.idempotent
+        else bridge.reconcile(runtime)
+    )
     snapshot = runtime.snapshot()
     payload = {
         "type": event_type,
         "revision": result.revision,
         "device_id": result.device_id,
         "event": result.event,
+        "changed_paths": list(result.changed_paths),
+        "committed_values": [
+            {"path": path, "value": value}
+            for path, value in result.committed_values
+        ],
+        "idempotent": result.idempotent,
+        "lifecycle_intent": result.lifecycle_intent,
         "trap_sent": trap_sent,
         "state": snapshot,
         "snapshot": snapshot,
     }
-    _schedule_broadcast(payload)
-    return {"revision": result.revision, "device_id": result.device_id, "trap_sent": trap_sent, "bridge": {"reconcile": reconcile}}
+    if not result.idempotent:
+        _schedule_broadcast(payload)
+    return {
+        "revision": result.revision,
+        "device_id": result.device_id,
+        "changed_paths": list(result.changed_paths),
+        "committed_values": [
+            {"path": path, "value": value}
+            for path, value in result.committed_values
+        ],
+        "idempotent": result.idempotent,
+        "lifecycle_intent": result.lifecycle_intent,
+        "trap_sent": trap_sent,
+        "bridge": {"reconcile": reconcile},
+    }
+
+
+def _apply_agent_lifecycle(
+    runtime: ScenarioState, result: TransitionResult
+) -> None:
+    """Apply the explicit lifecycle intent emitted by the L3 facade."""
+
+    if result.idempotent or result.device_id is None:
+        return
+    device_id = result.device_id
+    if result.lifecycle_intent == "ensure_agent_running" and device_id not in agents:
+        agent = SnmpAgent(runtime, device_id, COMMUNITY)
+        agent.start()
+        agents[device_id] = agent
+    elif result.lifecycle_intent == "stop_agent" and device_id in agents:
+        agents.pop(device_id).stop()
 
 
 @asynccontextmanager
@@ -364,26 +405,13 @@ def patch_runtime_device_state(device_id: str, patch: RuntimeStatePatch):
 @app.post("/api/v1/runtime/devices/{device_id}/actions")
 def runtime_device_action(device_id: str, request: RuntimeDeviceActionRequest):
     runtime = current_state()
-    if request.action.value == "restore" and device_id not in agents:
-        try:
-            runtime.device(device_id)
-        except KeyError as exc:
-            raise HTTPException(404, f"Unknown device: {exc.args[0]}") from exc
-        agent = SnmpAgent(runtime, device_id, COMMUNITY)
-        agent.start()
-        agents[device_id] = agent
     try:
         result = runtime.device_action(device_id, request.action)
     except KeyError as exc:
-        if request.action.value == "restore" and device_id in agents:
-            agents.pop(device_id).stop()
         raise HTTPException(404, f"Unknown device: {exc.args[0]}") from exc
-    except Exception:
-        if request.action.value == "restore" and device_id in agents:
-            agents.pop(device_id).stop()
-        raise
-    if request.action.value == "power_off" and device_id in agents:
-        agents.pop(device_id).stop()
+    except RuntimeTransitionError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    _apply_agent_lifecycle(runtime, result)
     return _after_change(result, "device_action")
 
 
@@ -421,9 +449,16 @@ def get_state():
 @app.post("/api/v1/devices/{device_id}/reachability")
 def set_reachability(device_id: str, paused: bool):
     runtime = current_state()
-    result = runtime.pause_device(device_id, paused)
-    _schedule_broadcast({"type": "device_reachability", "revision": result.revision, "device_id": device_id, "paused": paused})
-    return {"revision": result.revision, "device_id": result.device_id, "paused": paused}
+    try:
+        result = runtime.pause_device(device_id, paused)
+    except KeyError as exc:
+        raise HTTPException(404, f"Unknown device: {exc.args[0]}") from exc
+    except RuntimeTransitionError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    _apply_agent_lifecycle(runtime, result)
+    response = _after_change(result, "device_reachability")
+    response["paused"] = runtime.is_paused(device_id)
+    return response
 
 
 @app.patch("/api/v1/devices/{device_id}/endpoints/{endpoint_id}")
@@ -478,10 +513,30 @@ def send_trap(request: TrapRequest):
 @app.post("/api/v1/reset")
 def reset_scenario():
     runtime = current_state()
-    runtime.reset()
-    reconcile = bridge.reconcile(runtime)
-    _schedule_broadcast({"type": "reset", "revision": runtime.revision})
-    return {**runtime.snapshot(), "bridge": {"reconcile": reconcile}}
+    result = runtime.reset()
+    reconcile = (
+        {"skipped": "idempotent"}
+        if result.idempotent
+        else bridge.reconcile(runtime)
+    )
+    snapshot = runtime.snapshot()
+    if not result.idempotent:
+        _schedule_broadcast(
+            {
+                "type": "reset",
+                "revision": result.revision,
+                "changed_paths": list(result.changed_paths),
+                "idempotent": False,
+                "state": snapshot,
+                "snapshot": snapshot,
+            }
+        )
+    return {
+        **snapshot,
+        "changed_paths": list(result.changed_paths),
+        "idempotent": result.idempotent,
+        "bridge": {"reconcile": reconcile},
+    }
 
 
 @app.get("/", response_class=HTMLResponse)

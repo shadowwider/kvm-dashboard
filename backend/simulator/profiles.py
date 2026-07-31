@@ -17,6 +17,9 @@ from .profile_catalog import (
 from .profile_fixture import (
     DEFAULT_FIXTURES,
     FixtureRow,
+    FixtureSpec,
+    FixtureTable,
+    validate_fixture_schema,
 )
 from .profile_model import ColumnDef, ProfileDef, ScalarDef, TableDef
 
@@ -330,11 +333,17 @@ def _fixture_rows(
     if module_type is None:
         return rows
 
-    endpoints = {
-        int(endpoint["row"]): endpoint
-        for endpoint in device.get("endpoints", ())
-        if endpoint.get("module_type") == module_type
-    }
+    endpoints: dict[int, dict[str, Any]] = {}
+    for endpoint in device.get("endpoints", ()):
+        if endpoint.get("module_type") != module_type:
+            continue
+        row = int(endpoint["row"])
+        if row in endpoints:
+            raise ValueError(
+                f"duplicate {module_type} endpoint row {row} for "
+                f"{table.canonical_field}"
+            )
+        endpoints[row] = endpoint
     selected: list[FixtureRow] = []
     for row in rows:
         index_value = row.indexes[0][1]
@@ -351,6 +360,117 @@ def _fixture_rows(
         )
         selected.append(row.model_copy(update={"values": tuple(values.items())}))
     return tuple(selected)
+
+
+def scenario_runtime_fixture(
+    device: dict[str, Any],
+) -> FixtureSpec:
+    """Materialize one validated L3 fixture without inventing any table row.
+
+    CCDM endpoint rows are a deterministic filter over the L2 static fixture.
+    Scenario overrides may replace only leaves that already exist after that
+    filtering step; they cannot add rows, optional objects, or vendor aliases.
+    """
+
+    canonical = normalize_catalog_profile_id(device["profile"])
+    profile = get_profile(canonical)
+    _exact_system_oid(device, profile.sys_object_id)
+    overrides = device.get("profile_state") or {}
+    if not isinstance(overrides, dict):
+        raise ValueError("profile_state must be an object")
+    unknown_roots = set(overrides) - {"scalars", "tables"}
+    if unknown_roots:
+        raise ValueError(
+            f"unknown profile_state roots: {sorted(unknown_roots)}"
+        )
+
+    if canonical == "ccdc_legacy":
+        if overrides.get("scalars") or overrides.get("tables"):
+            raise ValueError(
+                "CCDC vendor Profile is empty; legacy values are not "
+                "canonical runtime fields"
+            )
+        fixture = FixtureSpec(
+            fixture_id="ccdc-legacy-empty",
+            profile_id=profile.profile_id,
+            profile_version=profile.profile_version,
+            evidence_version=profile.evidence_version,
+        )
+        return validate_fixture_schema(profile, fixture)
+
+    base = DEFAULT_FIXTURES[canonical]
+    tables: list[FixtureTable] = []
+    for table in profile.tables:
+        rows = _fixture_rows(profile, table, device)
+        if rows:
+            tables.append(FixtureTable(table_id=table.canonical_field, rows=rows))
+
+    scalar_values = dict(base.scalar_values)
+    scalar_overrides = overrides.get("scalars", {})
+    if not isinstance(scalar_overrides, dict):
+        raise ValueError("profile_state.scalars must be an object")
+    for field_id, value in scalar_overrides.items():
+        if field_id not in scalar_values:
+            raise ValueError(
+                f"profile_state scalar {field_id!r} is unknown or disabled"
+            )
+        scalar_values[field_id] = value
+
+    table_overrides = overrides.get("tables", {})
+    if not isinstance(table_overrides, dict):
+        raise ValueError("profile_state.tables must be an object")
+    table_positions = {item.table_id: index for index, item in enumerate(tables)}
+    for table_id, row_overrides in table_overrides.items():
+        position = table_positions.get(table_id)
+        if position is None:
+            raise ValueError(
+                f"profile_state table {table_id!r} is unknown or has no "
+                "explicit rows"
+            )
+        if not isinstance(row_overrides, dict):
+            raise ValueError(
+                f"profile_state table {table_id!r} must be an object"
+            )
+        table = tables[position]
+        row_positions = {
+            ",".join(str(value) for _, value in row.indexes): index
+            for index, row in enumerate(table.rows)
+        }
+        rows = list(table.rows)
+        for row_key, values in row_overrides.items():
+            row_position = row_positions.get(row_key)
+            if row_position is None:
+                raise ValueError(
+                    f"profile_state row {table_id}[{row_key}] is unknown"
+                )
+            if not isinstance(values, dict):
+                raise ValueError(
+                    f"profile_state row {table_id}[{row_key}] must be an object"
+                )
+            row = rows[row_position]
+            current_values = dict(row.values)
+            for field_id, value in values.items():
+                if field_id not in current_values:
+                    raise ValueError(
+                        f"profile_state column {table_id}[{row_key}]."
+                        f"{field_id} is unknown or disabled"
+                    )
+                current_values[field_id] = value
+            rows[row_position] = row.model_copy(
+                update={"values": tuple(current_values.items())}
+            )
+        tables[position] = table.model_copy(update={"rows": tuple(rows)})
+
+    fixture = FixtureSpec(
+        fixture_id=base.fixture_id,
+        profile_id=base.profile_id,
+        profile_version=base.profile_version,
+        evidence_version=base.evidence_version,
+        enabled_optional_groups=base.enabled_optional_groups,
+        scalar_values=tuple(scalar_values.items()),
+        tables=tuple(tables),
+    )
+    return validate_fixture_schema(profile, fixture)
 
 
 def default_row_provenance(profile: str | ProfileId) -> dict[str, str]:
@@ -467,55 +587,87 @@ def render_oid_map(
     profile_state: dict[str, Any] | None = None,
     include_metadata: bool = False,
 ) -> dict[str, Any]:
-    """Render only explicitly declared fixture rows and values."""
+    """Render explicit canonical values; supplied runtime state has no fallback."""
 
-    state = profile_state or {}
+    state = profile_state
     canonical = normalize_catalog_profile_id(device["profile"])
     if canonical == "ccdc_legacy":
-        rendered = _render_legacy(device, state)
+        rendered = _render_legacy(device, state or {})
     else:
         profile = get_profile(canonical)
         sys_oid = _exact_system_oid(device, profile.sys_object_id)
+        if state is None:
+            # L2 standalone compatibility: materialize a complete, validated
+            # explicit fixture before entering the renderer. ScenarioState
+            # always supplies state and never takes this compatibility branch.
+            fixture = scenario_runtime_fixture(device)
+            state = {
+                "scalars": fixture.scalar_map,
+                "tables": {
+                    table.table_id: {
+                        ",".join(str(value) for _, value in row.indexes):
+                            row.value_map
+                        for row in table.rows
+                    }
+                    for table in fixture.tables
+                },
+            }
         rendered = {
             "1.3.6.1.2.1.1.2.0": RenderedValue(
                 sys_oid, "object_identifier"
             )
         }
-        fixture = DEFAULT_FIXTURES[canonical]
         scalar_state = state.get("scalars", {})
-        for scalar in profile.scalars:
-            if scalar.canonical_field not in fixture.scalar_map:
-                continue
-            value = scalar_state.get(
-                scalar.canonical_field,
-                scalar_state.get(
-                    scalar.vendor_name,
-                    fixture.scalar_map[scalar.canonical_field],
-                ),
-            )
+        if not isinstance(scalar_state, dict):
+            raise ValueError("runtime scalars must be an object")
+        scalar_defs = {
+            scalar.canonical_field: scalar for scalar in profile.scalars
+        }
+        for field_id, value in scalar_state.items():
+            scalar = scalar_defs.get(field_id)
+            if scalar is None:
+                raise ValueError(f"unknown canonical runtime scalar {field_id!r}")
             rendered[scalar.instance_oid] = RenderedValue(
                 value, _snmp_type(scalar)
             )
         table_state = state.get("tables", {})
-        for table in profile.tables:
-            for row in _fixture_rows(profile, table, device):
-                index_values = tuple(value for _, value in row.indexes)
-                suffix = ".".join(str(value) for value in index_values)
-                current = table_state.get(table.canonical_field, {}).get(
-                    suffix, {}
-                )
-                for column in table.columns:
-                    if column.canonical_field not in row.value_map:
-                        continue
-                    value = current.get(
-                        column.canonical_field,
-                        current.get(
-                            column.vendor_name,
-                            row.value_map[column.canonical_field],
-                        ),
+        if not isinstance(table_state, dict):
+            raise ValueError("runtime tables must be an object")
+        table_defs = {
+            table.canonical_field: table for table in profile.tables
+        }
+        for table_id, rows in table_state.items():
+            table = table_defs.get(table_id)
+            if table is None:
+                raise ValueError(f"unknown canonical runtime table {table_id!r}")
+            if not isinstance(rows, dict):
+                raise ValueError(f"runtime table {table_id!r} must be an object")
+            column_defs = {
+                column.canonical_field: column for column in table.columns
+            }
+            for row_key, current in rows.items():
+                try:
+                    index_values = tuple(
+                        int(part) for part in row_key.split(",")
                     )
+                except (AttributeError, ValueError) as exc:
+                    raise ValueError(
+                        f"invalid canonical runtime row key {row_key!r}"
+                    ) from exc
+                table.validate_fixture_indexes(index_values)
+                if not isinstance(current, dict):
+                    raise ValueError(
+                        f"runtime row {table_id}[{row_key}] must be an object"
+                    )
+                for field_id, value in current.items():
+                    column = column_defs.get(field_id)
+                    if column is None:
+                        raise ValueError(
+                            f"unknown canonical runtime column "
+                            f"{table_id}[{row_key}].{field_id}"
+                        )
                     rendered[
-                        table.instance_oid(column.canonical_field, index_values)
+                        table.instance_oid(field_id, index_values)
                     ] = RenderedValue(value, _snmp_type(column))
 
     if include_metadata:
@@ -579,4 +731,5 @@ __all__ = [
     "profile_definition",
     "profile_metadata",
     "render_oid_map",
+    "scenario_runtime_fixture",
 ]

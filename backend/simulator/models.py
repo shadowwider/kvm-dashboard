@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    field_validator,
+    model_validator,
+)
 
 
 class EvidenceStatus(str, Enum):
@@ -205,9 +212,16 @@ class EndpointStatePatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: OnlineState | None = None
-    video_connected: bool | None = None
-    display_connected: bool | None = None
-    frozen: bool | None = None
+    video_connected: StrictBool | None = None
+    display_connected: StrictBool | None = None
+    frozen: StrictBool | None = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def reject_boolean_status(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("status must be an OnlineState integer, not boolean")
+        return value
 
 
 class RouteStatePatch(BaseModel):
@@ -219,7 +233,7 @@ class RouteStatePatch(BaseModel):
 class RuntimeFieldPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    path: str = Field(min_length=1, max_length=256, pattern=r"^[A-Za-z_][A-Za-z0-9_]*(\[[A-Za-z0-9_.:-]+\])?(\.[A-Za-z_][A-Za-z0-9_]*(\[[A-Za-z0-9_.:-]+\])?)*$")
+    path: str = Field(min_length=1, max_length=256)
     value: Any
 
 
