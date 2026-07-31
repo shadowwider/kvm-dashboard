@@ -1,10 +1,10 @@
 # L03 运行时状态、路径与事务验证报告
 
-> 状态：Candidate
+> 状态：Accepted
 > 验证日期：2026-07-31
 > 当前结论：L3 实现、专项测试、故障注入和后端全回归已有可重复证据；
-> 三轮独立审计最终确认 L3 Core `P0=0 / P1=0`，问题清单已回填，技术
-> Gate 通过。当前只等待可审计 Git 提交，因此尚不得标记为 Accepted。
+> 三轮独立审计最终确认 L3 Core `P0=0 / P1=0`，问题清单和 Git Gate 已
+> 完成；实现与证据基线 `91e5ffb4dd6941f46ed1911d1dd91371816be63b`。
 
 ## 1. 下层契约依赖
 
@@ -21,8 +21,9 @@
 | `decisions/ADR-003-OPTIONAL-GROUP-AND-FIXTURE-ROWS.md` | `Accepted` | 实现与证据 `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | Accepted 状态 `commit=8060a2c` |
 | `verification/L02_PROFILE_MODEL_REPORT.md` | `Accepted` | 实现与证据 `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | Accepted 状态 `commit=8060a2c` |
 
-L3 当前代码和本报告仍在未提交工作树中，没有可引用的 L3 commit。上述
-`f9e91a1…` 和 `8060a2c` 只固定 L0–L2，不得写成 L3 工件归属。
+L3 实现、测试、契约、验证报告和两阶段交接计划由
+`91e5ffb4dd6941f46ed1911d1dd91371816be63b` 固定。上述 `f9e91a1…` 和
+`8060a2c` 仍分别固定 L0–L2 实现与 Accepted 状态。
 
 ## 2. 来源与验证边界
 
@@ -356,11 +357,10 @@ CCDM 默认 fixture 有 132 条 runtime writable leaf。专项取其中 100 条�
 
 ## 9. 已接受的验证边界
 
-1. L3 工作树尚未提交，没有真实 L3 `commit=<sha>`；
-2. Hypothesis 未安装；当前以 seed `20260731` 的确定性循环替代；
-3. 当前 Accepted Profile 没有 `IpAddress` leaf，因此没有通过实际 Profile
+1. Hypothesis 未安装；当前以 seed `20260731` 的确定性循环替代；
+2. 当前 Accepted Profile 没有 `IpAddress` leaf，因此没有通过实际 Profile
    registry 执行该 syntax 的参数化 PATCH；validator 实现保持 fail closed；
-4. 现场设备、原始 BER 和真实厂家固件不属于本轮来源与验收范围。
+3. 现场设备、原始 BER 和真实厂家固件不属于本轮来源与验收范围。
 
 100 项 batch 接受、101 项拒绝以及四设备并发 writer 已有直接专项。上述边界
 不构成已确认 P0/P1，但必须继续保留在 L4 验证报告中。
@@ -415,14 +415,11 @@ L3 action 只提交 availability 并返回 `lifecycle_intent`。当前 main faca
 | batch working copy 和单 revision/event | 实现与自动测试证据具备 |
 | 失败零副作用 | 常规失败、固定种子 100 轮和四类 event 物化失败均具备证据 |
 | action/reset 状态机与幂等 | 实现与自动测试证据具备 |
-| 有界并发 | 两组并发测试具备证据 |
+| 有界并发 | core snapshot、endpoint/canonical 和多设备 writer 三组测试具备证据 |
 | Property | 确定性替代具备；Hypothesis 未安装 |
 | 独立审计 | 三轮完成；最终 L3 Core `P0=0 / P1=0` |
 | 问题清单 | 已回填 L3 根因关闭和 L4/L5 边界 |
-| Git 基线 | 待提交 |
+| Git 基线 | PASS；`91e5ffb4dd6941f46ed1911d1dd91371816be63b` |
 
-当前正式结论：`Candidate`。
-
-技术 Gate 已通过。当前仍为 `Candidate` 的唯一流程性原因是 L3 工件尚未形成
-真实 Git commit；提交并回填 commit 后即可把三份 L3 契约和本报告升级为
-Accepted，进入收敛后的 L4 后端完成层。
+正式结论：`Accepted`。技术与流程 Gate 均已完成，收敛后的 L4 后端完成层
+可以按 `layers/L04_BACKEND_COMPLETION_TASK_MANUAL.md` 开始开发。

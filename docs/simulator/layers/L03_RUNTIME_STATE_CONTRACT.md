@@ -1,12 +1,13 @@
 # L03 类型化运行时状态契约
 
-> 状态：Candidate
+> 状态：Accepted
 > 更新日期：2026-07-31
 > 适用范围：从 Accepted L2 Profile 和显式 fixture 建立场景级、类型安全、
 > 线程安全的唯一运行时状态源；本层不启动 UDP Agent，不编码 ASN.1，不发送
 > Trap，也不定义 REST、WebSocket 或 UI。
-> 验证状态：实现、专项、全回归、问题清单和三轮独立审计已完成，技术 Gate
-> `P0=0 / P1=0`；仅 Git Gate 待完成，本文暂不得当作 Accepted 证据。
+> 验证状态：实现、专项、全回归、问题清单、三轮独立审计和 Git Gate 已完成；
+> L3 Core `P0=0 / P1=0`，实现基线
+> `91e5ffb4dd6941f46ed1911d1dd91371816be63b`。
 
 ## 下层契约依赖
 
@@ -560,8 +561,8 @@ HTTP 422/409 等映射属于 L7；L3 异常本身不得导入 FastAPI。
 
 实际测试命令、用例数、耗时、并发轮数、随机种子和失败注入结果必须写入独立
 L03 验证报告。当前结果见
-`verification/L03_RUNTIME_STATE_REPORT.md`；独立审计、精确 batch 上限边界和
-Git Gate 完成前仍保持 `Candidate`。
+`verification/L03_RUNTIME_STATE_REPORT.md`；独立审计、100/101 batch 边界、
+单/多设备并发和 Git Gate 均已完成。
 
 ## 13. Gate L3 验收矩阵
 
@@ -579,11 +580,11 @@ Git Gate 完成前仍保持 `Candidate`。
 | 并发 | property/concurrency 测试无半状态和重复 revision | PASS；单/多设备 writer、snapshot 并发已覆盖 |
 | 问题关闭 | `SIM-STATE-001/002/003` 的 L3 部分关闭 | 问题清单已回填 |
 | 独立审计 | 无 P0/P1 | 三轮完成；最终 P0=0/P1=0 |
-| Git 基线 | L3 代码、测试、文档和验证报告形成真实 commit | 待完成 |
+| Git 基线 | L3 代码、测试、文档和验证报告形成真实 commit | PASS；`91e5ffb4dd6941f46ed1911d1dd91371816be63b` |
 
-当前结论：`Candidate / technical Gate passed`。专项 `91 passed`、后端全量
-`176 passed`，三轮独立审计最终 `P0=0 / P1=0`。当前仅待真实 Git 基线；
-提交并回填 commit 后即可标为 Accepted，进入收敛后的 L4 后端完成层。
+当前结论：`Accepted`。专项 `91 passed`、后端全量 `176 passed`，三轮独立
+审计最终 `P0=0 / P1=0`，实现与证据已由 commit `91e5ffb4dd69` 固定。
+收敛后的 L4 后端完成层正式解锁。
 
 ## 14. 未验证的上层边界
 

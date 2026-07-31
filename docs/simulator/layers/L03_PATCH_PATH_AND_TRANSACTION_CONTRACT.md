@@ -1,11 +1,11 @@
 # L03 PATCH 路径与事务契约
 
-> 状态：Candidate
+> 状态：Accepted
 > 更新日期：2026-07-31
 > 适用范围：定义 L3 运行时 path、路径注册、batch 校验、原子提交、结果和失败
 > 语义；不定义 HTTP payload、状态码、SNMP SET、UI 表单或拓扑编辑。
-> 验证状态：实现、事务故障注入、确定性 property、回归、问题清单和三轮独立
-> 审计已完成，技术 Gate 通过；仅 Git Gate 待完成。
+> 验证状态：实现、事务故障注入、确定性 property、回归、问题清单、三轮独立
+> 审计和 Git Gate 已完成；实现基线 `91e5ffb4dd6941f46ed1911d1dd91371816be63b`。
 
 ## 下层契约依赖
 
@@ -21,7 +21,7 @@
 | `decisions/ADR-002-PROFILE-NAMING-AND-VERSIONING.md` | `Accepted` | 实现与证据 `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | Accepted 状态 `commit=8060a2c` |
 | `decisions/ADR-003-OPTIONAL-GROUP-AND-FIXTURE-ROWS.md` | `Accepted` | 实现与证据 `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | Accepted 状态 `commit=8060a2c` |
 | `verification/L02_PROFILE_MODEL_REPORT.md` | `Accepted` | 实现与证据 `commit=f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | Accepted 状态 `commit=8060a2c` |
-| `layers/L03_RUNTIME_STATE_CONTRACT.md` | `Candidate` | 本次 L3 契约，尚无 Accepted commit | 必须与本文同批验收 |
+| `layers/L03_RUNTIME_STATE_CONTRACT.md` | `Accepted` | L3 实现与证据 `commit=91e5ffb4dd6941f46ed1911d1dd91371816be63b` | 与本文同批验收通过 |
 
 L1/L2 工件哈希见 `L02_PROFILE_MODEL_CONTRACT.md`。本层不得另存一套 OID、
 枚举、INDEX 或字段映射。
@@ -543,9 +543,8 @@ event=None
 | 上层边界 | L3 core 无 FastAPI、SNMP、Trap、WS、UI 依赖 | 静态实现边界 PASS；ScenarioState 兼容 facade 单独保留 |
 | 独立审计 | 无 P0/P1 | 三轮完成；最终 P0=0/P1=0 |
 
-当前结论：`Candidate / technical Gate passed`。契约、实现、property/
-concurrency/rollback、验证报告、问题清单和独立审计均已完成；只待形成真实
-Git 基线后 Accepted，并进入收敛后的 L4 后端完成层。
+当前结论：`Accepted`。契约、实现、property/concurrency/rollback、验证
+报告、问题清单、独立审计和 Git 基线均已完成，收敛后的 L4 后端完成层解锁。
 
 ## 14. 未验证边界
 

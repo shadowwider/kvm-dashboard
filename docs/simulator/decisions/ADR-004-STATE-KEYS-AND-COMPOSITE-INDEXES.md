@@ -1,11 +1,11 @@
 # ADR-004：运行时状态键与复合索引
 
-> 状态：Candidate
+> 状态：Accepted
 > 日期：2026-07-31
 > 决策范围：L3 scalar/table 实例的规范路径、row-key、结构字段和
 > availability 建模；不定义 OID 编码、SNMP SET、REST/WS 或 UI 文案。
-> 验证状态：实现、自动测试、问题清单和三轮独立审计已完成，技术 Gate 通过；
-> 仅 Git Gate 待完成。
+> 验证状态：实现、自动测试、问题清单、三轮独立审计和 Git Gate 已完成；
+> 实现基线 `91e5ffb4dd6941f46ed1911d1dd91371816be63b`。
 
 ## 下层契约依赖
 
@@ -369,8 +369,8 @@ batch 输入顺序，便于调用者逐项关联结果；action/reset 使用 reg
 `verification/L03_RUNTIME_STATE_REPORT.md`。当前 row-key 500 轮确定性往返、
 合法 patch 200 轮、非法 batch 100 轮、100/101 batch 边界以及单/多设备
 并发均有自动证据；Hypothesis 未安装，以固定种子测试替代。三轮独立审计为
-P0=0/P1=0，问题清单已回填。真实 Git commit 完成前，本 ADR 保持
-`Candidate`。
+P0=0/P1=0，问题清单已回填，实现与证据已由 commit `91e5ffb4dd69`
+固定。本 ADR 状态为 `Accepted`。
 
 ## 10. 未验证边界
 

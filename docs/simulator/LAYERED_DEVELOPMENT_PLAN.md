@@ -297,16 +297,16 @@ L0/L1/L2 实际工件已由
 - SIM-STATE-001/002/003 关闭；
 - 上层只能通过 L3 API 修改状态，不能操作内部 dict。
 
-当前状态（2026-07-31）：`Candidate / technical Gate passed`。L3 typed
+当前状态（2026-07-31）：`Accepted`。L3 typed
 runtime、规范 path registry、强类型与 optional 校验、batch 原子提交、全局
 revision/event、确定性 action/reset、失败零副作用和防御性 snapshot 已实现。
 主 Agent 专项为 91 项通过，后端全量 176 项通过；独立子 Agent 复核结论为
 L3 Core `P0=0 / P1=0`。验证证据见
 `verification/L03_RUNTIME_STATE_REPORT.md`。
 
-当前 L3 增量尚未形成真实 Git commit，三份 L3 契约仍保持 `Candidate`。
-依照 2.1 Gate 规则，L4 尚未正式解锁；先提交 L3、回填 commit 并把契约状态
-改为 `Accepted`，然后才能开始 L4。
+L3 实现、测试、文档和交接计划由
+`91e5ffb4dd6941f46ed1911d1dd91371816be63b` 固定，三份 L3 契约和验证报告
+均为 `Accepted`。收敛后的 L4 后端完成层正式解锁。
 
 ### 预计工作量
 
@@ -813,7 +813,8 @@ L3 Accepted 后立即建立 L4 后端完成分支；L5 前端可在独立分支�
 8. 已完成：L2 typed Profile/fixture 重建、独立审计和 Accepted commit；
 9. 已完成：L3 Core 实现与三轮独立审计，技术 Gate 为
    `P0=0 / P1=0`；
-10. 下一步：提交 L3 实现/测试/文档，回填 commit 并将 L3 状态转为
-    `Accepted`，之后才进入 L4。
+10. 已完成：L3 实现/测试/文档 commit `91e5ffb4dd69`，L3 Accepted；
+11. 下一步：按 `L04_BACKEND_COMPLETION_TASK_MANUAL.md` 开发后端完成层，
+    前端按 L05 手册并行开发 UI shell 和 contract fixture。
 
 第一轮结束时，页面外观不会增加功能，但项目会第一次拥有可靠的“厂家事实底座”和可重复验收基线。这是后续状态、Agent、API 和页面不再反复返工的前提。

@@ -1,9 +1,10 @@
 # L04 后端完成层任务手册
 
-> 状态：Ready to start after L3 Accepted
+> 状态：Ready to start
 > 负责人：Simulator/Dashboard 后端开发人员
 > 合并旧范围：原 L4 协议、L5 生命周期、L6 Bridge、L7 API/WS
 > 最终交付：一个无需 Simulator UI 也能完整验收的 SNMP 模拟服务器
+> 下层基线：L3 Accepted，`91e5ffb4dd6941f46ed1911d1dd91371816be63b`
 
 ## 1. 开工前必须读什么
 

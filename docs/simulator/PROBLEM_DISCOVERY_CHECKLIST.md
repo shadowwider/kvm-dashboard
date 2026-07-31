@@ -116,7 +116,7 @@
 
 - 严重度：P0
 - 所属层：L1、L2
-- 状态：L2 fixture 已改为显式静态值且全量校验通过；L3 PATCH 共用验证器待完成
+- 状态：L2 fixture 与 L3 PATCH 已共用严格验证器并通过 Gate；L4 协议编码待验
 - 证据：E1
 - 位置：`backend/simulator/profiles.py:CCDM_CPU_MODULE_COLUMNS`
 - 发现：
@@ -152,7 +152,7 @@
 
 - 严重度：P1
 - 所属层：L2 Profile、L3 状态实例
-- 状态：L2 已分离定义/范围/显式 fixture 行并删除最大范围展开；L3/L4 实例与缺失对象行为待完成
+- 状态：L2/L3 已只物化显式 fixture row；L4 缺失对象协议行为待验证
 - 证据：E1、E3
 - 发现：CCDM 默认创建 19 张卡及每卡 16 个端口等最大范围实例。
 - 影响：
@@ -184,7 +184,7 @@
 
 - 严重度：P0
 - 所属层：L3 状态模型
-- 状态：L3 工作树已修复，技术 Gate 通过；待 L3 commit 固化
+- 状态：已修复；L3 Accepted，commit `91e5ffb4dd69`
 - 证据：E2、E3
 - 位置：`backend/simulator/models.py`、`backend/simulator/state.py`
 - 发现：没有按 Profile 验证类型、枚举、范围、只读字段和结构字段。
@@ -223,7 +223,7 @@
 
 - 严重度：P1
 - 所属层：L2、L3
-- 状态：L2 三层命名和映射已建立；L3 Core 规范 path 迁移已完成，待 commit
+- 状态：已修复；L2/L3 Accepted，L3 commit `91e5ffb4dd69`
 - 示例：`temperature`/`temperature1`、`main_power`/`mainPower`、`powerCurrent` 等命名混杂。
 - 影响：UI fallback、设备动作和 Profile 渲染容易写入不同字段。
 - 关闭条件：
@@ -537,7 +537,7 @@
 | L0 环境与基线 | 已通过（Windows local port mode） | 是，允许 L1 |
 | L1 MIB golden | 已通过（local curated device dictionary snapshot） | 是，允许准备 L2 |
 | L2 Profile 模型 | 已通过；实现与证据基线为 `f9e91a1cc35bc8fc8e0cdd33f483b4b60ef74abc` | 是，允许 L3 |
-| L3 状态模型 | Candidate；Core 技术 Gate 已通过，P0/P1=0，待真实 commit 与 Accepted 回填 | 否，尚未正式解锁 L4 |
+| L3 状态模型 | Accepted；Core P0/P1=0，commit `91e5ffb4dd69` | 是，允许收敛后的 L4 后端完成层 |
 | L4 SNMP/Trap | 基本可通信、协议错误仍在 | 否 |
 | L5 生命周期/存储 | 非事务、清理不完整 | 否 |
 | L6 Dashboard 集成 | bridge 可注册、Profile/Trap 边界错误 | 否 |
@@ -553,5 +553,6 @@ L2 Profile 的代码、静态 catalog/fixture、全语义 drift 和独立复审�
 状态由 `8060a2c19147db2a115e2e77e9a0f960afb692df` 固定。
 
 L3 当前专项 91 项、后端全量 176 项通过，独立复审结论为 Core
-`P0=0 / P1=0`。但 L3 增量仍未提交，因此三份合同保持 `Candidate`，不得
-按正式 Gate 已通过来启动 L4；下一步先提交并回填 L3 commit。
+`P0=0 / P1=0`。实现、测试、契约、报告和交接计划由 commit
+`91e5ffb4dd69` 固定，L3 已 Accepted；后续只执行 L4 后端完成层和 L5 前端
+完成与发布层。

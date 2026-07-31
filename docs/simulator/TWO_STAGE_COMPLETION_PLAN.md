@@ -2,7 +2,7 @@
 
 > 状态：Active plan
 > 日期：2026-07-31
-> 前置 Gate：L0–L3 Accepted
+> 前置 Gate：L0–L3 Accepted；L3 baseline `91e5ffb4dd69`
 > 取代范围：原 `LAYERED_DEVELOPMENT_PLAN.md` 中 L4–L12 的九个开发阶段
 
 ## 1. 决策
