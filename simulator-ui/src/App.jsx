@@ -6,7 +6,7 @@ import RuntimeToolbar from './components/RuntimeToolbar.jsx';
 import DetailsDrawer from './components/DetailsDrawer.jsx';
 import TrapPanel from './components/TrapPanel.jsx';
 import EventTimeline from './components/EventTimeline.jsx';
-import { apiError, deviceAction, getProfiles, getRuntimeState, getStatus, listTopologies, loadTopology, openSimulatorSocket, patchDeviceState, saveTopology, sendTrap, startTopology, stopTopology } from './api/client.js';
+import { apiError, deviceAction, getProfiles, getRuntimeState, getStatus, listTopologies, loadTopology, openSimulatorSocket, patchDeviceState, patchEndpointState, saveTopology, sendTrap, startTopology, stopTopology } from './api/client.js';
 import { normalizeRuntimeSnapshot, profilePalette } from './profileFields.js';
 
 const nodeTypes = { simulator: SimulatorNode };
@@ -104,6 +104,8 @@ export default function App() {
   const normalized = normalizeRuntimeSnapshot(runtime); const runtimeDevices = normalized.devices;
   const activeTopology = topologies.find(item => item.id === activeTopologyId); const activeIsPreset = Boolean(activeTopology?.read_only || activeTopology?.readonly || activeTopology?.preset);
   const selectedDevice = runtimeDevices.find(item => (item.id || item.identity?.device_id) === selectedNodeId) || null;
+  const selectedEndpointDevice = runtimeDevices.find(device => (device.endpoints || []).some(endpoint => endpoint.id === selectedNodeId)) || null;
+  const selectedEndpoint = selectedEndpointDevice?.endpoints?.find(endpoint => endpoint.id === selectedNodeId) || null;
   const running = Boolean(status?.runtime?.running); const palette = profilePalette(metadata);
 
   const save = async forceNew => { const saved = await saveTopology(topologyPayload(activeTopologyId, nodes, edges, forceNew, activeTopology?.revision), { forceCreate: forceNew || activeIsPreset }); setActiveTopologyId(saved.id); await refreshTopologies(); push({ type: 'topology-saved', message: saved.id }); };
@@ -116,6 +118,13 @@ export default function App() {
     setPending(true); setFieldErrors({});
     try { const result = await patchDeviceState(deviceId, patches, { expectedRevision: revisionRef.current }); applySnapshot(result.snapshot || result.state || result, 'patch committed'); push({ type: result.idempotent ? 'patch-idempotent' : 'patch-committed', message: `${deviceId}: ${(result.changed_paths || []).join(', ')}`, payload: result }); }
     catch (error) { const failure = apiError(error); const details = failure.details?.fields || failure.details?.paths || {}; setFieldErrors(details); push({ type: failure.status === 409 ? 'patch-conflict' : 'patch-failed', message: failure.message, payload: failure }); if (failure.status === 409) refreshRuntime('conflict refresh').catch(() => {}); }
+    finally { setPending(false); }
+  };
+  const onPatchEndpoint = async patch => {
+    if (!selectedEndpoint || !selectedEndpointDevice) return;
+    setPending(true); setFieldErrors({});
+    try { const result = await patchEndpointState(selectedEndpointDevice.id || selectedEndpointDevice.identity?.device_id, selectedEndpoint.id, patch); applySnapshot(result.snapshot || result.state || result, 'endpoint patch committed'); push({ type: 'endpoint-patch-committed', message: `${selectedEndpoint.id}: ${Object.keys(patch).join(', ')}`, payload: result }); }
+    catch (error) { const failure = apiError(error); push({ type: 'endpoint-patch-failed', message: failure.message, payload: failure }); }
     finally { setPending(false); }
   };
   const onAction = action => guard(`device-${action}`, async () => { if (!selectedDevice) throw new Error('请选择运行设备。'); applySnapshot(await deviceAction(selectedDevice.id || selectedDevice.identity?.device_id, action), `device ${action}`); await refreshStatus(); });
@@ -136,7 +145,7 @@ export default function App() {
     <RuntimeToolbar status={status} running={running} wsState={wsState} revision={normalized.revision} selectedDevice={selectedDevice} loading={loading} onStart={onStart} onStop={onStop} onRefresh={() => guard('refresh', refreshAll)} onAction={onAction} />
     <main className="main-grid"><TopologySidebar topologies={topologies} activeTopologyId={activeTopologyId} onLoad={onLoad} onSave={() => guard('topology-save', () => save(false))} onSaveAs={() => guard('topology-save-as', () => save(true))} onAddDevice={onAdd} palette={palette} loading={loading} isPreset={activeIsPreset} />
       <section className="canvas-card"><div className="canvas-legend"><span className="physical">实物链路</span><span className="simulation">模拟路由（非 SNMP OID）</span></div><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_, node) => setSelectedNodeId(node.id)} fitView><Background color="#35506b" gap={18} /><MiniMap pannable zoomable /><Controls /></ReactFlow></section>
-      <DetailsDrawer device={selectedDevice} metadata={metadata} onClose={() => setSelectedNodeId(null)} onPatch={onPatch} pending={pending} fieldErrors={fieldErrors} /></main>
-    <div className="bottom-grid"><TrapPanel devices={runtimeDevices} selectedDeviceId={selectedNodeId} onSend={onTrap} history={trapHistory} /><EventTimeline events={events} /></div>
+      <DetailsDrawer device={selectedDevice} endpoint={selectedEndpoint} endpointDevice={selectedEndpointDevice} metadata={metadata} onClose={() => setSelectedNodeId(null)} onPatch={onPatch} onPatchEndpoint={onPatchEndpoint} pending={pending} fieldErrors={fieldErrors} /></main>
+    <div className="bottom-grid"><TrapPanel devices={runtimeDevices} selectedDeviceId={selectedDevice?.id || selectedDevice?.identity?.device_id} onSend={onTrap} history={trapHistory} /><EventTimeline events={events} /></div>
   </div>;
 }

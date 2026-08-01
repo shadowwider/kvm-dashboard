@@ -17,6 +17,7 @@ G&D 通用 Trap 格式（GUD-GENERALTRAPS-MIB，由 GUD-SMI-MIB 推导）：
     1.3.6.1.4.1.32828.2.1.0.3  message  DisplayString
 """
 import asyncio
+import json
 import logging
 import logging.handlers
 import os
@@ -31,7 +32,9 @@ from pysnmp.entity.rfc3413 import ntfrcv
 
 from app.database import AsyncSessionLocal
 from app.models.alert import Alert
-from app.websocket.hub import ws_manager
+from app.models.trap_event import TrapEvent
+from app.serializers import serialize_alert
+from app.websocket.hub import event_envelope, ws_manager
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -44,7 +47,7 @@ _status_lock = threading.Lock()
 _receiver_status: dict = {
     "state": "not_started",
     "listen_host": "0.0.0.0",
-    "listen_port": settings.snmp_trap_port,
+    "listen_port": settings.snmp_trap_listen_port,
     "detail": None,
     "error_type": None,
     "started_at": None,
@@ -83,7 +86,7 @@ def _set_receiver_status(
         _receiver_status.update({
             "state": state,
             "listen_host": "0.0.0.0",
-            "listen_port": settings.snmp_trap_port,
+            "listen_port": settings.snmp_trap_listen_port,
             "detail": detail,
             "error_type": error_type,
             "started_at": (
@@ -115,6 +118,7 @@ _LEVEL_NAME: dict[int, str] = {
 
 # 已观察到的设备/模拟器 Trap 使用 .32828.5.1.0.{2,3}；同时保留旧 MIB
 # 推导布局 .32828.2.1.0.{2,3} 的兼容性。必须精确匹配，避免误把其他 varbind 当作级别/消息。
+_SNMP_TRAP_OID_BINDING = "1.3.6.1.6.3.1.1.4.1.0"
 _LEVEL_OIDS = {
     "1.3.6.1.4.1.32828.5.1.0.2",
     "1.3.6.1.4.1.32828.2.1.0.2",
@@ -129,22 +133,45 @@ def _normalize_oid(oid: object) -> str:
     return str(oid).lstrip(".")
 
 
-def parse_trap_varbinds(var_binds) -> tuple[list[dict], int | None, str | None]:
-    """Extract raw binds plus G&D level/message from observed or legacy layouts."""
+def _normalize_oid_value(value: object) -> str:
+    as_tuple = getattr(value, "asTuple", None)
+    if callable(as_tuple):
+        try:
+            return ".".join(str(part) for part in as_tuple())
+        except (TypeError, ValueError):
+            pass
+    pretty_print = getattr(value, "prettyPrint", None)
+    rendered = pretty_print() if callable(pretty_print) else value
+    return _normalize_oid(rendered)
+
+
+def parse_trap_details(
+    var_binds,
+) -> tuple[list[dict], int | None, str | None, str | None]:
+    """Extract raw binds, notification OID, and G&D level/message fields."""
     raw_binds: list[dict] = []
     trap_level: int | None = None
     trap_message: str | None = None
+    notification_oid: str | None = None
     for oid, val in var_binds:
         oid_str = _normalize_oid(oid)
         val_str = val.prettyPrint()
         raw_binds.append({"oid": oid_str, "value": val_str})
-        if oid_str in _LEVEL_OIDS:
+        if oid_str == _SNMP_TRAP_OID_BINDING:
+            notification_oid = _normalize_oid_value(val)
+        elif oid_str in _LEVEL_OIDS:
             try:
                 trap_level = int(val_str)
             except (ValueError, TypeError):
                 pass
         elif oid_str in _MESSAGE_OIDS:
             trap_message = val_str
+    return raw_binds, trap_level, trap_message, notification_oid
+
+
+def parse_trap_varbinds(var_binds) -> tuple[list[dict], int | None, str | None]:
+    """Compatibility parser returning the historical three-value result."""
+    raw_binds, trap_level, trap_message, _ = parse_trap_details(var_binds)
     return raw_binds, trap_level, trap_message
 
 
@@ -194,7 +221,9 @@ def _start_trap_receiver(
         config.addTransport(
             snmp_engine,
             udp.domainName,
-            udp.UdpTransport().openServerMode(("0.0.0.0", settings.snmp_trap_port)),
+            udp.UdpTransport().openServerMode(
+                ("0.0.0.0", settings.snmp_trap_listen_port)
+            ),
         )
         config.addV1System(snmp_engine, "trap-area", settings.snmp_default_community)
     except Exception as exc:
@@ -208,7 +237,7 @@ def _start_trap_receiver(
         logger.exception(
             "SNMP Trap 接收器绑定失败，UDP %s:%s",
             "0.0.0.0",
-            settings.snmp_trap_port,
+            settings.snmp_trap_listen_port,
         )
         if snmp_engine is not None and snmp_engine.transportDispatcher is not None:
             snmp_engine.transportDispatcher.closeDispatcher()
@@ -227,7 +256,7 @@ def _start_trap_receiver(
             pass
 
         # ── 解析所有 varbinds ──────────────────────────────
-        raw_binds, trap_level, trap_message = parse_trap_varbinds(var_binds)
+        raw_binds, trap_level, trap_message, trap_oid = parse_trap_details(var_binds)
 
         # ── 原始数据全量记录（调试用，轮转文件，受 SNMP_RAW_LOG_ENABLED 控制）──
         if _raw_log_enabled:
@@ -257,7 +286,16 @@ def _start_trap_receiver(
 
         # ── 派发到 FastAPI 主线程写库 & 广播 ─────────────────
         asyncio.run_coroutine_threadsafe(
-            _save_trap(source_ip, message, severity, raw_binds, now),
+            _save_trap(
+                source_ip,
+                message,
+                severity,
+                raw_binds,
+                now,
+                trap_level=trap_level,
+                trap_oid=trap_oid,
+                trap_message=trap_message,
+            ),
             main_loop,
         )
         # Trap 已携带完整告警信息，无需触发补轮询；定时轮询负责刷新设备状态
@@ -290,6 +328,10 @@ async def _save_trap(
     severity: str,
     binds: list[dict],
     timestamp: datetime,
+    *,
+    trap_level: int | None = None,
+    trap_oid: str | None = None,
+    trap_message: str | None = None,
 ):
     """
     异步写库并广播 WebSocket。
@@ -400,18 +442,49 @@ async def _save_trap(
                     device_name = dev_alias.alias
                 enhanced_message = f"{device_name}: {message}"
 
-        # ── 5. 保存告警 ──────────────────────────────────────────
-        db.add(Alert(
+        # ── 5. 同一事务保存告警与原始 Trap 事件 ───────────────────
+        alert = Alert(
             device_id=device_id,
             endpoint_id=endpoint_id,
             oid_name="trap",
             alert_type="trap",
             severity=severity,
             message=enhanced_message,
-            raw_value=str(binds),
+            raw_value=json.dumps(binds, ensure_ascii=False),
+            trap_level=trap_level,
+            trap_oid=trap_oid,
             created_at=timestamp,
-        ))
+        )
+        db.add(alert)
+        await db.flush()
+
+        trap_event = TrapEvent(
+            alert_id=alert.id,
+            device_id=device_id,
+            source_ip=source_ip,
+            notification_oid=trap_oid,
+            raw_level=trap_level,
+            message=trap_message or message,
+            varbinds=binds,
+            created_at=timestamp,
+        )
+        db.add(trap_event)
         await db.commit()
+        await db.refresh(alert)
+        await db.refresh(trap_event)
+
+        alert_payload = serialize_alert(alert)
+        trap_payload = {
+            "id": trap_event.id,
+            "alert_id": alert.id,
+            "device_id": device_id,
+            "source_ip": source_ip,
+            "notification_oid": trap_oid,
+            "level": trap_level,
+            "message": trap_event.message,
+            "varbinds": binds,
+            "created_at": timestamp.isoformat(),
+        }
 
     # ── 6. 已验证的模块状态 Trap 立即更新大屏，并以轻量 SNMP 查询复核 ──
     if endpoint_id and endpoint_status_update:
@@ -428,19 +501,30 @@ async def _save_trap(
         asyncio.create_task(probe_device_endpoint_statuses(device_id))
 
     # ── 7. 广播 Trap 告警 ──────────────────────────────────────
-    await ws_manager.broadcast({
-        "type": "trap_received",
-        "source_ip": source_ip,
-        "device_id": device_id,
-        "device_name": device_name,
-        "endpoint_id": endpoint_id,
-        "endpoint_name": endpoint_name,
-        "message": enhanced_message,
-        "original_message": message,
-        "severity": severity,
-        "binds": binds,
-        "timestamp": timestamp.isoformat(),
-    })
+    await ws_manager.broadcast(event_envelope(
+        "trap_received",
+        event_id=f"trap:{trap_payload['id']}",
+        timestamp=timestamp,
+        data={
+            "alert": alert_payload,
+            "trap": trap_payload,
+        },
+        alert=alert_payload,
+        trap=trap_payload,
+        alert_id=alert_payload["id"],
+        source_ip=source_ip,
+        device_id=device_id,
+        device_name=device_name,
+        endpoint_id=endpoint_id,
+        endpoint_name=endpoint_name,
+        message=enhanced_message,
+        original_message=message,
+        severity=severity,
+        trap_level=trap_level,
+        trap_oid=trap_oid,
+        notification_oid=trap_oid,
+        binds=binds,
+    ))
 
 
 async def start_trap_receiver(startup_timeout: float = 5.0) -> dict:
@@ -453,7 +537,7 @@ async def start_trap_receiver(startup_timeout: float = 5.0) -> dict:
                 socket.SO_EXCLUSIVEADDRUSE,
                 1,
             )
-        probe.bind(("0.0.0.0", settings.snmp_trap_port))
+        probe.bind(("0.0.0.0", settings.snmp_trap_listen_port))
     except OSError as exc:
         _set_receiver_status(
             "failed",
@@ -462,7 +546,7 @@ async def start_trap_receiver(startup_timeout: float = 5.0) -> dict:
         )
         raise RuntimeError(
             "SNMP Trap receiver failed to reserve "
-            f"udp://0.0.0.0:{settings.snmp_trap_port}: {exc}"
+            f"udp://0.0.0.0:{settings.snmp_trap_listen_port}: {exc}"
         ) from exc
     finally:
         probe.close()
@@ -492,5 +576,8 @@ async def start_trap_receiver(startup_timeout: float = 5.0) -> dict:
             f"udp://{status['listen_host']}:{status['listen_port']}: "
             f"{status.get('detail') or 'unknown startup error'}"
         )
-    logger.info("SNMP Trap 接收器已启动，监听 UDP:%s", settings.snmp_trap_port)
+    logger.info(
+        "SNMP Trap 接收器已启动，监听 UDP:%s",
+        settings.snmp_trap_listen_port,
+    )
     return status

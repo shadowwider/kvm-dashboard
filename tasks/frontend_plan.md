@@ -2,6 +2,8 @@
 
 > 分支: `feat/full-refactor` | 最后更新: 2026-03-02
 > 后端 API 基础地址: `/api/v1` (通过 Nginx 反代)
+>
+> **历史文档警告（2026-08-01）**：本文记录单一 CCDC 矩阵时期的原始设计，仅保留作背景资料，不再作为当前开发契约。当前实现保留矩阵，但已将拓扑入口替换为五 Profile 设备表格；完整状态详情、自动发现、告警声音和审计日志的有效任务书分别是 `tasks/FRONTEND_MULTI_PROFILE_WORK.md`、`tasks/MULTI_PROFILE_API_CONTRACT.md` 和 `docs/MULTI_PROFILE_DEVELOPMENT_MASTER_PLAN.md`。
 
 ---
 

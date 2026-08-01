@@ -8,87 +8,120 @@ FastAPI 应用入口。
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from app.config import get_settings
-from app.database import engine, AsyncSessionLocal, Base
+from app.database import engine, AsyncSessionLocal
+from app.db_migrations import upgrade_database
 from app.models import *  # noqa: 注册所有模型到 Base
 from app.api.router import api_router
 from app.api.simulator import reap_expired_simulator_runs
-from app.snmp.poller import health_monitor_state, run_health_probe_cycle, run_poll_cycle
+from app.services.discovery import DiscoveryAlreadyRunning, discovery_service
+from app.snmp.poller import (
+    flush_health_heartbeats,
+    health_monitor_state,
+    run_endpoint_status_probe_cycle,
+    run_health_probe_cycle,
+    run_poll_cycle,
+)
 from app.snmp.trap_receiver import start_trap_receiver, trap_receiver_status
 from app.auth.jwt import hash_password
 from app.models.user import User
 from app.models.oid_registry import OIDRegistry
 from app.snmp.oid_map import SEED_OID_REGISTRY
-from sqlalchemy import select
 
 settings = get_settings()
+LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format=LOG_FORMAT,
 )
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+FULL_POLL_CHECK_INTERVAL_SECONDS = 1
 
 
-async def _migrate_columns():
-    """动态补全新增列，兼容旧数据库（无需重建）"""
-    migrations = [
-        # (table, column, ddl)
-        # DDL 仅在列不存在时执行；SQLite 用 create_all 建表已含所有列，以下 DDL 只会跑到 PostgreSQL
-        ("endpoints",      "module_type",   "ALTER TABLE endpoints ADD COLUMN module_type TEXT NOT NULL DEFAULT 'cpu'"),
-        ("devices",        "model_name",    "ALTER TABLE devices ADD COLUMN model_name VARCHAR(128)"),
-        ("devices",        "last_metrics",  "ALTER TABLE devices ADD COLUMN last_metrics TEXT"),
-        ("devices",        "endpoint_count","ALTER TABLE devices ADD COLUMN endpoint_count INTEGER DEFAULT 0"),
-        ("devices",        "last_health_check", "ALTER TABLE devices ADD COLUMN last_health_check TIMESTAMP WITH TIME ZONE"),
-        ("users",          "updated_at",    "ALTER TABLE users ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
-        ("status_metrics", "id",            "ALTER TABLE status_metrics ADD COLUMN id BIGSERIAL"),
-        ("alerts",         "endpoint_id",   "ALTER TABLE alerts ADD COLUMN endpoint_id VARCHAR(128)"),
-        ("simulator_runs", "session_id",    "ALTER TABLE simulator_runs ADD COLUMN session_id VARCHAR(64)"),
-        ("simulator_runs", "session_started_at", "ALTER TABLE simulator_runs ADD COLUMN session_started_at BIGINT DEFAULT 0"),
-        ("simulator_runs", "session_epoch", "ALTER TABLE simulator_runs ADD COLUMN session_epoch VARCHAR(64)"),
-        ("simulator_runs", "lease_expires_at", "ALTER TABLE simulator_runs ADD COLUMN lease_expires_at TIMESTAMP WITH TIME ZONE"),
-    ]
-    async with engine.begin() as conn:
-        if settings.is_sqlite:
-            for table, column, ddl in migrations:
-                rows = await conn.execute(text(f"PRAGMA table_info({table})"))
-                cols = {row[1] for row in rows.fetchall()}
-                if column not in cols:
-                    await conn.execute(text(ddl))
-                    logger.info(f"迁移: {table}.{column} 列已添加")
-        else:
-            # PostgreSQL: information_schema
-            for table, column, ddl in migrations:
-                result = await conn.execute(text(
-                    "SELECT 1 FROM information_schema.columns "
-                    f"WHERE table_name='{table}' AND column_name='{column}'"
-                ))
-                if not result.fetchone():
-                    await conn.execute(text(ddl))
-                    logger.info(f"迁移: {table}.{column} 列已添加")
+def _register_scheduler_jobs(target_scheduler, first_run_at: datetime) -> None:
+    """Register every immediate job under APScheduler max-instance control."""
+    target_scheduler.add_job(
+        run_poll_cycle,
+        trigger="interval",
+        seconds=FULL_POLL_CHECK_INTERVAL_SECONDS,
+        id="snmp_poll",
+        max_instances=1,
+        coalesce=True,
+        next_run_time=first_run_at,
+    )
+    if settings.snmp_health_poll_enabled:
+        target_scheduler.add_job(
+            run_health_probe_cycle,
+            trigger="interval",
+            seconds=settings.snmp_health_poll_interval,
+            id="snmp_health_probe",
+            max_instances=1,
+            coalesce=True,
+            next_run_time=first_run_at,
+        )
+        target_scheduler.add_job(
+            flush_health_heartbeats,
+            trigger="interval",
+            seconds=settings.snmp_health_heartbeat_flush_interval,
+            id="snmp_health_heartbeat_flush",
+            max_instances=1,
+            coalesce=True,
+            next_run_time=first_run_at,
+        )
+    if settings.simulator_bridge_enabled:
+        target_scheduler.add_job(
+            reap_expired_simulator_runs,
+            trigger="interval",
+            seconds=max(5, settings.simulator_bridge_lease_seconds // 2),
+            id="simulator_bridge_lease_cleanup",
+            max_instances=1,
+            coalesce=True,
+            next_run_time=first_run_at,
+        )
+    if settings.snmp_endpoint_status_poll_enabled:
+        target_scheduler.add_job(
+            run_endpoint_status_probe_cycle,
+            trigger="interval",
+            seconds=settings.snmp_endpoint_status_poll_interval,
+            id="snmp_endpoint_status_probe",
+            max_instances=1,
+            coalesce=True,
+            next_run_time=first_run_at,
+        )
 
-            # 列类型变更（ALTER TYPE，幂等可重复执行）
-            type_migrations = [
-                "ALTER TABLE alerts ALTER COLUMN raw_value TYPE TEXT",
-            ]
-            for ddl in type_migrations:
-                try:
-                    await conn.execute(text(ddl))
-                except Exception as e:
-                    logger.debug(f"列类型迁移跳过 ({e})")
+
+def _restore_application_logging() -> None:
+    """Alembic fileConfig 后恢复应用及 Uvicorn 已注册 logger。"""
+    level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    formatter = logging.Formatter(LOG_FORMAT)
+    if not root_logger.handlers:
+        root_logger.addHandler(logging.StreamHandler())
+    for handler in root_logger.handlers:
+        handler.setFormatter(formatter)
+    for registered in logging.root.manager.loggerDict.values():
+        if isinstance(registered, logging.Logger):
+            registered.disabled = False
 
 
 async def _init_database():
-    """创建所有表，配置 TimescaleDB 超表"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """先执行 Alembic，再配置数据库运行期能力。"""
+    logger.info("开始执行数据库 Alembic 迁移...")
+    await asyncio.to_thread(upgrade_database)
+    _restore_application_logging()
+    logger.info("数据库 Alembic 迁移完成")
 
+    async with engine.begin() as conn:
         # SQLite WAL 模式：允许读写并发，解决 API 被 poller 写锁阻塞的问题
         if settings.is_sqlite:
             await conn.execute(text("PRAGMA journal_mode=WAL"))
@@ -115,7 +148,6 @@ async def _init_database():
         else:
             logger.info("SQLite 测试模式，跳过 TimescaleDB 配置")
 
-    await _migrate_columns()
     logger.info(f"数据库初始化完成 (模式: {settings.db_mode})")
 
 
@@ -168,6 +200,37 @@ async def _seed_data():
         logger.info("种子数据写入完成")
 
 
+async def _run_startup_discovery() -> None:
+    """按持久化配置创建并执行一次启动发现任务。"""
+    try:
+        async with AsyncSessionLocal() as db:
+            config = await discovery_service.get_config(db)
+            if not config.enabled or not config.scan_on_startup:
+                logger.info("启动自动发现未启用，跳过局域网扫描")
+                return
+
+            try:
+                job = await discovery_service.create_scan_job(
+                    db,
+                    requested_by=None,
+                )
+            except DiscoveryAlreadyRunning as exc:
+                logger.info(
+                    "已有自动发现任务正在执行，跳过启动扫描 (job_id=%s, status=%s)",
+                    exc.job.id,
+                    exc.job.status,
+                )
+                return
+
+        logger.info("已安排启动自动发现扫描 (job_id=%s, cidr=%s)", job.id, job.cidr)
+        await discovery_service.run_job(job.id)
+        logger.info("启动自动发现扫描结束 (job_id=%s)", job.id)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("启动自动发现扫描失败")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动 → 运行 → 关闭"""
@@ -179,35 +242,12 @@ async def lifespan(app: FastAPI):
     # 启动 SNMP Trap 接收器
     await start_trap_receiver()
 
-    # 启动定时轮询调度器
-    scheduler.add_job(
-        run_poll_cycle,
-        trigger="interval",
-        seconds=settings.snmp_poll_interval,
-        id="snmp_poll",
-        max_instances=1,
-        coalesce=True,
-    )
-    if settings.snmp_health_poll_enabled:
-        scheduler.add_job(
-            run_health_probe_cycle,
-            trigger="interval",
-            seconds=settings.snmp_health_poll_interval,
-            id="snmp_health_probe",
-            max_instances=1,
-            coalesce=True,
-        )
-    if settings.simulator_bridge_enabled:
-        scheduler.add_job(
-            reap_expired_simulator_runs,
-            trigger="interval",
-            seconds=max(5, settings.simulator_bridge_lease_seconds // 2),
-            id="simulator_bridge_lease_cleanup",
-            max_instances=1,
-            coalesce=True,
-        )
+    # 让立即执行也由 APScheduler 跟踪，避免手工 create_task 与首个 interval 重叠。
+    _register_scheduler_jobs(scheduler, datetime.now(timezone.utc))
     scheduler.start()
-    logger.info(f"SNMP 完整轮询调度器已启动（间隔 {settings.snmp_poll_interval}s）")
+    logger.info(
+        "SNMP 完整轮询调度器已启动（每秒检查、按设备 poll_interval 间隔执行）"
+    )
     if settings.snmp_health_poll_enabled:
         logger.info(
             "SNMP 可达性探测调度器已启动（间隔 %ss，超时 %ss，重试 %s，并发 %s）",
@@ -217,17 +257,18 @@ async def lifespan(app: FastAPI):
             settings.snmp_health_concurrency,
         )
 
-    # 启动时立即执行一次完整轮询及一次轻量可达性探测。
-    asyncio.create_task(run_poll_cycle())
-    if settings.snmp_health_poll_enabled:
-        asyncio.create_task(run_health_probe_cycle())
-    if settings.simulator_bridge_enabled:
-        asyncio.create_task(reap_expired_simulator_runs())
+    startup_discovery_task = asyncio.create_task(_run_startup_discovery())
 
-    yield
+    try:
+        yield
+    finally:
+        logger.info("KVM 监控系统后端关闭...")
+        scheduler.shutdown(wait=False)
 
-    logger.info("KVM 监控系统后端关闭...")
-    scheduler.shutdown(wait=False)
+        if not startup_discovery_task.done():
+            startup_discovery_task.cancel()
+        await asyncio.gather(startup_discovery_task, return_exceptions=True)
+        await engine.dispose()
 
 
 def create_app() -> FastAPI:

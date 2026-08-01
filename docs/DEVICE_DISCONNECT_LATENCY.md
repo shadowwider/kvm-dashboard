@@ -60,6 +60,10 @@ APScheduler (45 s) → run_poll_cycle()
 
 它和完整指标轮询使用独立的并发控制；不执行完整 WALK、不归档时序指标、不产生阈值告警。`last_health_check` 与 `last_poll` 分离：前者表示快速可达性，后者仍表示最后一次完整指标采集。
 
+### 按设备执行完整轮询
+
+完整轮询的 APScheduler tick 固定为 1 秒。每个 tick 只读取活跃设备并检查 `last_poll + Device.poll_interval`，仅对已经到期的设备执行 Profile GET/WALK、指标归档和阈值告警。`SNMP_POLL_INTERVAL` 不再控制该调度入口，避免全局 45 秒 tick 卡住配置为更短周期的设备；健康探测仍使用自己的独立调度器和参数。
+
 快速循环会记录周期耗时、最大探测时间、成功/失败/转换数量、设备数和容量退化状态。`GET /api/v1/health` 的 `health_probe` 字段可直接验证运行参数及最近一次周期。
 
 容量估算：
@@ -92,7 +96,6 @@ ceil(active_device_count / SNMP_HEALTH_CONCURRENCY)
 生产 `.env.production` 已提供推荐初始值：
 
 ```ini
-SNMP_POLL_INTERVAL=45
 SNMP_HEALTH_POLL_ENABLED=true
 SNMP_HEALTH_POLL_INTERVAL=1
 SNMP_HEALTH_TIMEOUT=0.25
@@ -102,9 +105,9 @@ SNMP_HEALTH_FAILURE_THRESHOLD=1
 SNMP_ENDPOINT_STATUS_POLL_ENABLED=true
 ```
 
-如现场 UDP 丢包导致误离线，可把 `SNMP_HEALTH_FAILURE_THRESHOLD` 调高到 `2`；代价是最坏检测延迟通常会超过两秒。不得把 `SNMP_POLL_INTERVAL` 降到一秒来替代健康循环。
+如现场 UDP 丢包导致误离线，可把 `SNMP_HEALTH_FAILURE_THRESHOLD` 调高到 `2`；代价是最坏检测延迟通常会超过两秒。完整采集周期应配置每台设备的 `poll_interval`，不得用高频完整 WALK 替代健康循环。
 
-Trap Docker 端口必须匹配：Docker 映射的是容器 UDP 10162，因此后端运行环境须有 `SNMP_TRAP_PORT=10162`（生产样例已设置）。设备若默认发送 UDP 162，则需由网络/防火墙转发到宿主机映射端口。
+Trap Docker 端口必须匹配：现场设备向宿主机 `SNMP_TRAP_HOST_PORT=162` 发送，Compose 映射到容器内 `SNMP_TRAP_LISTEN_PORT=10162`。服务器入站防火墙须开放 UDP 162；旧 `SNMP_TRAP_PORT` 只作为后端监听端口兼容变量保留一个发布周期。
 
 ## 真实设备验收流程
 
@@ -113,7 +116,7 @@ Trap Docker 端口必须匹配：Docker 映射的是容器 UDP 10162，因此后
 3. 对整机管理网或供电断开/恢复至少重复 30 次；统计中位数和 p95，验收目标为中位数 < 1.2 秒、p95 < 2 秒。
 4. 对单个 CPU/CON 模块执行相同测试，并保留原始 Trap varbind 与状态列 OID 样本。
 5. 对每条物理端口逐一拔插，记录变化前后 CPU 表、CON 表、portTable 的完整原始 OID 行。仅在样本证明对应关系后，才可将端口变化展示为某个模块的关联故障。
-6. 检查无重复 offline/recovery 广播、无 `health_probe_capacity_degraded`、无 SNMP engine/task 泄漏，且 45 秒完整轮询周期没有明显变慢。
+6. 检查无重复 offline/recovery 广播、无 `health_probe_capacity_degraded`、无 SNMP engine/task 泄漏，且每台设备按自己的 `poll_interval` 到期执行。
 
 ## Worker 方案结论
 
@@ -121,4 +124,4 @@ Trap Docker 端口必须匹配：Docker 映射的是容器 UDP 10162，因此后
 
 ## 回滚
 
-将 `SNMP_HEALTH_POLL_ENABLED=false` 并重启后端可停止快速路径，完整 45 秒轮询保留原状。该回滚会恢复旧的慢检测行为；不要通过把完整轮询改为一秒替代它。
+将 `SNMP_HEALTH_POLL_ENABLED=false` 并重启后端可停止快速路径，按设备间隔执行的完整轮询仍会保留。该回滚会恢复慢检测行为；不要用高频完整轮询替代健康探测。

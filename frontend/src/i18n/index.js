@@ -7,6 +7,7 @@ export const useTranslationStore = create((set) => ({
 
 import zhCN from './zh-CN.json';
 import enUS from './en-US.json';
+import { resolveTranslation } from '../utils/translation';
 
 const dictionaries = {
   'zh-CN': zhCN,
@@ -18,10 +19,7 @@ export function useTranslation() {
   const setLocale = useTranslationStore((state) => state.setLocale);
   const dict = dictionaries[locale] || dictionaries['zh-CN'];
 
-  const t = (key, fallback) => {
-    const value = key.split('.').reduce((obj, k) => (obj || {})[k], dict);
-    return value || fallback || key;
-  };
+  const t = (key, fallback) => resolveTranslation(dict, key, fallback);
 
   const toggleLocale = () => {
     setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN');

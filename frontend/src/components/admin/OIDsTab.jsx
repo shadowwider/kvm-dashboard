@@ -13,7 +13,7 @@ function OIDsTab({ t, showToast }) {
             const params = filter ? `?category=${filter}` : '';
             const res = await api.get(`/oids${params}`);
             setOids(res.data || []);
-        } catch (err) {
+        } catch {
             showToast(t('admin.common.error'), 'error');
         } finally {
             setLoading(false);

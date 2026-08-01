@@ -29,7 +29,7 @@ function AliasesTab({ t, showToast }) {
             const epResults = await Promise.all(epPromises);
             const allEps = epResults.flatMap(r => r.data || []);
             setEndpoints(allEps);
-        } catch (err) {
+        } catch {
             showToast(t('admin.common.error'), 'error');
         } finally {
             setLoading(false);

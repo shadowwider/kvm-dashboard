@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, desc
@@ -11,7 +11,9 @@ import io
 from app.database import get_db
 from app.models.alert import Alert
 from app.models.user import User
+from app.api.audit_logs import _csv_safe
 from app.auth.deps import get_current_user
+from app.services.audit import record_audit_log
 
 router = APIRouter()
 
@@ -20,11 +22,14 @@ class AlertOut(BaseModel):
     id: int
     device_id: str
     endpoint_id: Optional[str]
+    entity_key: Optional[str]
     oid_name: Optional[str]
     alert_type: str
     severity: str
     message: str
     raw_value: Optional[str]
+    trap_level: Optional[int]
+    trap_oid: Optional[str]
     is_resolved: bool
     resolved_at: Optional[datetime]
     created_at: datetime
@@ -70,21 +75,40 @@ async def export_alerts_csv(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "时间", "设备ID", "终端ID", "指标", "级别", "告警类型", "消息", "原始值", "是否已处理", "处理时间"])
+    writer.writerow([
+        "ID",
+        "时间",
+        "设备ID",
+        "终端ID",
+        "实体键",
+        "指标",
+        "级别",
+        "告警类型",
+        "Trap Level",
+        "Trap OID",
+        "消息",
+        "原始值",
+        "是否已处理",
+        "处理时间",
+    ])
     for a in alerts:
-        writer.writerow([
+        row = [
             a.id,
             a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else "",
             a.device_id,
             a.endpoint_id or "",
+            a.entity_key or "",
             a.oid_name or "",
             a.severity,
             a.alert_type,
+            a.trap_level if a.trap_level is not None else "",
+            a.trap_oid or "",
             a.message,
             a.raw_value or "",
             "是" if a.is_resolved else "否",
             a.resolved_at.strftime("%Y-%m-%d %H:%M:%S") if a.resolved_at else "",
-        ])
+        ]
+        writer.writerow([_csv_safe(value) for value in row])
 
     output.seek(0)
     filename = f"alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -98,14 +122,28 @@ async def export_alerts_csv(
 @router.patch("/{alert_id}/resolve", response_model=AlertOut)
 async def resolve_alert(
     alert_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current: User = Depends(get_current_user),
 ):
     alert = await db.get(Alert, alert_id)
     if not alert:
         raise HTTPException(404, "告警不存在")
+    was_resolved = alert.is_resolved
     alert.is_resolved = True
     alert.resolved_at = datetime.utcnow()
+    await record_audit_log(
+        db,
+        action="alert.resolve",
+        actor=current,
+        target_type="alert",
+        target_id=alert.id,
+        request=request,
+        change_summary={
+            "device_id": alert.device_id,
+            "already_resolved": was_resolved,
+        },
+    )
     await db.commit()
     await db.refresh(alert)
     return alert
@@ -113,9 +151,10 @@ async def resolve_alert(
 
 @router.post("/resolve-all", status_code=200)
 async def resolve_all_alerts(
+    request: Request,
     device_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current: User = Depends(get_current_user),
 ):
     """批量确认所有未解决告警"""
     stmt = update(Alert).where(Alert.is_resolved == False).values(
@@ -123,7 +162,19 @@ async def resolve_all_alerts(
     )
     if device_id:
         stmt = stmt.where(Alert.device_id == device_id)
-    await db.execute(stmt)
+    result = await db.execute(stmt)
+    await record_audit_log(
+        db,
+        action="alert.resolve_all",
+        actor=current,
+        target_type="device" if device_id else "alert",
+        target_id=device_id or "all",
+        request=request,
+        change_summary={
+            "device_id": device_id,
+            "resolved_count": max(result.rowcount or 0, 0),
+        },
+    )
     await db.commit()
     return {"message": "已批量确认所有告警"}
 

@@ -294,6 +294,10 @@ def _schedule_broadcast(message: dict) -> None:
 def _device_host(device_id: str | None) -> str | None:
     if not device_id or state is None:
         return None
+    try:
+        return state.device(device_id).get("host")
+    except KeyError:
+        return None
 
 
 def _device_trap_source_host(device_id: str | None) -> str | None:
@@ -302,10 +306,6 @@ def _device_trap_source_host(device_id: str | None) -> str | None:
     try:
         device = state.device(device_id)
         return device.get("trap_source_host") or device.get("host")
-    except KeyError:
-        return None
-    try:
-        return state.device(device_id).get("host")
     except KeyError:
         return None
 

@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ── PostgreSQL + TimescaleDB ──────────────────────────────────
   postgres:
@@ -41,6 +39,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-kvm_monitor}
       POSTGRES_USER: ${POSTGRES_USER:-kvm_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      # 容器内使用非特权端口；旧 SNMP_TRAP_PORT 仍由后端兼容读取一版。
+      SNMP_TRAP_LISTEN_PORT: ${SNMP_TRAP_LISTEN_PORT:-10162}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - ./logs:/app/logs
@@ -50,9 +50,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
-    # Trap 接收 UDP 端口（宿主机 SNMP_TRAP_PORT → 容器 10162）
+    # 现场设备统一发送到宿主机 UDP 162，再映射到容器内非特权端口。
     ports:
-      - "${SNMP_TRAP_PORT:-10162}:10162/udp"
+      - "${SNMP_TRAP_HOST_PORT:-162}:${SNMP_TRAP_LISTEN_PORT:-10162}/udp"
 
   # ── Nginx + 前端静态文件 ────────────────────────────────────────
   frontend:

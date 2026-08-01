@@ -1,0 +1,1283 @@
+{
+  "fixture_schema_version": 1,
+  "fixture_kind": "simulator-l2-default-fixtures",
+  "source_contract": "Explicit project fixture values validated against the versioned L2 Profile catalog; not vendor MIB defaults.",
+  "fixtures": [
+    {
+      "fixture_id": "default-ccdm_matrix",
+      "profile_id": "ccdm_matrix",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=dc2fa2a8ef223348be2a49cf2456094099680a54ad58ee60838294ec042a952d",
+      "enabled_optional_groups": [],
+      "scalar_values": [
+        [
+          "device_id",
+          "SIM-CCDM-01"
+        ],
+        [
+          "device_cl",
+          "SIM-CCDM"
+        ],
+        [
+          "device_type",
+          "ControlCenter-Digital"
+        ],
+        [
+          "serial_number",
+          "SIM-CCDM-0001"
+        ],
+        [
+          "ether_address0",
+          "02:00:00:00:10:01"
+        ],
+        [
+          "ether_address1",
+          "02:00:00:00:10:02"
+        ],
+        [
+          "firmware_version",
+          "SIM-2026.07"
+        ],
+        [
+          "switch_temperature",
+          "41.0"
+        ],
+        [
+          "controller_temperature",
+          "39.0"
+        ],
+        [
+          "raid_status_device1",
+          5
+        ],
+        [
+          "raid_status_device2",
+          5
+        ],
+        [
+          "function_switch",
+          1
+        ],
+        [
+          "power_current",
+          "1.2"
+        ],
+        [
+          "network_interface0",
+          1
+        ],
+        [
+          "network_interface1",
+          1
+        ]
+      ],
+      "tables": [
+        {
+          "table_id": "dynamic_user_module_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "dynamic_user_module_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "id",
+                  "SIM-1"
+                ],
+                [
+                  "cl",
+                  "SIM"
+                ],
+                [
+                  "name",
+                  "SIM device"
+                ],
+                [
+                  "device_status",
+                  2
+                ],
+                [
+                  "main_power",
+                  1
+                ],
+                [
+                  "redundant_power",
+                  1
+                ],
+                [
+                  "temperature1",
+                  "40.0"
+                ],
+                [
+                  "console_usbconnection",
+                  3
+                ],
+                [
+                  "network_interface0",
+                  1
+                ],
+                [
+                  "network_interface1",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "gud_ccdmdwc_mib_fan_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "dynamic_user_module_index",
+                  1
+                ],
+                [
+                  "fan_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "fan_name",
+                  "3200"
+                ],
+                [
+                  "fan_speed",
+                  3200
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "video_channel_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "dynamic_user_module_index",
+                  1
+                ],
+                [
+                  "video_channel_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "display_connection",
+                  1
+                ],
+                [
+                  "display_type",
+                  "SIM-DISPLAY"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "link_channel_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "dynamic_user_module_index",
+                  1
+                ],
+                [
+                  "link_channel_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "conid",
+                  "SIM-1"
+                ],
+                [
+                  "concl",
+                  "SIM"
+                ],
+                [
+                  "conname",
+                  "SIM device"
+                ],
+                [
+                  "link_channel_status",
+                  2
+                ],
+                [
+                  "active_transmission_port",
+                  1
+                ],
+                [
+                  "sfp_tx_power1",
+                  500
+                ],
+                [
+                  "sfp_tx_power2",
+                  500
+                ],
+                [
+                  "sfp_rx_power1",
+                  480
+                ],
+                [
+                  "sfp_rx_power2",
+                  480
+                ],
+                [
+                  "sfp_type1",
+                  "SIM-SFP"
+                ],
+                [
+                  "sfp_type2",
+                  "SIM-SFP"
+                ],
+                [
+                  "freeze",
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "gud_ccdm_mib_fan_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "fan_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "fan_name",
+                  "3200"
+                ],
+                [
+                  "fan_speed",
+                  3200
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "power_supply_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "power_supply_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "power_supply_status",
+                  1
+                ],
+                [
+                  "power_supply_temperature",
+                  "40.0"
+                ],
+                [
+                  "power_supply_voltage",
+                  "12.0"
+                ],
+                [
+                  "power_supply_fan_function",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "io_card_cat_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "io_card_cat_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "io_card_cat_id",
+                  1
+                ],
+                [
+                  "io_card_cat_status",
+                  1
+                ],
+                [
+                  "io_card_cat_function",
+                  1
+                ],
+                [
+                  "io_card_cat_temperature",
+                  "40.0"
+                ],
+                [
+                  "io_card_cat_matrix_slot",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "io_card_cat_port_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "io_card_cat_index",
+                  1
+                ],
+                [
+                  "io_card_cat_port_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "io_card_cat_port_status",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "io_card_fiber_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "io_card_fiber_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "io_card_fiber_id",
+                  1
+                ],
+                [
+                  "io_card_fiber_status",
+                  1
+                ],
+                [
+                  "io_card_fiber_function",
+                  1
+                ],
+                [
+                  "io_card_fiber_temperature",
+                  "40.0"
+                ],
+                [
+                  "io_card_fiber_matrix_slot",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "io_card_fiber_port_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "io_card_fiber_index",
+                  1
+                ],
+                [
+                  "io_card_fiber_port_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "io_card_fiber_port_status",
+                  3
+                ],
+                [
+                  "io_card_fiber_tx_power",
+                  "500"
+                ],
+                [
+                  "io_card_fiber_rx_power",
+                  "480"
+                ],
+                [
+                  "io_card_fiber_sfp_type",
+                  "SIM-SFP"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "io_card_multi_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "io_card_multi_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "io_card_multi_id",
+                  1
+                ],
+                [
+                  "io_card_multi_status",
+                  1
+                ],
+                [
+                  "io_card_multi_function",
+                  1
+                ],
+                [
+                  "io_card_multi_temperature",
+                  "40.0"
+                ],
+                [
+                  "io_card_multi_matrix_slot",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "io_card_multi_port_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "io_card_multi_index",
+                  1
+                ],
+                [
+                  "io_card_multi_port_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "io_card_multi_port_status",
+                  3
+                ],
+                [
+                  "io_card_multi_tx_power",
+                  "500"
+                ],
+                [
+                  "io_card_multi_rx_power",
+                  "480"
+                ],
+                [
+                  "io_card_multi_sfp_type",
+                  "SIM-SFP"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "io_card_trunk_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "io_card_trunk_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "io_card_trunk_id",
+                  1
+                ],
+                [
+                  "io_card_trunk_status",
+                  1
+                ],
+                [
+                  "io_card_trunk_function",
+                  1
+                ],
+                [
+                  "io_card_trunk_temperature",
+                  "40.0"
+                ],
+                [
+                  "io_card_trunk_matrix_slot",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "io_card_trunk_port_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "io_card_trunk_index",
+                  1
+                ],
+                [
+                  "io_card_trunk_port_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "io_card_trunk_port_status",
+                  3
+                ],
+                [
+                  "io_card_trunk_tx_power",
+                  "500"
+                ],
+                [
+                  "io_card_trunk_rx_power",
+                  "480"
+                ],
+                [
+                  "io_card_trunk_sfp_type",
+                  "SIM-SFP"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "user_module_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "user_module_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "id",
+                  "CON-CCDM-001"
+                ],
+                [
+                  "cl",
+                  "SIM-CON"
+                ],
+                [
+                  "name",
+                  "SIM CON"
+                ],
+                [
+                  "device_status",
+                  2
+                ],
+                [
+                  "main_power",
+                  1
+                ],
+                [
+                  "redundant_power",
+                  1
+                ],
+                [
+                  "temperature1",
+                  "40.0"
+                ],
+                [
+                  "console_ps2_connection",
+                  3
+                ],
+                [
+                  "console_usbconnection",
+                  3
+                ],
+                [
+                  "display_connection",
+                  1
+                ],
+                [
+                  "display_connection1",
+                  1
+                ],
+                [
+                  "display_connection2",
+                  1
+                ],
+                [
+                  "display_type",
+                  "SIM-DISPLAY"
+                ],
+                [
+                  "display_type1",
+                  "SIM-DISPLAY"
+                ],
+                [
+                  "display_type2",
+                  "SIM-DISPLAY"
+                ],
+                [
+                  "freeze",
+                  0
+                ],
+                [
+                  "freeze1",
+                  0
+                ],
+                [
+                  "freeze2",
+                  0
+                ],
+                [
+                  "sfp_tx_power",
+                  500
+                ],
+                [
+                  "sfp_tx_power1",
+                  500
+                ],
+                [
+                  "sfp_tx_power2",
+                  500
+                ],
+                [
+                  "sfp_rx_power",
+                  480
+                ],
+                [
+                  "sfp_rx_power1",
+                  480
+                ],
+                [
+                  "sfp_rx_power2",
+                  480
+                ],
+                [
+                  "sfp_type",
+                  "SIM-SFP"
+                ],
+                [
+                  "sfp_type1",
+                  "SIM-SFP"
+                ],
+                [
+                  "sfp_type2",
+                  "SIM-SFP"
+                ],
+                [
+                  "active_transmission_port",
+                  1
+                ],
+                [
+                  "network_interface0",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "target_module_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "target_module_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "id",
+                  "CPU-CCDM-001"
+                ],
+                [
+                  "cl",
+                  "SIM-CPU"
+                ],
+                [
+                  "name",
+                  "SIM CPU"
+                ],
+                [
+                  "device_status",
+                  2
+                ],
+                [
+                  "main_power",
+                  1
+                ],
+                [
+                  "redundant_power",
+                  1
+                ],
+                [
+                  "temperature1",
+                  "40.0"
+                ],
+                [
+                  "console_ps2_connection",
+                  3
+                ],
+                [
+                  "console_usbconnection",
+                  3
+                ],
+                [
+                  "target_ps2_connection",
+                  3
+                ],
+                [
+                  "target_usb_hid",
+                  2
+                ],
+                [
+                  "target_video_cable",
+                  1
+                ],
+                [
+                  "target_video_cable1",
+                  1
+                ],
+                [
+                  "target_video_cable2",
+                  1
+                ],
+                [
+                  "target_video_signal",
+                  5
+                ],
+                [
+                  "target_video_signal1",
+                  5
+                ],
+                [
+                  "target_video_signal2",
+                  5
+                ],
+                [
+                  "target_power",
+                  1
+                ],
+                [
+                  "target_access",
+                  1
+                ],
+                [
+                  "sfp_tx_power",
+                  500
+                ],
+                [
+                  "sfp_rx_power",
+                  480
+                ],
+                [
+                  "sfp_type",
+                  "SIM-SFP"
+                ],
+                [
+                  "network_interface0",
+                  1
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": "default-dp12_mux_atc",
+      "profile_id": "dp12_mux_atc",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=8225e8ecc2d86c2a7c85ebd02040d2bdbbdd0e8b998880e25da77a128c1c81cf",
+      "enabled_optional_groups": [],
+      "scalar_values": [
+        [
+          "device_id",
+          "SIM-DP12-01"
+        ],
+        [
+          "device_cl",
+          "SIM-DP12"
+        ],
+        [
+          "device_type",
+          "DP1.2-MUX-ATC"
+        ],
+        [
+          "serial_number",
+          "SIM-DP12-0001"
+        ],
+        [
+          "ether_address0",
+          "02:00:00:00:40:01"
+        ],
+        [
+          "ether_address1",
+          "02:00:00:00:40:02"
+        ],
+        [
+          "firmware_version",
+          "SIM-2026.07"
+        ],
+        [
+          "main_power",
+          1
+        ],
+        [
+          "redundant_power",
+          1
+        ],
+        [
+          "temperature1",
+          "40.0"
+        ],
+        [
+          "console_ps2_connection",
+          3
+        ],
+        [
+          "console_usbconnection",
+          3
+        ],
+        [
+          "power_current",
+          "1.2"
+        ],
+        [
+          "power_voltage",
+          "12.0"
+        ],
+        [
+          "network_interface0",
+          1
+        ],
+        [
+          "network_interface1",
+          1
+        ]
+      ],
+      "tables": [
+        {
+          "table_id": "cpu_channel_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "cpu_channel_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "cpu_channel_target_usb_hid",
+                  1
+                ],
+                [
+                  "cpu_channel_target_device",
+                  "SIM"
+                ],
+                [
+                  "cpu_channel_target_power",
+                  1
+                ],
+                [
+                  "cpu_channel_target_ps2",
+                  1
+                ],
+                [
+                  "cpu_channel_target_usb30",
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "cpu_channel_video_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "cpu_channel_index",
+                  1
+                ],
+                [
+                  "cpu_channel_video_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "cpu_channel_video_cable",
+                  1
+                ],
+                [
+                  "cpu_channel_video_signal",
+                  5
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "console_video_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "console_video_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "display_connection",
+                  1
+                ],
+                [
+                  "display_type",
+                  "SIM-DISPLAY"
+                ],
+                [
+                  "freeze",
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "fan_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "fan_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "fan_speed",
+                  3200
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": "default-visionxs_con",
+      "profile_id": "visionxs_con",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=d40bcf845ae091ef09071d335187bf8f49393b6226bc46c2be728f5581900b40",
+      "enabled_optional_groups": [],
+      "scalar_values": [
+        [
+          "device_id",
+          "SIM-VISION-CON-01"
+        ],
+        [
+          "device_cl",
+          "SIM-VISION-CON"
+        ],
+        [
+          "device_type",
+          "VisionXS CON"
+        ],
+        [
+          "serial_number",
+          "SIM-VISION-CON-0001"
+        ],
+        [
+          "ether_address0",
+          "02:00:00:00:00:01"
+        ],
+        [
+          "firmware_version",
+          "SIM-2026.07"
+        ],
+        [
+          "main_power",
+          1
+        ],
+        [
+          "redundant_power",
+          1
+        ],
+        [
+          "temperature1",
+          "40.0"
+        ],
+        [
+          "console_usbconnection",
+          3
+        ],
+        [
+          "transparent_usb_link",
+          1
+        ],
+        [
+          "transparent_usb_sfp_module",
+          3
+        ],
+        [
+          "transparent_usb_tx_power",
+          500
+        ],
+        [
+          "transparent_usb_rx_power",
+          500
+        ],
+        [
+          "transparent_usb_sfp_type",
+          "SIM-SFP"
+        ],
+        [
+          "fan1",
+          "3200"
+        ],
+        [
+          "network_interface0",
+          1
+        ]
+      ],
+      "tables": [
+        {
+          "table_id": "video_channel_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "video_channel_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "display_connection",
+                  1
+                ],
+                [
+                  "display_type",
+                  "SIM-DISPLAY"
+                ],
+                [
+                  "freeze",
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "link_channel_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "link_channel_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "link",
+                  1
+                ],
+                [
+                  "sfp_module",
+                  3
+                ],
+                [
+                  "sfp_tx_power",
+                  500
+                ],
+                [
+                  "sfp_rx_power",
+                  480
+                ],
+                [
+                  "sfp_type",
+                  "SIM-SFP"
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": "default-visionxs_cpu",
+      "profile_id": "visionxs_cpu",
+      "profile_version": "1.0.0",
+      "evidence_version": "schema=1;sha256=1fa9a8c4ca001cc33ec7c9fe6d7949fe8bb31472f505e028acdbecf1b9d0a08a",
+      "enabled_optional_groups": [],
+      "scalar_values": [
+        [
+          "device_id",
+          "SIM-VISION-CPU-01"
+        ],
+        [
+          "device_cl",
+          "SIM-VISION-CPU"
+        ],
+        [
+          "device_type",
+          "VisionXS CPU"
+        ],
+        [
+          "serial_number",
+          "SIM-VISION-CPU-0001"
+        ],
+        [
+          "ether_address0",
+          "02:00:00:00:00:01"
+        ],
+        [
+          "firmware_version",
+          "SIM-2026.07"
+        ],
+        [
+          "main_power",
+          1
+        ],
+        [
+          "redundant_power",
+          1
+        ],
+        [
+          "temperature1",
+          "40.0"
+        ],
+        [
+          "transparent_usb_link",
+          1
+        ],
+        [
+          "target_power",
+          1
+        ],
+        [
+          "target_usb_hid",
+          1
+        ],
+        [
+          "target_usb20",
+          1
+        ],
+        [
+          "transparent_usb_sfp_module",
+          3
+        ],
+        [
+          "transparent_usb_tx_power",
+          500
+        ],
+        [
+          "transparent_usb_rx_power",
+          500
+        ],
+        [
+          "transparent_usb_sfp_type",
+          "SIM-SFP"
+        ],
+        [
+          "fan1",
+          "3200"
+        ],
+        [
+          "network_interface0",
+          1
+        ]
+      ],
+      "tables": [
+        {
+          "table_id": "video_channel_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "video_channel_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "target_video_cable",
+                  1
+                ],
+                [
+                  "target_video_signal",
+                  5
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "table_id": "link_channel_table",
+          "rows": [
+            {
+              "indexes": [
+                [
+                  "link_channel_index",
+                  1
+                ]
+              ],
+              "values": [
+                [
+                  "link",
+                  1
+                ],
+                [
+                  "sfp_module",
+                  3
+                ],
+                [
+                  "sfp_tx_power",
+                  500
+                ],
+                [
+                  "sfp_rx_power",
+                  480
+                ],
+                [
+                  "sfp_type",
+                  "SIM-SFP"
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,106 +1,101 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Languages, LogOut, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import { useStore } from '../store/mainStore';
-import { useTranslation } from '../i18n';
-import useSystemWebSocket from '../hooks/useSystemWebSocket';
-import DeviceCard from '../components/DeviceCard';
-import MatrixView from '../components/MatrixView';
-import TopoView from '../components/TopoView';
 import AlertStream from '../components/AlertStream';
 import BottomCharts from '../components/BottomCharts';
-import { getEndpointDeviceState } from '../utils/endpointStatus';
+import DeviceCard from '../components/DeviceCard';
+import DeviceTable from '../components/DeviceTable';
+import MatrixView from '../components/MatrixView';
+import SoundControl from '../components/SoundControl';
+import useAlertSound from '../hooks/useAlertSound';
+import useSystemWebSocket from '../hooks/useSystemWebSocket';
+import { useTranslation } from '../i18n';
+import { useAuthStore } from '../store/authStore';
+import { useStore } from '../store/mainStore';
+import { isMatrixProfile } from '../utils/multiProfile';
 import './Dashboard.css';
 
-const Dashboard = () => {
+export default function Dashboard() {
     const navigate = useNavigate();
-    const { logout, user } = useAuthStore();
-    const {
-        stats, devices, alerts,
-        selectedDeviceId, viewMode,
-        setSelectedDevice, setViewMode,
-        fetchAll, fetchEndpoints, fetchTopology,
-        getDisplayName,
-    } = useStore();
+    const logout = useAuthStore((state) => state.logout);
+    const user = useAuthStore((state) => state.user);
+    const stats = useStore((state) => state.stats);
+    const devices = useStore((state) => state.devices);
+    const endpoints = useStore((state) => state.endpoints);
+    const alerts = useStore((state) => state.alerts);
+    const selectedDeviceId = useStore((state) => state.selectedDeviceId);
+    const viewMode = useStore((state) => state.viewMode);
+    const fetchAll = useStore((state) => state.fetchAll);
+    const getDisplayName = useStore((state) => state.getDisplayName);
+    const setSelectedDevice = useStore((state) => state.setSelectedDevice);
+    const setViewMode = useStore((state) => state.setViewMode);
     const { t, locale, toggleLocale } = useTranslation();
-
     const { readyState } = useSystemWebSocket();
+    useAlertSound();
+
     const [clock, setClock] = useState('');
     const [filterDeviceId, setFilterDeviceId] = useState('all');
 
-    // 时钟
     useEffect(() => {
         const tick = () => {
-            const n = new Date();
-            const pad = v => String(v).padStart(2, '0');
-            setClock(`${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`);
+            const now = new Date();
+            setClock(now.toLocaleTimeString(locale, { hour12: false }));
         };
         tick();
-        const timer = setInterval(tick, 1000);
-        return () => clearInterval(timer);
-    }, []);
+        const timer = window.setInterval(tick, 1000);
+        return () => window.clearInterval(timer);
+    }, [locale]);
 
-    // 初始加载
     useEffect(() => {
         fetchAll();
-        const interval = setInterval(fetchAll, 60000);
-        return () => clearInterval(interval);
-    }, []);
+        const timer = window.setInterval(fetchAll, 60000);
+        return () => window.clearInterval(timer);
+    }, [fetchAll]);
 
-    // devices加载完成后，确保全部终端数据被抉取
-    const { fetchAllEndpoints, endpoints } = useStore();
-    useEffect(() => {
-        if (devices.length > 0) {
-            fetchAllEndpoints();
-        }
-    }, [devices.length]);
+    const activeAlerts = stats?.active_alerts
+        ?? alerts.filter((alert) => !alert.is_resolved).length;
+    const onlineDevices = devices.filter((device) => device.online_status === 'online').length;
+    const offlineDevices = devices.filter((device) => device.online_status === 'offline').length;
+    const healthyDevices = devices.filter((device) => (
+        device.online_status === 'online'
+        && !['critical', 'offline'].includes(device.health_status)
+    )).length;
+    const healthPct = devices.length > 0
+        ? ((healthyDevices / devices.length) * 100).toFixed(1)
+        : '100.0';
 
-    // 切换设备时拉对应数据
-    useEffect(() => {
-        if (selectedDeviceId && selectedDeviceId !== 'all') {
-            fetchEndpoints(selectedDeviceId);
-            fetchTopology(selectedDeviceId);
-        }
-    }, [selectedDeviceId]);
+    const tabDevices = useMemo(() => (
+        viewMode === 'grid' ? devices.filter(isMatrixProfile) : devices
+    ), [devices, viewMode]);
 
-    // 筛选处理
     const handleFilter = (id) => {
         setFilterDeviceId(id);
-        if (id !== 'all') {
-            setSelectedDevice(id);
-        } else {
-            setSelectedDevice(null);
-        }
+        setSelectedDevice(id === 'all' ? null : id);
     };
 
-    // 健康率 + KPI：统一用终端 (endpoints) 计算
-    const { endpoints: allEps } = useStore();
-    const isEpActive = ep => ['online', 'ready'].includes(getEndpointDeviceState(ep));
-    const isEpOffline = ep => getEndpointDeviceState(ep) === 'offline';
+    const handleDeviceClick = (device) => {
+        if (viewMode === 'grid' && !isMatrixProfile(device)) {
+            setViewMode('devices');
+        }
+        handleFilter(device.id);
+    };
 
-    // 终端分类数
-    // 注意：stats 里没有 online_endpoints 字段，fallback 统一用 total_endpoints
-    const epTotal   = allEps.length > 0 ? allEps.length                         : (stats?.total_endpoints ?? 0);
-    const epActive  = allEps.length > 0 ? allEps.filter(isEpActive).length       : 0;
-    const epOffline = allEps.length > 0 ? allEps.filter(isEpOffline).length      : 0;
-    // ?? 而非 ||：避免 stats.active_alerts=0 时被 alerts 列表数据覆盖
-    const activeAlerts = stats?.active_alerts ?? alerts.filter(a => !a.is_resolved).length;
-
-    // 健康率
-    const healthPct = epTotal > 0 ? ((epActive / epTotal) * 100).toFixed(1) : '100.0';
-
-    // 设备卡点击
-    const handleDeviceClick = (dev) => {
-        setSelectedDevice(dev.id);
-        setFilterDeviceId(dev.id);
+    const handleViewChange = (mode) => {
+        setViewMode(mode);
+        if (
+            mode === 'grid'
+            && filterDeviceId !== 'all'
+            && !isMatrixProfile(devices.find((device) => device.id === filterDeviceId))
+        ) {
+            handleFilter('all');
+        }
     };
 
     return (
         <div className="dashboard-app">
-            {/* ─── 顶栏 ─── */}
             <header className="topbar">
                 <div className="sys-title">
-                    <div className="lbl">SHA / PVGL / CTRL-OPS</div>
+                    <div className="lbl">{t('dashboard.system_code')}</div>
                     <div className="name">{t('dashboard.title')}</div>
                     <div className="sub">{t('dashboard.subtitle')}</div>
                 </div>
@@ -115,15 +110,15 @@ const Dashboard = () => {
 
                 <div className="kpi-strip">
                     <div className="kpi-card total">
-                        <div className="kpi-val">{epTotal}</div>
+                        <div className="kpi-val">{devices.length}</div>
                         <div className="kpi-lbl">{t('dashboard.kpi_total')}</div>
                     </div>
                     <div className="kpi-card online">
-                        <div className="kpi-val">{epActive}</div>
+                        <div className="kpi-val">{onlineDevices}</div>
                         <div className="kpi-lbl">{t('dashboard.kpi_active')}</div>
                     </div>
                     <div className="kpi-card offline">
-                        <div className="kpi-val">{epOffline}</div>
+                        <div className="kpi-val">{offlineDevices}</div>
                         <div className="kpi-lbl">{t('dashboard.kpi_offline')}</div>
                     </div>
                     <div className="kpi-card alert">
@@ -138,68 +133,91 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="user-actions">
-                        <button className="ua-btn" onClick={toggleLocale} title={locale === 'zh-CN' ? 'English' : '中文'}>
-                            {locale === 'zh-CN' ? 'EN' : '中'}
+                        <SoundControl />
+                        <button
+                            className="ua-btn"
+                            onClick={toggleLocale}
+                            title={t('common.switch_language')}
+                            aria-label={t('common.switch_language')}
+                        >
+                            <Languages size={16} />
                         </button>
                         {user?.role === 'admin' && (
-                            <button className="ua-btn" onClick={() => navigate('/admin')} title={t('admin.title')}>
-                                ⚙
+                            <button
+                                className="ua-btn"
+                                onClick={() => navigate('/admin')}
+                                title={t('admin.title')}
+                                aria-label={t('admin.title')}
+                            >
+                                <Settings size={16} />
                             </button>
                         )}
-                        <button className="ua-btn logout" onClick={() => { logout(); navigate('/login'); }} title="Logout">
-                            ⏻
+                        <button
+                            className="ua-btn logout"
+                            onClick={() => {
+                                logout();
+                                navigate('/login');
+                            }}
+                            title={t('common.logout')}
+                            aria-label={t('common.logout')}
+                        >
+                            <LogOut size={16} />
                         </button>
                     </div>
                 </div>
             </header>
 
-            {/* ─── 中间三栏 ─── */}
             <div className="dashboard-main">
-                {/* 左栏：设备卡片 */}
                 <aside className="panel">
                     <div className="panel-hdr">
                         <span className="panel-hdr-title">{t('dashboard.devices_panel')}</span>
                         <span className="panel-hdr-badge">{devices.length} {t('dashboard.devices_unit')}</span>
                     </div>
                     <div className="device-list">
-                        {devices.map(dev => (
+                        {devices.map((device) => (
                             <DeviceCard
-                                key={dev.id}
-                                device={dev}
-                                isActive={selectedDeviceId === dev.id}
-                                onClick={() => handleDeviceClick(dev)}
+                                key={device.id}
+                                device={device}
+                                isActive={selectedDeviceId === device.id}
+                                onClick={() => handleDeviceClick(device)}
                             />
                         ))}
                     </div>
                 </aside>
 
-                {/* 中间：矩阵/拓扑 */}
-                <section className="panel" style={{ overflow: 'hidden' }}>
-                    {/* 顶部标题+切换 */}
+                <section className="panel center-panel">
                     <div className="center-hdr">
                         <span className="panel-hdr-title">
-                            {viewMode === 'grid' ? t('dashboard.matrix_title') : t('dashboard.topo_title')}
+                            {viewMode === 'grid'
+                                ? t('dashboard.matrix_title')
+                                : t('dashboard.device_table_title')}
                         </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '9px', color: 'var(--text-dim)' }}>
+                        <div className="center-hdr-actions">
+                            <span className="current-filter-label">
                                 {filterDeviceId === 'all'
                                     ? t('dashboard.all_devices')
-                                    : getDisplayName(filterDeviceId, devices.find(d => d.id === filterDeviceId)?.name)}
+                                    : getDisplayName(
+                                        filterDeviceId,
+                                        devices.find((device) => device.id === filterDeviceId)?.name
+                                    )}
                             </span>
                             <div className="view-toggle">
                                 <button
                                     className={`vt-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                                    onClick={() => setViewMode('grid')}
-                                >{t('dashboard.view_matrix')}</button>
+                                    onClick={() => handleViewChange('grid')}
+                                >
+                                    {t('dashboard.view_matrix')}
+                                </button>
                                 <button
-                                    className={`vt-btn ${viewMode === 'topology' ? 'active' : ''}`}
-                                    onClick={() => setViewMode('topology')}
-                                >{t('dashboard.view_topo')}</button>
+                                    className={`vt-btn ${viewMode === 'devices' ? 'active' : ''}`}
+                                    onClick={() => handleViewChange('devices')}
+                                >
+                                    {t('dashboard.view_devices')}
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    {/* 设备 chip 过滤条 */}
                     <div className="device-band">
                         <button
                             className={`db-chip ${filterDeviceId === 'all' ? 'active' : ''}`}
@@ -207,32 +225,30 @@ const Dashboard = () => {
                         >
                             <span className="chip-dot" />{t('dashboard.filter_all')}
                         </button>
-                        {devices.map(dev => {
-                            const st = dev.last_status;
-                            const dotCls = st === 'warning' ? 'warn' : st === 'offline' ? 'dead' : '';
+                        {tabDevices.map((device) => {
+                            const status = device.online_status;
+                            const dotClass = ['warning', 'critical'].includes(device.health_status)
+                                ? 'warn'
+                                : status === 'offline'
+                                    ? 'dead'
+                                    : '';
                             return (
                                 <button
-                                    key={dev.id}
-                                    className={`db-chip ${filterDeviceId === dev.id ? 'active' : ''}`}
-                                    onClick={() => handleFilter(dev.id)}
+                                    key={device.id}
+                                    className={`db-chip ${filterDeviceId === device.id ? 'active' : ''}`}
+                                    onClick={() => handleFilter(device.id)}
                                 >
-                                    <span className={`chip-dot ${dotCls}`} />
-                                    {getDisplayName(dev.id, dev.name)}
+                                    <span className={`chip-dot ${dotClass}`} />
+                                    {getDisplayName(device.id, device.name)}
                                 </button>
                             );
                         })}
                     </div>
 
-                    {/* 视图区域 */}
-                    {viewMode === 'grid' && (
-                        <MatrixView filterDeviceId={filterDeviceId} />
-                    )}
-                    {viewMode === 'topology' && (
-                        <TopoView filterDeviceId={filterDeviceId} devices={devices} />
-                    )}
+                    {viewMode === 'grid' && <MatrixView filterDeviceId={filterDeviceId} />}
+                    {viewMode === 'devices' && <DeviceTable filterDeviceId={filterDeviceId} />}
                 </section>
 
-                {/* 右栏：告警流 */}
                 <aside className="panel">
                     <div className="panel-hdr">
                         <span className="panel-hdr-title">{t('dashboard.alerts_panel')}</span>
@@ -242,12 +258,13 @@ const Dashboard = () => {
                 </aside>
             </div>
 
-            {/* ─── 底栏图表 ─── */}
             <footer className="bottom-bar">
-                <BottomCharts devices={devices} selectedDeviceId={selectedDeviceId} endpoints={endpoints} />
+                <BottomCharts
+                    devices={devices}
+                    selectedDeviceId={selectedDeviceId}
+                    endpoints={endpoints}
+                />
             </footer>
         </div>
     );
-};
-
-export default Dashboard;
+}

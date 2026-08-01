@@ -25,7 +25,7 @@ function AlertsTab({ t, showToast }) {
             params.set('limit', '200');
             const res = await api.get(`/alerts?${params.toString()}`);
             setAlerts(res.data || []);
-        } catch (err) {
+        } catch {
             showToast(t('admin.common.error'), 'error');
         } finally {
             setLoading(false);
@@ -71,8 +71,6 @@ function AlertsTab({ t, showToast }) {
         if (filterDevice) params.set('device_id', filterDevice);
         if (filterSeverity) params.set('severity', filterSeverity);
         // Open in new tab to trigger download
-        const token = document.cookie || '';
-        const url = `/api/v1/alerts/export?${params.toString()}`;
         // Use fetch with auth header for download
         api.get(`/alerts/export?${params.toString()}`, { responseType: 'blob' })
             .then(res => {

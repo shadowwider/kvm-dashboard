@@ -27,6 +27,21 @@ class _Session:
         self.commits += 1
 
 
+class _SessionContext:
+    def __init__(self, session):
+        self.session = session
+        self.entered = 0
+        self.exited = 0
+
+    async def __aenter__(self):
+        self.entered += 1
+        return self.session
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        self.exited += 1
+        return False
+
+
 def _run():
     return SimulatorRun(
         id="local-simulator",
@@ -79,3 +94,37 @@ def test_bridge_cleanup_cannot_delete_a_run_taken_by_a_newer_session(monkeypatch
     assert raised.value.status_code == 409
     assert session.deleted == []
     assert session.executed == []
+
+
+@pytest.mark.asyncio
+async def test_expired_run_reaper_uses_dashboard_session_factory(monkeypatch):
+    monkeypatch.setattr(simulator_api.settings, "simulator_bridge_enabled", True)
+    session = object()
+    context = _SessionContext(session)
+    cleanup_calls = []
+
+    async def cleanup_expired_runs(db):
+        cleanup_calls.append(db)
+        return 3
+
+    monkeypatch.setattr(simulator_api, "AsyncSessionLocal", lambda: context)
+    monkeypatch.setattr(simulator_api, "cleanup_expired_runs", cleanup_expired_runs)
+
+    result = await simulator_api.reap_expired_simulator_runs()
+
+    assert result == 3
+    assert cleanup_calls == [session]
+    assert context.entered == 1
+    assert context.exited == 1
+
+
+@pytest.mark.asyncio
+async def test_expired_run_reaper_skips_session_when_bridge_is_disabled(monkeypatch):
+    monkeypatch.setattr(simulator_api.settings, "simulator_bridge_enabled", False)
+
+    def fail_if_opened():
+        raise AssertionError("session factory must not be opened")
+
+    monkeypatch.setattr(simulator_api, "AsyncSessionLocal", fail_if_opened)
+
+    assert await simulator_api.reap_expired_simulator_runs() == 0

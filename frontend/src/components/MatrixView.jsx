@@ -8,6 +8,7 @@ import {
     getEndpointSortIndex,
     getEndpointStatus,
 } from '../utils/endpointStatus';
+import { isMatrixProfile } from '../utils/multiProfile';
 
 const MatrixView = ({ filterDeviceId }) => {
     const { endpoints, devices, fetchEndpoints } = useStore();
@@ -18,8 +19,8 @@ const MatrixView = ({ filterDeviceId }) => {
 
     const visibleDevices = useMemo(() => (
         filterDeviceId === 'all'
-            ? devices
-            : devices.filter(dev => dev.id === filterDeviceId)
+            ? devices.filter(isMatrixProfile)
+            : devices.filter(dev => dev.id === filterDeviceId && isMatrixProfile(dev))
     ), [devices, filterDeviceId]);
 
     useEffect(() => {

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_admin
 from app.config import get_settings
-from app.database import get_db
+from app.database import AsyncSessionLocal, get_db
 from app.models.device import Device
 from app.models.endpoint import Endpoint
 from app.models.simulator_run import SimulatorRun
@@ -206,7 +206,7 @@ async def reconcile_manifest(
                 system_oid=simulator_device["system_oid"],
                 model_name=f"SIMULATION / {simulator_device['profile']}",
                 is_active=True,
-                poll_interval=1,
+                poll_interval=settings.snmp_poll_interval,
             )
             db.add(device)
         else:
@@ -216,6 +216,7 @@ async def reconcile_manifest(
             device.system_oid = simulator_device["system_oid"]
             device.model_name = f"SIMULATION / {simulator_device['profile']}"
             device.is_active = True
+            device.poll_interval = settings.snmp_poll_interval
 
         desired_endpoint_ids = set()
         for simulator_endpoint in simulator_device.get("endpoints", []):

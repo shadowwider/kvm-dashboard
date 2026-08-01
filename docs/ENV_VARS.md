@@ -44,38 +44,43 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 | 变量 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `SNMP_DEFAULT_COMMUNITY` | string | `public` | SNMP v2c Community 字符串（轮询时使用） |
-| `SNMP_TRAP_PORT` | int | 代码默认 `162`；L0/Docker 显式使用 `10162` | SNMP Trap 监听 UDP 端口。不要依赖默认值；Dashboard 与 Simulator 必须显式设为相同端口。Docker 中为容器内端口，宿主机侧同名变量控制映射端口 |
-| `SNMP_POLL_INTERVAL` | int | `45` | **完整指标**轮询间隔（秒）：GET/WALK、时序归档和阈值告警。不要为了设备失联检测而降低此值。 |
+| `SNMP_TRAP_HOST_PORT` | int | Docker `162` | Docker 宿主机接收现场设备 Trap 的 UDP 端口。 |
+| `SNMP_TRAP_LISTEN_PORT` | int | 代码 `162`；Docker `10162` | 后端进程实际监听的 UDP 端口。Docker 显式注入 `10162`，避免容器内绑定特权端口。 |
+| `SNMP_TRAP_PORT` | int | 无 | 旧版后端监听端口变量，兼容保留一个发布周期；新部署改用 `SNMP_TRAP_LISTEN_PORT`。 |
+| `SNMP_POLL_INTERVAL` | int | `45` | 旧版全局完整轮询间隔变量，当前调度器不再使用；兼容保留。实际完整采集间隔由每台 `Device.poll_interval` 决定。 |
 | `SNMP_HEALTH_POLL_ENABLED` | bool | `true` | 是否启用轻量 SNMP 可达性探测。 |
 | `SNMP_HEALTH_POLL_INTERVAL` | float | `1.0` | 交换机 `sysObjectID` 快速探测间隔（秒）。 |
 | `SNMP_HEALTH_TIMEOUT` | float | `0.25` | 每次快速探测的 UDP 超时（秒）。 |
 | `SNMP_HEALTH_RETRIES` | int | `1` | 快速探测重试次数；默认总请求预算约 0.5 秒。 |
 | `SNMP_HEALTH_CONCURRENCY` | int | `20` | 同时快速探测的设备数；必须按设备规模核算。 |
 | `SNMP_HEALTH_FAILURE_THRESHOLD` | int | `1` | 达到多少次失败探测后才将交换机置为离线。增加该值会降低误报，但可能超过 2 秒目标。 |
-| `SNMP_ENDPOINT_STATUS_POLL_ENABLED` | bool | `true` | 每个健康周期额外读取 CPU、CON 和物理端口的**状态列**；不执行完整指标 WALK，端口与模块索引不会被假定为一一对应。 |
+| `SNMP_HEALTH_HEARTBEAT_FLUSH_INTERVAL` | float | `10.0` | 稳定在线设备的 `last_health_check` 合并写库间隔。离线/恢复状态仍立即提交，不受此值影响。 |
+| `SNMP_ENDPOINT_STATUS_POLL_ENABLED` | bool | `true` | 是否独立复核 legacy CCDC 的 CPU、CON 和物理端口状态列。 |
+| `SNMP_ENDPOINT_STATUS_POLL_INTERVAL` | float | `5.0` | legacy CCDC 状态列复核间隔（秒）；不进入 1 秒可达性探测路径。 |
 
 ### 双速 SNMP 运行方式
 
 - **整台交换机、管理网或交换机电源断开**：设备无法发送 Trap，因此由 `sysObjectID` 健康探测负责。默认 1 秒调度 + 约 0.5 秒 SNMP 重试预算，目标为 1–2 秒；实际结果受网络、设备数和并发容量限制。
-- **CPU/CON 模块**：已识别的 `went offline` / `came online` Trap 会立即更新端点状态；每秒状态列探测和完整轮询用于复核。
+- **完整指标轮询**：APScheduler 每秒调用一次到期检查，只对 `last_poll + Device.poll_interval` 已到期的活跃设备执行 GET/WALK、归档和阈值判断。
+- **CPU/CON 模块**：已识别的 `went offline` / `came online` Trap 会立即更新端点状态；默认每 5 秒执行一次 legacy CCDC 状态列探测，完整轮询按设备间隔执行。
 - **物理端口/网线**：读取 `portTable.portStatus` 并实时推送 `up/down/noModule/moduleDeactivated` 变化。未取得真实设备 OID 对照样本前，系统不会将 portTable 行索引自动等同于 CPU/CON 模块索引。
-- 管理界面旧的设备 `poll_interval` 字段不参与任何运行时调度，已从编辑界面移除；它不能用于设置一秒轮询。
+- 每台设备的 `poll_interval` 控制完整采集周期，最小按 1 秒计算；它不影响独立的快速健康探测周期。
+- 稳定在线心跳先在内存中按设备合并，再由独立任务批量提交；完整轮询写库不会拖住健康探测。离线和恢复转换仍先提交数据库，再通过 WebSocket 推送。
 
 容量估算：
 
 ```text
 预计最坏扫描时间 = ceil(活跃设备数 / SNMP_HEALTH_CONCURRENCY)
-                 × (SNMP_HEALTH_TIMEOUT × (SNMP_HEALTH_RETRIES + 1)
-                    + SNMP_HEALTH_TIMEOUT)
-
-第二项为每台设备可达后并行读取 CPU、CON 和物理端口三个状态列的一次无重试请求预算。
+                 × SNMP_HEALTH_TIMEOUT
+                 × (SNMP_HEALTH_RETRIES + 1)
 ```
 
 该值必须小于 `SNMP_HEALTH_POLL_INTERVAL`。`/api/v1/health` 的 `health_probe.capacity_degraded`、`estimated_scan_seconds` 和周期日志会报告无法满足该约束的部署。
 
-> **SNMP Trap 端口说明**：G&D 设备默认发送到 UDP 162。生产环境一般使用非特权端口（如 10162）映射：
-> - 宿主机防火墙将 `162/udp` 转发到 `10162/udp`，或直接用 `iptables PREROUTING`
-> - `docker-compose.yml` 中映射规则：`${SNMP_TRAP_PORT:-10162}:10162/udp`
+> **SNMP Trap 端口说明**：G&D 设备向宿主机 UDP 162 发送 Trap，Docker 直接映射到后端容器 UDP 10162：
+> - 宿主机入站防火墙必须开放 `162/udp`
+> - `docker-compose.yml` 映射规则为 `${SNMP_TRAP_HOST_PORT:-162}:${SNMP_TRAP_LISTEN_PORT:-10162}/udp`
+> - 本地非 Docker 模拟环境仍可设置 `SNMP_TRAP_PORT=10162`，用于兼容旧启动脚本
 
 ---
 
@@ -120,7 +125,8 @@ SNMP_RAW_LOG_ENABLED=false
 |------|--------|------|
 | `FRONTEND_PORT` | `80` | 宿主机前端访问端口（映射到 Nginx 容器的 80） |
 | `POSTGRES_PORT` | `5432` | 宿主机数据库暴露端口（仅开发时需要直连数据库） |
-| `SNMP_TRAP_PORT` | `10162` | 宿主机 SNMP Trap UDP 端口（见上方 SNMP 说明） |
+| `SNMP_TRAP_HOST_PORT` | `162` | 宿主机 SNMP Trap UDP 端口。 |
+| `SNMP_TRAP_LISTEN_PORT` | `10162` | 后端容器监听的 SNMP Trap UDP 端口。 |
 | `TZ` | `Asia/Shanghai` | 容器时区（同时注入到所有服务容器） |
 
 ---
@@ -143,9 +149,9 @@ ADMIN_PASSWORD=admin123                              # ← 建议修改
 
 # ── SNMP ────────────────────────────────────────────
 SNMP_DEFAULT_COMMUNITY=public
-SNMP_TRAP_PORT=10162
-# 完整指标采集（不要因快速失联检测而降低）
-SNMP_POLL_INTERVAL=45
+SNMP_TRAP_HOST_PORT=162
+SNMP_TRAP_LISTEN_PORT=10162
+# 完整轮询每秒检查到期设备；每台设备的 poll_interval 决定实际采集周期
 # 快速交换机、模块和原始物理端口状态检测
 SNMP_HEALTH_POLL_ENABLED=true
 SNMP_HEALTH_POLL_INTERVAL=1

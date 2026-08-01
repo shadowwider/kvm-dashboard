@@ -1,26 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useStore } from '../store/mainStore';
 
 const HealthRate = () => {
     const stats = useStore((state) => state.stats);
-    const [percent, setPercent] = useState(0);
-
-    useEffect(() => {
-        if (stats) {
-            const total_dev = stats.total_devices || 0;
-            const total_ep = stats.total_endpoints || 0;
-            const online_dev = stats.online_devices || 0;
-            const online_ep = stats.online_endpoints || 0;
-
-            const total = total_dev + total_ep;
-            const online = online_dev + online_ep;
-
-            const health = total > 0 ? (online / total) * 100 : 100;
-            setPercent(health.toFixed(1));
-        } else {
-            setPercent(100.0);
-        }
-    }, [stats]);
+    const totalDevices = stats?.total_devices || 0;
+    const totalEndpoints = stats?.total_endpoints || 0;
+    const onlineDevices = stats?.online_devices || 0;
+    const onlineEndpoints = stats?.online_endpoints || 0;
+    const total = totalDevices + totalEndpoints;
+    const online = onlineDevices + onlineEndpoints;
+    const percent = (total > 0 ? (online / total) * 100 : 100).toFixed(1);
 
     const isHealthy = percent >= 95;
 

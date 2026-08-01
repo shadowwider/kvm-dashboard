@@ -154,3 +154,46 @@ def test_trap_requires_known_non_empty_targets():
             })())
     finally:
         simulator_main.stop_runtime()
+
+
+def test_trap_accepts_known_target_without_binding_an_agent(monkeypatch):
+    class FakeState:
+        revision = 7
+
+        @staticmethod
+        def device(device_id):
+            if device_id != "sim-known":
+                raise KeyError(device_id)
+            return {
+                "host": "127.0.0.1",
+                "trap_source_host": "127.0.1.9",
+            }
+
+    sent = []
+    monkeypatch.setattr(simulator_main, "state", FakeState())
+    monkeypatch.setattr(
+        simulator_main,
+        "send_formal_trap",
+        lambda level, message, host, port, community, **kwargs: sent.append({
+            "level": level,
+            "message": message,
+            "host": host,
+            "port": port,
+            "community": community,
+            **kwargs,
+        }),
+    )
+    monkeypatch.setattr(simulator_main, "_schedule_broadcast", lambda payload: None)
+
+    response = simulator_main.send_trap(type("Request", (), {
+        "device_ids": None,
+        "device_id": "sim-known",
+        "preset": None,
+        "message": "test",
+        "level": 3,
+        "layout": "formal",
+    })())
+
+    assert response["sent"] is True
+    assert response["count"] == 1
+    assert sent[0]["source_host"] == "127.0.1.9"

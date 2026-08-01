@@ -27,6 +27,8 @@ const AlertStream = () => {
         critical: t('dashboard.severity_critical'),
         warning: t('dashboard.severity_warning'),
         info: t('dashboard.severity_info'),
+        offline: t('dashboard.severity_offline'),
+        trap: t('dashboard.severity_trap'),
     };
 
     if (alerts.length === 0) {
@@ -49,7 +51,9 @@ const AlertStream = () => {
         <div className="alert-list">
             {alerts.map((alert, idx) => {
                 const severity = alert.severity || 'info';
-                const isTrap = alert.alert_type === 'trap';
+                const isTrap = alert.alert_type === 'trap'
+                    || alert.event_type === 'trap_received'
+                    || Boolean(alert.trap_oid);
                 const isNew = idx === 0;
                 const timeStr = safeFormatTime(alert.created_at);
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel
@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.oid_registry import OIDRegistry
 from app.models.user import User
 from app.auth.deps import get_current_user, require_admin
+from app.services.audit import record_audit_log
 
 router = APIRouter()
 
@@ -98,14 +99,29 @@ async def list_oids(
 @router.post("", response_model=OIDOut, status_code=201)
 async def create_oid(
     body: OIDCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current: User = Depends(require_admin),
 ):
     result = await db.execute(select(OIDRegistry).where(OIDRegistry.name == body.name))
     if result.scalar_one_or_none():
         raise HTTPException(409, f"OID 名称 {body.name} 已存在")
     oid_entry = OIDRegistry(**body.model_dump())
     db.add(oid_entry)
+    await db.flush()
+    await record_audit_log(
+        db,
+        action="oid.create",
+        actor=current,
+        target_type="oid",
+        target_id=oid_entry.id,
+        request=request,
+        change_summary={
+            "name": oid_entry.name,
+            "oid": oid_entry.oid,
+            "category": oid_entry.category,
+        },
+    )
     await db.commit()
     await db.refresh(oid_entry)
     return oid_entry
@@ -115,14 +131,29 @@ async def create_oid(
 async def update_oid(
     oid_id: int,
     body: OIDUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current: User = Depends(require_admin),
 ):
     oid_entry = await db.get(OIDRegistry, oid_id)
     if not oid_entry:
         raise HTTPException(404, "OID 不存在")
-    for field, value in body.model_dump(exclude_none=True).items():
+    changes = body.model_dump(exclude_none=True)
+    for field, value in changes.items():
         setattr(oid_entry, field, value)
+    await record_audit_log(
+        db,
+        action="oid.update",
+        actor=current,
+        target_type="oid",
+        target_id=oid_entry.id,
+        request=request,
+        change_summary={
+            "name": oid_entry.name,
+            "oid": oid_entry.oid,
+            "changed_fields": list(changes),
+        },
+    )
     await db.commit()
     await db.refresh(oid_entry)
     return oid_entry
@@ -131,11 +162,25 @@ async def update_oid(
 @router.delete("/{oid_id}", status_code=204)
 async def delete_oid(
     oid_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current: User = Depends(require_admin),
 ):
     oid_entry = await db.get(OIDRegistry, oid_id)
     if not oid_entry:
         raise HTTPException(404, "OID 不存在")
     await db.delete(oid_entry)
+    await record_audit_log(
+        db,
+        action="oid.delete",
+        actor=current,
+        target_type="oid",
+        target_id=oid_entry.id,
+        request=request,
+        change_summary={
+            "name": oid_entry.name,
+            "oid": oid_entry.oid,
+            "category": oid_entry.category,
+        },
+    )
     await db.commit()

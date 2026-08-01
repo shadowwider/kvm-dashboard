@@ -4,13 +4,34 @@ import { useStore } from '../store/mainStore';
 import { useTranslation } from '../i18n';
 import {
     formatEndpointPosition,
-    formatKeyboardMouseState,
-    formatKeyboardMouseValue,
     formatUsbHidValue,
     formatVideoValue,
-    getConKeyboardMouseState,
     getEndpointStatus,
 } from '../utils/endpointStatus';
+import { keyboardMouseState } from '../utils/multiProfile';
+
+function hasStatusValue(value) {
+    return value !== null && value !== undefined && value !== '';
+}
+
+function KeyboardMouseChannelValue({ value, t }) {
+    const state = keyboardMouseState(value);
+    if (!state.known) return <span>{t('dashboard.status_unknown')}</span>;
+    return (
+        <span className="td-boundary-state">
+            <span className={state.keyboard ? 'connected' : 'disconnected'}>
+                {t('detail.keyboard')}: {state.keyboard
+                    ? t('dashboard.status_connected')
+                    : t('dashboard.status_not_connected')}
+            </span>
+            <span className={state.mouse ? 'connected' : 'disconnected'}>
+                {t('detail.mouse')}: {state.mouse
+                    ? t('dashboard.status_connected')
+                    : t('dashboard.status_not_connected')}
+            </span>
+        </span>
+    );
+}
 
 const EndpointDetail = ({ ep, dev, onClose }) => {
     const [histData, setHistData] = useState([]);
@@ -36,7 +57,6 @@ const EndpointDetail = ({ ep, dev, onClose }) => {
     const temp = parseFloat(isCon ? stRaw.con_temperature : stRaw.ep_temperature);
     const sfpTx = isCon ? stRaw.con_sfp_tx_power : stRaw.ep_sfp_tx_power;
     const sfpRx = isCon ? stRaw.con_sfp_rx_power : stRaw.ep_sfp_rx_power;
-    const kmState = isCon ? getConKeyboardMouseState(stRaw) : null;
 
     const video = isCon
         ? (stRaw.con_display_conn === 'connected' ? t('dashboard.status_connected') : t('dashboard.status_not_connected'))
@@ -102,9 +122,36 @@ const EndpointDetail = ({ ep, dev, onClose }) => {
                         </span>
                     </div>
                     <div className="td-row">
-                        <span className="td-k">{t('dashboard.detail_usb_hid')}</span>
-                        <span className="td-v">{formatUsbHidValue(stRaw.ep_target_usb_hid, t)}</span>
+                        <span className="td-k">{t('dashboard.detail_target_usb_hid')}</span>
+                        <span className="td-v td-hid-value">
+                            {formatUsbHidValue(stRaw.ep_target_usb_hid, t)}
+                            <small>{t('detail.hid_not_differentiated')}</small>
+                        </span>
                     </div>
+                    {hasStatusValue(stRaw.ep_console_ps2) && (
+                        <div className="td-row">
+                            <span className="td-k">{t('dashboard.detail_console_ps2')}</span>
+                            <span className="td-v">
+                                <KeyboardMouseChannelValue value={stRaw.ep_console_ps2} t={t} />
+                            </span>
+                        </div>
+                    )}
+                    {hasStatusValue(stRaw.ep_console_usb) && (
+                        <div className="td-row">
+                            <span className="td-k">{t('dashboard.detail_console_usb')}</span>
+                            <span className="td-v">
+                                <KeyboardMouseChannelValue value={stRaw.ep_console_usb} t={t} />
+                            </span>
+                        </div>
+                    )}
+                    {hasStatusValue(stRaw.ep_target_ps2) && (
+                        <div className="td-row">
+                            <span className="td-k">{t('dashboard.detail_target_ps2')}</span>
+                            <span className="td-v">
+                                <KeyboardMouseChannelValue value={stRaw.ep_target_ps2} t={t} />
+                            </span>
+                        </div>
+                    )}
                     <div className="td-row">
                         <span className="td-k">{t('dashboard.detail_network')}</span>
                         <span className="td-v">
@@ -126,11 +173,22 @@ const EndpointDetail = ({ ep, dev, onClose }) => {
                             <span className="td-v">{stRaw.con_display_type}</span>
                         </div>
                     )}
-                    {/* 只显示综合键鼠状态，不再单独显示 PS/2 和 USB */}
-                    <div className="td-row">
-                        <span className="td-k">{t('dashboard.detail_keyboard_mouse')}</span>
-                        <span className={`td-v km-${kmState.state}`}>{formatKeyboardMouseState(kmState, t)}</span>
-                    </div>
+                    {hasStatusValue(stRaw.con_console_ps2) && (
+                        <div className="td-row">
+                            <span className="td-k">{t('dashboard.detail_console_ps2')}</span>
+                            <span className="td-v">
+                                <KeyboardMouseChannelValue value={stRaw.con_console_ps2} t={t} />
+                            </span>
+                        </div>
+                    )}
+                    {hasStatusValue(stRaw.con_console_usb) && (
+                        <div className="td-row">
+                            <span className="td-k">{t('dashboard.detail_console_usb')}</span>
+                            <span className="td-v">
+                                <KeyboardMouseChannelValue value={stRaw.con_console_usb} t={t} />
+                            </span>
+                        </div>
+                    )}
                 </>
             )}
 

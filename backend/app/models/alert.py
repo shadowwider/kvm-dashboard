@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, DateTime, Text, ForeignKey
+from sqlalchemy import String, Boolean, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -11,6 +11,7 @@ class Alert(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     device_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     endpoint_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    entity_key: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
     oid_name: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 触发告警的 OID 名
 
     # 告警分类
@@ -19,6 +20,8 @@ class Alert(Base):
 
     message: Mapped[str] = mapped_column(Text, nullable=False)
     raw_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trap_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    trap_oid: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     # 状态追踪
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)

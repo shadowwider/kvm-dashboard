@@ -25,10 +25,44 @@ from app.models.oid_registry import OIDRegistry
 from app.models.status_metric import StatusMetric
 from app.models.alert import Alert
 from app.snmp.parser import parse_snmp_value, is_alert_triggered
-from app.websocket.hub import ws_manager
+from app.snmp.profile_runtime import (
+    ProfilePollResult,
+    collect_profile_snapshot,
+    identify_profile,
+    mark_profile_data_stale,
+    persist_profile_snapshot,
+)
+from app.serializers import serialize_alert, serialize_device_summary
+from app.websocket.hub import event_envelope, ws_manager
 from app.config import get_settings as _get_settings
 
 logger = logging.getLogger(__name__)
+
+def is_full_poll_eligible(device: Device) -> bool:
+    """All active devices are eligible for exact Profile identification."""
+    return bool(getattr(device, "is_active", True))
+
+
+def is_full_poll_due(
+    device: Device,
+    now: datetime | None = None,
+) -> bool:
+    """Honor the per-device full polling interval."""
+    now = now or datetime.now(timezone.utc)
+    retry_after = _full_poll_retry_after.get(device.id)
+    if retry_after is not None:
+        if now < retry_after:
+            return False
+        _full_poll_retry_after.pop(device.id, None)
+
+    last_poll = getattr(device, "last_poll", None)
+    if last_poll is None:
+        return True
+    if last_poll.tzinfo is None:
+        last_poll = last_poll.replace(tzinfo=timezone.utc)
+    interval = max(1, int(getattr(device, "poll_interval", 60) or 60))
+    return (now - last_poll).total_seconds() >= interval
+
 
 # ─── 轮询原始数据专用日志（受 SNMP_RAW_LOG_ENABLED 控制）────────
 _poll_raw_logger = logging.getLogger('snmp.poll.raw')
@@ -68,6 +102,7 @@ _init_poll_raw_logger()
 
 # ─── 配置 ─────────────────────────────────────────────────────────
 CONCURRENCY_LIMIT = 20      # 同时最多轮询 N 台设备
+SNMP_REQUEST_CONCURRENCY = 10  # 完整轮询的同时在途 SNMP 请求数
 SNMP_TIMEOUT = 3             # 完整指标轮询的 SNMP 请求超时 (秒)
 SNMP_RETRIES = 1             # 完整指标轮询的超时重试次数
 BULK_MAX_REPETITIONS = 25    # GETBULK 每批返回行数
@@ -75,7 +110,9 @@ WALK_MAX_ITERATIONS = 100    # WALK 防止无限循环
 ALERT_DEDUP_MINUTES = 10     # 告警去重窗口 (分钟)
 BATCH_INSERT_SIZE = 5000     # 每批 INSERT 行数
 TRAP_POLL_COOLDOWN = 10      # Trap 触发轮询冷却时间 (秒)，避免与定时轮询并发写冲突
+FULL_POLL_FAILURE_RETRY_MIN_SECONDS = 5
 SYS_OBJECT_ID_OID = "1.3.6.1.2.1.1.2.0"
+CCDC_LEGACY_SYS_OBJECT_ID = "1.3.6.1.4.1.32828.3.257.16"
 
 # 轻量路径与完整指标轮询隔离：可达性探测不执行 WALK/写指标；可选状态列探测仅查询三列。
 _health_failures: dict[str, int] = {}
@@ -83,6 +120,10 @@ _health_port_statuses: dict[str, dict[str, str]] = {}
 _health_device_locks: dict[str, asyncio.Lock] = {}
 _endpoint_status_locks: dict[str, asyncio.Lock] = {}
 _health_device_locks_guard = asyncio.Lock()
+_pending_health_heartbeats: dict[str, tuple[datetime, float]] = {}
+_latest_health_successes: dict[str, datetime] = {}
+_full_poll_retry_after: dict[str, datetime] = {}
+_health_heartbeat_guard = asyncio.Lock()
 health_monitor_state: dict[str, object] = {
     "last_started_at": None,
     "last_finished_at": None,
@@ -93,22 +134,45 @@ health_monitor_state: dict[str, object] = {
     "transitions": 0,
     "max_probe_ms": 0,
     "capacity_degraded": False,
+    "heartbeat_pending": 0,
+    "heartbeat_last_flush_at": None,
 }
 
 # ─── SnmpEngine 池 ────────────────────────────────────────────────
 _engine_pool: list[SnmpEngine] = []
 _engine_lock = asyncio.Lock()
+_engine_creation_lock = asyncio.Lock()
+_snmp_request_semaphore = asyncio.Semaphore(SNMP_REQUEST_CONCURRENCY)
+_health_engine_pool: list[SnmpEngine] = []
+_health_engine_lock = asyncio.Lock()
+_health_engine_creation_lock = asyncio.Lock()
+_health_request_semaphore = asyncio.Semaphore(
+    _poll_settings.snmp_health_concurrency
+)
 
 # ─── Trap 触发轮询冷却表（host → 上次触发时间戳）────────────────────
 import time as _time
 _trap_poll_last: dict[str, float] = {}
 
 
-async def _get_engine() -> SnmpEngine:
-    async with _engine_lock:
-        if _engine_pool:
-            return _engine_pool.pop()
-    return SnmpEngine()
+async def _get_engine(*, health: bool = False) -> SnmpEngine:
+    pool = _health_engine_pool if health else _engine_pool
+    lock = _health_engine_lock if health else _engine_lock
+    creation_lock = (
+        _health_engine_creation_lock if health else _engine_creation_lock
+    )
+    async with lock:
+        if pool:
+            return pool.pop()
+
+    # SnmpEngine imports internal MIBs synchronously. Keep construction off the
+    # event loop and serialize cold creation so a request burst cannot saturate
+    # the interpreter before health probes get a chance to run.
+    async with creation_lock:
+        async with lock:
+            if pool:
+                return pool.pop()
+        return await asyncio.to_thread(SnmpEngine)
 
 
 def _discard_engine(eng: SnmpEngine):
@@ -119,16 +183,33 @@ def _discard_engine(eng: SnmpEngine):
         pass
 
 
-async def _return_engine(eng: SnmpEngine, discard: bool = False):
+async def _return_engine(
+    eng: SnmpEngine,
+    discard: bool = False,
+    *,
+    health: bool = False,
+):
     """将引擎放回池中。如果 discard=True（连接失败），则销毁该引擎而非复用。"""
     if discard:
         _discard_engine(eng)
         return
-    async with _engine_lock:
-        if len(_engine_pool) < CONCURRENCY_LIMIT:
-            _engine_pool.append(eng)
+    pool = _health_engine_pool if health else _engine_pool
+    lock = _health_engine_lock if health else _engine_lock
+    limit = (
+        _poll_settings.snmp_health_concurrency
+        if health
+        else SNMP_REQUEST_CONCURRENCY
+    )
+    async with lock:
+        if len(pool) < limit:
+            pool.append(eng)
         else:
             _discard_engine(eng)
+
+
+def _numeric_oid_tuple(oid: str) -> tuple[int, ...]:
+    """Keep numeric OIDs on pysnmp's direct path and avoid MIB name resolution."""
+    return tuple(int(part) for part in oid.lstrip(".").split("."))
 
 
 async def _snmp_get(
@@ -139,20 +220,29 @@ async def _snmp_get(
     *,
     timeout: float = SNMP_TIMEOUT,
     retries: int = SNMP_RETRIES,
+    health: bool = False,
 ) -> tuple[str, any]:
     """单个 OID GET 查询，返回 (oid, raw_value)。"""
-    engine = await _get_engine()
+    semaphore = (
+        _health_request_semaphore if health else _snmp_request_semaphore
+    )
+    await semaphore.acquire()
+    engine: SnmpEngine | None = None
     failed = False
     try:
+        engine = await _get_engine(health=health)
         error_indication, error_status, error_index, var_binds = await getCmd(
             engine,
             CommunityData(community, mpModel=1),
             UdpTransportTarget((host, port), timeout=timeout, retries=retries),
             ContextData(),
-            ObjectType(ObjectIdentity(oid)),
+            ObjectType(ObjectIdentity(_numeric_oid_tuple(oid))),
         )
         if error_indication:
-            # 超时或网络错误 → 引擎可能已被污染
+            # A transport timeout can leave the pysnmp dispatcher/LCD state
+            # unusable in a long-running process. Do not return that engine to
+            # the pool: a fresh engine is cheaper than keeping reachability
+            # probes stuck after the device comes back.
             failed = True
             return oid, None
         if error_status:
@@ -165,7 +255,9 @@ async def _snmp_get(
         logger.warning(f"SNMP GET {host}:{oid} 失败: {e}")
         return oid, None
     finally:
-        await _return_engine(engine, discard=failed)
+        if engine is not None:
+            await _return_engine(engine, discard=failed, health=health)
+        semaphore.release()
 
 
 async def _snmp_walk(
@@ -177,14 +269,17 @@ async def _snmp_walk(
     timeout: float = SNMP_TIMEOUT + 2,
     retries: int = SNMP_RETRIES,
     max_iterations: int = WALK_MAX_ITERATIONS,
+    strict: bool = False,
 ) -> dict[str, any]:
     """SNMP WALK via pysnmp v6 bulkCmd (SnmpEngine 复用)。"""
-    engine = await _get_engine()
+    await _snmp_request_semaphore.acquire()
+    engine: SnmpEngine | None = None
     results = {}
     next_oid = base_oid
-    base_tuple = tuple(int(x) for x in base_oid.lstrip(".").split("."))
+    base_tuple = _numeric_oid_tuple(base_oid)
     failed = False
     try:
+        engine = await _get_engine()
         for iteration in range(max_iterations):
             error_indication, error_status, error_index, var_bind_table = await bulkCmd(
                 engine,
@@ -192,12 +287,18 @@ async def _snmp_walk(
                 UdpTransportTarget((host, port), timeout=timeout, retries=retries),
                 ContextData(),
                 0, BULK_MAX_REPETITIONS,
-                ObjectType(ObjectIdentity(next_oid)),
+                ObjectType(ObjectIdentity(_numeric_oid_tuple(next_oid))),
             )
             if error_indication:
                 failed = True
+                if strict:
+                    raise RuntimeError(str(error_indication))
                 break
-            if error_status or not var_bind_table:
+            if error_status:
+                if strict:
+                    raise RuntimeError(error_status.prettyPrint())
+                break
+            if not var_bind_table:
                 break
 
             flat_binds = []
@@ -236,10 +337,30 @@ async def _snmp_walk(
     except Exception as e:
         failed = True
         logger.warning(f"SNMP WALK {host}:{base_oid} failed: {e}")
+        if strict:
+            raise
     finally:
-        await _return_engine(engine, discard=failed)
+        if engine is not None:
+            await _return_engine(engine, discard=failed)
+        _snmp_request_semaphore.release()
     logger.debug(f"WALK {base_oid}: {len(results)} results")
     return results
+
+
+async def _profile_snmp_walk(
+    host: str,
+    port: int,
+    community: str,
+    base_oid: str,
+) -> dict[str, any]:
+    """Profile collector adapter that preserves WALK transport failures."""
+    return await _snmp_walk(
+        host,
+        port,
+        community,
+        base_oid,
+        strict=True,
+    )
 
 
 async def _get_health_device_lock(device_id: str) -> asyncio.Lock:
@@ -247,21 +368,246 @@ async def _get_health_device_lock(device_id: str) -> asyncio.Lock:
         return _health_device_locks.setdefault(device_id, asyncio.Lock())
 
 
+async def _queue_health_heartbeat(
+    device_id: str,
+    checked_at: datetime,
+    elapsed_ms: float,
+) -> None:
+    """Merge stable-online probe metadata without entering the database write path."""
+    heartbeat = (checked_at, round(elapsed_ms, 2))
+    async with _health_heartbeat_guard:
+        _latest_health_successes[device_id] = checked_at
+        current = _pending_health_heartbeats.get(device_id)
+        if current is None or checked_at >= current[0]:
+            _pending_health_heartbeats[device_id] = heartbeat
+        health_monitor_state["heartbeat_pending"] = len(_pending_health_heartbeats)
+
+
+async def _clear_health_success(device_id: str) -> None:
+    """Invalidate buffered success metadata after a newer failed probe."""
+    async with _health_heartbeat_guard:
+        _latest_health_successes.pop(device_id, None)
+        _pending_health_heartbeats.pop(device_id, None)
+        health_monitor_state["heartbeat_pending"] = len(
+            _pending_health_heartbeats
+        )
+
+
+def _defer_full_poll_retry(
+    device: Device,
+    now: datetime | None = None,
+) -> None:
+    """Prevent failed first polls from being retried by every scheduler tick."""
+    now = now or datetime.now(timezone.utc)
+    retry_seconds = max(
+        FULL_POLL_FAILURE_RETRY_MIN_SECONDS,
+        int(getattr(device, "poll_interval", 60) or 60),
+    )
+    _full_poll_retry_after[device.id] = now + timedelta(seconds=retry_seconds)
+
+
+def _clear_full_poll_retry(device_id: str) -> None:
+    _full_poll_retry_after.pop(device_id, None)
+
+
+async def flush_health_heartbeats() -> int:
+    """Persist merged stable-online heartbeats in one non-critical transaction."""
+    async with _health_heartbeat_guard:
+        if not _pending_health_heartbeats:
+            health_monitor_state["heartbeat_pending"] = 0
+            return 0
+        snapshot = dict(_pending_health_heartbeats)
+        _pending_health_heartbeats.clear()
+        health_monitor_state["heartbeat_pending"] = 0
+
+    try:
+        async with AsyncSessionLocal() as db:
+            for device_id, (checked_at, latency_ms) in snapshot.items():
+                await db.execute(
+                    update(Device)
+                    .where(
+                        Device.id == device_id,
+                        or_(
+                            Device.last_status.is_(None),
+                            Device.last_status != "offline",
+                        ),
+                        or_(
+                            Device.last_health_check.is_(None),
+                            Device.last_health_check <= checked_at,
+                        ),
+                    )
+                    .values(
+                        last_health_check=checked_at,
+                        last_health_latency_ms=latency_ms,
+                    )
+                )
+            await db.commit()
+    except Exception:
+        async with _health_heartbeat_guard:
+            for device_id, heartbeat in snapshot.items():
+                current = _pending_health_heartbeats.get(device_id)
+                if current is None or heartbeat[0] > current[0]:
+                    _pending_health_heartbeats[device_id] = heartbeat
+            health_monitor_state["heartbeat_pending"] = len(
+                _pending_health_heartbeats
+            )
+        logger.exception(
+            "health_heartbeat_flush_failed devices=%s",
+            len(snapshot),
+        )
+        return 0
+
+    health_monitor_state["heartbeat_last_flush_at"] = (
+        datetime.now(timezone.utc).isoformat()
+    )
+    async with _health_heartbeat_guard:
+        health_monitor_state["heartbeat_pending"] = len(
+            _pending_health_heartbeats
+        )
+    logger.debug("health_heartbeat_flush devices=%s", len(snapshot))
+    return len(snapshot)
+
+
 async def _broadcast_health_transition(
     device_id: str,
     status: str,
     now: datetime,
     reason: str,
+    alert_payload: dict | None = None,
 ):
-    await ws_manager.broadcast({
-        "type": "device_update",
-        "device_id": device_id,
-        "online_status": status,
-        "reachability": status,
-        "reason": reason,
-        "last_health_check": now.isoformat(),
-        "timestamp": now.isoformat(),
-    })
+    async with AsyncSessionLocal() as db:
+        device = await db.get(Device, device_id)
+        device_payload = (
+            await serialize_device_summary(db, device)
+            if device is not None
+            else None
+        )
+    await ws_manager.broadcast(event_envelope(
+        "device_update",
+        event_id=f"device:{device_id}:{now.isoformat()}",
+        timestamp=now,
+        data={"device": device_payload} if device_payload else {"device_id": device_id},
+        device=device_payload,
+        device_id=device_id,
+        online_status=status,
+        reachability=status,
+        reason=reason,
+        last_health_check=now.isoformat(),
+    ))
+    if alert_payload is not None:
+        await _broadcast_persisted_alerts([alert_payload], now)
+
+
+async def _broadcast_persisted_alerts(
+    alert_payloads: list[dict],
+    timestamp: datetime,
+) -> None:
+    """Broadcast committed alerts using the stable and compatibility contracts."""
+    if not alert_payloads:
+        return
+    for alert in alert_payloads:
+        await ws_manager.broadcast(event_envelope(
+            "alert_created",
+            event_id=f"alert:{alert['id']}",
+            timestamp=timestamp,
+            data={"alert": alert},
+            alert=alert,
+        ))
+    await ws_manager.broadcast(event_envelope(
+        "new_alerts",
+        event_id="alerts:" + ",".join(str(alert["id"]) for alert in alert_payloads),
+        timestamp=timestamp,
+        data={"alerts": alert_payloads},
+        alerts=alert_payloads,
+    ))
+
+
+async def _persist_health_transition(
+    device: Device,
+    *,
+    reachable: bool,
+    threshold_reached: bool,
+    elapsed_ms: float,
+    now: datetime,
+    not_newer_than: datetime | None = None,
+) -> tuple[bool, dict | None]:
+    """Persist reachability state and its alert before any WebSocket broadcast."""
+    transitioned = False
+    alert: Alert | None = None
+    if not reachable and not_newer_than is not None:
+        async with _health_heartbeat_guard:
+            latest_success = _latest_health_successes.get(device.id)
+        if latest_success is not None and latest_success > not_newer_than:
+            return False, None
+
+    async with AsyncSessionLocal() as db:
+        current = await db.get(Device, device.id)
+        if current is None:
+            return False, None
+        if (
+            not reachable
+            and not_newer_than is not None
+            and current.last_health_check is not None
+        ):
+            last_health_check = current.last_health_check
+            if last_health_check.tzinfo is None:
+                last_health_check = last_health_check.replace(tzinfo=timezone.utc)
+            if last_health_check > not_newer_than:
+                return False, None
+
+        latency = round(elapsed_ms, 2)
+        if reachable:
+            if current.last_status == "offline":
+                transitioned = True
+                current.last_status = "online"
+                current.last_health_check = now
+                current.last_health_latency_ms = latency
+                await db.execute(
+                    update(Alert)
+                    .where(
+                        Alert.device_id == current.id,
+                        Alert.alert_type == "offline",
+                        Alert.is_resolved.is_(False),
+                    )
+                    .values(is_resolved=True, resolved_at=now)
+                )
+                alert = Alert(
+                    device_id=current.id,
+                    oid_name="reachability",
+                    alert_type="recovery",
+                    severity="info",
+                    message=f"{current.name} 已恢复在线",
+                    raw_value="online",
+                    created_at=now,
+                )
+                db.add(alert)
+        elif threshold_reached and current.last_status != "offline":
+            transitioned = True
+            current.last_status = "offline"
+            current.last_health_check = now
+            current.last_health_latency_ms = latency
+            alert = Alert(
+                device_id=current.id,
+                oid_name="reachability",
+                alert_type="offline",
+                severity="critical",
+                message=f"{current.name} 已离线",
+                raw_value="offline",
+                created_at=now,
+            )
+            db.add(alert)
+
+        if transitioned:
+            await db.commit()
+            await db.refresh(alert)
+            alert_payload = serialize_alert(alert)
+        else:
+            alert_payload = None
+
+    if transitioned and not reachable:
+        await _clear_health_success(device.id)
+        await mark_profile_data_stale(device.id)
+    return transitioned, alert_payload
 
 
 async def probe_device_health(device: Device) -> tuple[bool, bool, float]:
@@ -278,6 +624,7 @@ async def probe_device_health(device: Device) -> tuple[bool, bool, float]:
         SYS_OBJECT_ID_OID,
         timeout=settings.snmp_health_timeout,
         retries=settings.snmp_health_retries,
+        health=True,
     )
     elapsed_ms = (_time.monotonic() - started) * 1000
     reachable = raw_sys_oid is not None
@@ -287,44 +634,63 @@ async def probe_device_health(device: Device) -> tuple[bool, bool, float]:
     lock = await _get_health_device_lock(device.id)
     async with lock:
         if reachable:
+            had_failures = device.id in _health_failures
             _health_failures.pop(device.id, None)
-            # 每一次成功都写入探测时间；它既是运维新鲜度指标，也用于拒绝过期完整轮询的离线写入。
-            async with AsyncSessionLocal() as db:
-                current = await db.get(Device, device.id)
-                if current:
-                    values = {"last_health_check": now}
-                    if current.last_status == "offline":
-                        values["last_status"] = "online"
-                        transitioned = True
-                    await db.execute(update(Device).where(Device.id == device.id).values(**values))
-                    await db.commit()
+            if had_failures or device.last_status == "offline":
+                _clear_full_poll_retry(device.id)
+            if device.last_status == "offline":
+                transitioned, alert_payload = await _persist_health_transition(
+                    device,
+                    reachable=True,
+                    threshold_reached=False,
+                    elapsed_ms=elapsed_ms,
+                    now=now,
+                )
+            else:
+                await _queue_health_heartbeat(device.id, now, elapsed_ms)
+                alert_payload = None
             if transitioned:
                 logger.warning(
                     "device_health_recovered device_id=%s host=%s elapsed_ms=%.1f",
                     device.id, device.host, elapsed_ms,
                 )
-                await _broadcast_health_transition(device.id, "online", now, "snmp_health_probe_recovered")
+                await _broadcast_health_transition(
+                    device.id,
+                    "online",
+                    now,
+                    "snmp_health_probe_recovered",
+                    alert_payload,
+                )
         else:
+            await _clear_health_success(device.id)
             failures = _health_failures.get(device.id, 0) + 1
             _health_failures[device.id] = failures
-            # 健康周期加载的快照已是离线时，不访问数据库或重复广播。
-            if failures >= settings.snmp_health_failure_threshold and device.last_status != "offline":
-                async with AsyncSessionLocal() as db:
-                    current = await db.get(Device, device.id)
-                    if current and current.last_status != "offline":
-                        await db.execute(
-                            update(Device).where(Device.id == device.id).values(
-                                last_status="offline", last_health_check=now
-                            )
-                        )
-                        await db.commit()
-                        transitioned = True
-                if transitioned:
-                    logger.warning(
-                        "device_health_offline device_id=%s host=%s failures=%s elapsed_ms=%.1f",
-                        device.id, device.host, failures, elapsed_ms,
-                    )
-                    await _broadcast_health_transition(device.id, "offline", now, "snmp_health_probe_timeout")
+            threshold_reached = (
+                failures >= settings.snmp_health_failure_threshold
+            )
+            if threshold_reached and device.last_status != "offline":
+                _defer_full_poll_retry(device, now)
+                transitioned, alert_payload = await _persist_health_transition(
+                    device,
+                    reachable=False,
+                    threshold_reached=True,
+                    elapsed_ms=elapsed_ms,
+                    now=now,
+                )
+            else:
+                alert_payload = None
+            if transitioned:
+                logger.warning(
+                    "device_health_offline device_id=%s host=%s failures=%s elapsed_ms=%.1f",
+                    device.id, device.host, failures, elapsed_ms,
+                )
+                await _broadcast_health_transition(
+                    device.id,
+                    "offline",
+                    now,
+                    "snmp_health_probe_timeout",
+                    alert_payload,
+                )
 
     return reachable, transitioned, elapsed_ms
 
@@ -336,9 +702,17 @@ async def probe_device_endpoint_statuses(device_id: str):
     """
     async with AsyncSessionLocal() as db:
         device = await db.get(Device, device_id)
-    if not device or not device.is_active:
+    if not device or not device.is_active or not _supports_legacy_endpoint_probe(device):
         return
     await _probe_endpoint_statuses(device)
+
+
+def _supports_legacy_endpoint_probe(device: Device) -> bool:
+    """Only the legacy CCDC profile uses the three known endpoint status tables."""
+    return (
+        getattr(device, "profile_id", None) == "ccdc_legacy"
+        or getattr(device, "system_oid", None) == CCDC_LEGACY_SYS_OBJECT_ID
+    )
 
 
 async def _probe_endpoint_statuses(device: Device):
@@ -429,9 +803,6 @@ async def run_health_probe_cycle():
         async with semaphore:
             try:
                 reachable, transitioned, elapsed_ms = await probe_device_health(device)
-                # 仅扫描三个状态列（CPU、CON、物理端口），使模块/网线事件无需等待完整 WALK。
-                if reachable and settings.snmp_endpoint_status_poll_enabled:
-                    await _probe_endpoint_statuses(device)
                 successes += int(reachable)
                 failures += int(not reachable)
                 transitions += int(transitioned)
@@ -443,9 +814,10 @@ async def run_health_probe_cycle():
     await asyncio.gather(*(limited_probe(device) for device in devices), return_exceptions=True)
     duration_ms = (_time.monotonic() - started) * 1000
     health_timeout_budget = settings.snmp_health_timeout * (settings.snmp_health_retries + 1)
-    # 每台设备在可达后还会并发查询 3 个单批状态列；这些查询不能从 SLO 容量估算中忽略。
-    per_device_budget = health_timeout_budget + settings.snmp_health_timeout
-    estimated_scan_seconds = ((len(devices) + settings.snmp_health_concurrency - 1) // settings.snmp_health_concurrency) * per_device_budget
+    estimated_scan_seconds = (
+        (len(devices) + settings.snmp_health_concurrency - 1)
+        // settings.snmp_health_concurrency
+    ) * health_timeout_budget
     capacity_degraded = estimated_scan_seconds > settings.snmp_health_poll_interval
     health_monitor_state.update({
         "last_started_at": started_at.isoformat(),
@@ -471,6 +843,162 @@ async def run_health_probe_cycle():
     )
 
 
+async def run_endpoint_status_probe_cycle():
+    """Refresh legacy CPU/CON/port states without delaying reachability detection."""
+    settings = _get_settings()
+    if not settings.snmp_endpoint_status_poll_enabled:
+        return
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Device).where(
+                Device.is_active == True,
+                or_(
+                    Device.profile_id == "ccdc_legacy",
+                    Device.system_oid == CCDC_LEGACY_SYS_OBJECT_ID,
+                ),
+            )
+        )
+        devices = result.scalars().all()
+
+    semaphore = asyncio.Semaphore(settings.snmp_health_concurrency)
+
+    async def limited_probe(device: Device):
+        async with semaphore:
+            try:
+                await _probe_endpoint_statuses(device)
+            except Exception:
+                logger.exception("设备 %s 端点状态探测异常", device.id)
+
+    await asyncio.gather(*(limited_probe(device) for device in devices), return_exceptions=True)
+    logger.info("endpoint_status_probe_cycle devices=%s", len(devices))
+
+
+def _profile_alert_candidates(
+    device: Device,
+    result: ProfilePollResult,
+) -> list[dict]:
+    candidates: list[dict] = []
+
+    def add_candidate(state: dict, *, entity_key: str | None = None, label: str | None = None):
+        status = state.get("status")
+        if status not in {"warning", "critical"}:
+            return
+        field_key = str(state.get("key") or "profile_state")
+        target = f"/{label}" if label else ""
+        candidates.append({
+            "device_id": device.id,
+            "endpoint_id": None,
+            "entity_key": entity_key,
+            "oid_name": field_key[:64],
+            "alert_type": "threshold",
+            "severity": status,
+            "message": f"{device.name}{target} {field_key} 异常: {state.get('value')}",
+            "raw_value": str(state.get("raw")),
+        })
+
+    for state in result.scalar_states.values():
+        add_candidate(state)
+    for entity in result.entities:
+        for state in entity["field_states"].values():
+            add_candidate(
+                state,
+                entity_key=entity["entity_key"],
+                label=entity.get("label"),
+            )
+    return candidates
+
+
+async def _persist_alert_candidates(
+    db: AsyncSession,
+    candidates: list[dict],
+    now: datetime,
+) -> list[Alert]:
+    """Apply the shared 10-minute dedup rule and retain committed Alert IDs."""
+    created: list[Alert] = []
+    dedup_cutoff = now - timedelta(minutes=ALERT_DEDUP_MINUTES)
+    for candidate in candidates:
+        existing_alert = await db.execute(
+            select(Alert).where(
+                Alert.device_id == candidate["device_id"],
+                Alert.endpoint_id == candidate.get("endpoint_id"),
+                Alert.oid_name == candidate.get("oid_name"),
+                Alert.entity_key == candidate.get("entity_key"),
+                Alert.is_resolved.is_(False),
+                Alert.created_at >= dedup_cutoff,
+            ).limit(1)
+        )
+        if existing_alert.scalar_one_or_none():
+            continue
+        alert = Alert(created_at=now, **candidate)
+        db.add(alert)
+        created.append(alert)
+    if created:
+        await db.flush()
+    return created
+
+
+async def _broadcast_device_snapshot(
+    device_id: str,
+    *,
+    timestamp: datetime,
+    reason: str,
+) -> None:
+    async with AsyncSessionLocal() as db:
+        device = await db.get(Device, device_id)
+        if device is None:
+            return
+        payload = await serialize_device_summary(db, device)
+    await ws_manager.broadcast(event_envelope(
+        "device_update",
+        event_id=f"device:{device_id}:{timestamp.isoformat()}",
+        timestamp=timestamp,
+        data={"device": payload},
+        device=payload,
+        device_id=device_id,
+        online_status=payload["reachability"]["status"],
+        reachability=payload["reachability"]["status"],
+        last_metrics=payload.get("last_metrics"),
+        endpoint_count=payload.get("endpoint_count", 0),
+        reason=reason,
+    ))
+
+
+async def _poll_profile_device(
+    device: Device,
+    profile,
+    now: datetime,
+) -> None:
+    result = await collect_profile_snapshot(
+        device,
+        profile,
+        _snmp_get,
+        _profile_snmp_walk,
+    )
+    await persist_profile_snapshot(device.id, result)
+
+    candidates = _profile_alert_candidates(device, result)
+    async with AsyncSessionLocal() as db:
+        alerts = await _persist_alert_candidates(db, candidates, now)
+        await db.commit()
+        alert_payloads = [serialize_alert(alert) for alert in alerts]
+
+    await _broadcast_device_snapshot(
+        device.id,
+        timestamp=now,
+        reason=f"profile_poll_{result.status}",
+    )
+    await _broadcast_persisted_alerts(alert_payloads, now)
+    logger.info(
+        "Profile 轮询完成 device=%s profile=%s status=%s entities=%s alerts=%s",
+        device.id,
+        profile.profile_id,
+        result.status,
+        len(result.entities),
+        len(alert_payloads),
+    )
+
+
 async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
     """轮询单台设备，写入时序数据并检测告警"""
     logger.info(f"开始轮询设备: {device.id} ({device.host})")
@@ -482,46 +1010,42 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
     metrics_to_insert: list[dict] = []
     alerts_to_create: list[dict] = []
 
-    # ── 读取 sysObjectID ──────────────────────────────────────────
-    # 已学习的厂商 sysObjectID 优先；首次/型号变化时由完整轮询验证并持久化。
-    sys_oid = device.system_oid or "1.3.6.1.4.1.32828.3.257.16"  # 默认 GUD-CCDC
+    # ── 读取 sysObjectID 并精确选择五 Profile 之一 ─────────────────
+    sys_oid = device.system_oid
     discovered_system_oid = None
+    profile = None
     rich_probe_started_at = now
+    rich_probe_started_monotonic = _time.monotonic()
     try:
         _, raw_sys_oid = await _snmp_get(device.host, device.port, device.community, SYS_OBJECT_ID_OID)
         if raw_sys_oid:
-            if hasattr(raw_sys_oid, 'asTuple'):
-                sys_oid_str = ".".join(str(x) for x in raw_sys_oid.asTuple())
+            profile = identify_profile(raw_sys_oid)
+            if hasattr(raw_sys_oid, "asTuple"):
+                sys_oid = ".".join(str(x) for x in raw_sys_oid.asTuple())
             else:
-                sys_oid_str = str(raw_sys_oid).lstrip(".")
-            # 只接受 G&D enterprise 子树，避免错误地把任意包含 32828 的字符串用于表 OID。
-            if sys_oid_str.startswith("1.3.6.1.4.1.32828."):
-                sys_oid = sys_oid_str
-                discovered_system_oid = sys_oid_str
+                sys_oid = str(raw_sys_oid).lstrip(".")
+            discovered_system_oid = sys_oid
         else:
-            # 完整轮询的失败请求可能早于健康探测成功；不得覆盖后者的可达性状态。
             logger.warning(f"设备 {device.id} (IP: {device.host}) 完整轮询 sysObjectID 超时，跳过深度轮询。")
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(
-                    update(Device).where(
-                        Device.id == device.id,
-                        or_(
-                            Device.last_health_check.is_(None),
-                            Device.last_health_check <= rich_probe_started_at,
-                        ),
-                    ).values(last_poll=now, last_status="offline")
+            _defer_full_poll_retry(device, now)
+            lock = await _get_health_device_lock(device.id)
+            async with lock:
+                transitioned, alert_payload = await _persist_health_transition(
+                    device,
+                    reachable=False,
+                    threshold_reached=True,
+                    elapsed_ms=(_time.monotonic() - rich_probe_started_monotonic) * 1000,
+                    now=now,
+                    not_newer_than=rich_probe_started_at,
                 )
-                await db.commit()
-            if result.rowcount:
-                await ws_manager.broadcast({
-                    "type": "device_update",
-                    "device_id": device.id,
-                    "online_status": "offline",
-                    "reachability": "offline",
-                    "reason": "snmp_rich_poll_timeout",
-                    "status": {},
-                    "timestamp": now.isoformat(),
-                })
+            if transitioned:
+                await _broadcast_health_transition(
+                    device.id,
+                    "offline",
+                    now,
+                    "snmp_rich_poll_timeout",
+                    alert_payload,
+                )
             else:
                 logger.info(
                     "忽略过期完整轮询离线结果：设备 %s 在请求开始后已通过健康探测确认可达",
@@ -530,6 +1054,58 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
             return
     except Exception as e:
         logger.warning(f"获取 {device.id} sysObjectID 失败: {e}")
+        return
+
+    lock = await _get_health_device_lock(device.id)
+    async with lock:
+        transitioned, alert_payload = await _persist_health_transition(
+            device,
+            reachable=True,
+            threshold_reached=False,
+            elapsed_ms=(_time.monotonic() - rich_probe_started_monotonic) * 1000,
+            now=now,
+        )
+    if transitioned:
+        await _broadcast_health_transition(
+            device.id,
+            "online",
+            now,
+            "snmp_rich_poll_recovery",
+            alert_payload,
+        )
+
+    if profile is None:
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                update(Device)
+                .where(Device.id == device.id)
+                .values(
+                    system_oid=discovered_system_oid,
+                    profile_id=None,
+                    profile_version=None,
+                    profile_evidence_version=None,
+                    last_poll=now,
+                    last_full_poll_status="unsupported",
+                    last_status="online",
+                )
+            )
+            await db.commit()
+        await _broadcast_device_snapshot(
+            device.id,
+            timestamp=now,
+            reason="unsupported_profile",
+        )
+        logger.warning(
+            "设备 %s sysObjectID=%s 不匹配已接受的五个 Profile",
+            device.id,
+            discovered_system_oid,
+        )
+        return
+
+    if profile.profile_id != "ccdc_legacy":
+        await _poll_profile_device(device, profile, now)
+        _clear_full_poll_retry(device.id)
+        return
 
     # ── 设备级 OID 并行 GET ─────────────────────────────────────
     device_status_summary = {}
@@ -571,10 +1147,9 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
             })
 
     # ── 轮询表类型 OID（CPU 终端模块 + CON 用户模块 + 端口）────────
+    endpoint_data: dict[tuple, dict[str, tuple]] = {}
     if table_oid_configs:
         # key = (module_namespace, row_index) 避免 CON 和 CPU 行号碰撞
-        endpoint_data: dict[tuple, dict[str, tuple]] = {}
-
         walk_tasks = []
         for ep_cfg in table_oid_configs:
             col_oid = f"{ep_cfg.table_base_oid}.{ep_cfg.table_column}"
@@ -750,64 +1325,67 @@ async def poll_device(device: Device, oid_configs: list[OIDRegistry]):
                 last_status=device_online_status,
                 last_metrics=full_metrics,
                 endpoint_count=ep_count,
-                # 仅写入经 sysObjectID 验证的 G&D enterprise OID；供快速状态列探测复用。
-                system_oid=discovered_system_oid or device.system_oid,
+                system_oid=profile.sys_object_id,
+                profile_id=profile.profile_id,
+                profile_version=profile.profile_version,
+                profile_evidence_version=profile.evidence_version,
+                model_name=device.model_name or profile.product,
+                last_full_poll_status="success",
             )
         )
 
-        # 告警去重：同设备同指标 10 分钟内不重复
-        dedup_cutoff = now - timedelta(minutes=ALERT_DEDUP_MINUTES)
-        for a in alerts_to_create:
-            existing_alert = await db.execute(
-                select(Alert).where(
-                    Alert.device_id == a["device_id"],
-                    Alert.oid_name == a["oid_name"],
-                    Alert.is_resolved == False,
-                    Alert.created_at >= dedup_cutoff,
-                ).limit(1)
-            )
-            if existing_alert.scalar_one_or_none():
-                continue  # 已有未处理告警，跳过
-            db.add(Alert(created_at=now, **a))
+        persisted_alerts = await _persist_alert_candidates(
+            db,
+            alerts_to_create,
+            now,
+        )
 
         await db.commit()
+        alert_payloads = [
+            serialize_alert(alert)
+            for alert in persisted_alerts
+        ]
 
     # ── WebSocket 广播 ──────────────────────────────────────────
-    await ws_manager.broadcast({
-        "type": "device_update",
-        "device_id": device.id,
-        "online_status": device_online_status,
-        # 完整轮询成功同样要清除前端的父设备离线覆盖状态。
-        "reachability": "online",
-        "status": device_status_summary,
-        "last_metrics": full_metrics,
-        "endpoint_count": ep_count,
-        "timestamp": now.isoformat(),
-    })
-    if alerts_to_create:
-        await ws_manager.broadcast({
-            "type": "new_alerts",
-            "alerts": alerts_to_create,
-            "timestamp": now.isoformat(),
-        })
+    await _broadcast_device_snapshot(
+        device.id,
+        timestamp=now,
+        reason="profile_poll_success",
+    )
+    await _broadcast_persisted_alerts(alert_payloads, now)
+    _clear_full_poll_retry(device.id)
 
-    logger.info(f"设备 {device.id} 轮询完成，写入 {len(metrics_to_insert)} 条指标，{len(alerts_to_create)} 条待去重告警")
+    logger.info(
+        "设备 %s 轮询完成，写入 %s 条指标，新增 %s 条告警",
+        device.id,
+        len(metrics_to_insert),
+        len(alert_payloads),
+    )
 
 
 async def run_poll_cycle():
-    """轮询主循环：限流并发，分批轮询所有活跃设备"""
+    """轮询主循环：限流并发，并按 sysObjectID 选择五种 Profile。"""
+    now = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as db:
         devices_result = await db.execute(select(Device).where(Device.is_active == True))
-        devices = devices_result.scalars().all()
+        active_devices = devices_result.scalars().all()
+        devices = [
+            device
+            for device in active_devices
+            if is_full_poll_eligible(device) and is_full_poll_due(device, now)
+        ]
 
         oids_result = await db.execute(select(OIDRegistry).where(OIDRegistry.poll_enabled == True))
         oid_configs = oids_result.scalars().all()
 
     if not devices:
-        logger.debug("没有活跃设备，跳过轮询")
+        logger.debug("没有到达各自轮询间隔的活跃设备，跳过完整轮询")
         return
 
-    logger.info(f"开始轮询周期: {len(devices)} 台设备, 并发上限 {CONCURRENCY_LIMIT}")
+    logger.info(
+        "开始轮询周期: %s/%s 台设备到期, 并发上限 %s",
+        len(devices), len(active_devices), CONCURRENCY_LIMIT,
+    )
     semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
     async def limited_poll(device):

@@ -9,7 +9,7 @@ function getDeviceStatus(ep) {
     return (ep.module_type === 'con' ? st.con_device_status : st.ep_device_status) || 'offline';
 }
 
-function EndpointsTab({ t, showToast }) {
+function EndpointsTab({ showToast }) {
     const [devices, setDevices] = useState([]);
     const [endpoints, setEndpoints] = useState([]);
     const [filterDevice, setFilterDevice] = useState('all');

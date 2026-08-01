@@ -74,6 +74,13 @@ export async function deviceAction(deviceId, action) {
   return unwrap(await api.post(`/runtime/devices/${encodeURIComponent(deviceId)}/actions`, { action }));
 }
 
+export async function patchEndpointState(deviceId, endpointId, patch) {
+  return unwrap(await api.patch(
+    `/devices/${encodeURIComponent(deviceId)}/endpoints/${encodeURIComponent(endpointId)}`,
+    patch,
+  ));
+}
+
 export async function sendTrap(payload) {
   return unwrap(await api.post('/traps', payload));
 }

@@ -17,7 +17,7 @@ function UsersTab({ t, showToast }) {
             setLoading(true);
             const res = await api.get('/auth/users');
             setUsers(res.data || []);
-        } catch (err) {
+        } catch {
             showToast(t('admin.common.error'), 'error');
         } finally {
             setLoading(false);

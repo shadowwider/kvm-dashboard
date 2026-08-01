@@ -1,97 +1,95 @@
-import React, { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { Languages, LogOut, Moon, Sun } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import { useTranslation, useTranslationStore } from '../i18n';
-import DevicesTab from '../components/admin/DevicesTab';
-import EndpointsTab from '../components/admin/EndpointsTab';
-import AliasesTab from '../components/admin/AliasesTab';
-import OIDsTab from '../components/admin/OIDsTab';
 import AlertsTab from '../components/admin/AlertsTab';
+import AliasesTab from '../components/admin/AliasesTab';
+import AuditLogsTab from '../components/admin/AuditLogsTab';
+import DevicesTab from '../components/admin/DevicesTab';
+import DiscoveryTab from '../components/admin/DiscoveryTab';
+import EndpointsTab from '../components/admin/EndpointsTab';
+import OIDsTab from '../components/admin/OIDsTab';
 import UsersTab from '../components/admin/UsersTab';
+import SoundControl from '../components/SoundControl';
+import useAlertSound from '../hooks/useAlertSound';
+import useSystemWebSocket from '../hooks/useSystemWebSocket';
+import { useTranslation, useTranslationStore } from '../i18n';
+import { useAuthStore } from '../store/authStore';
 import './Admin.css';
 
-const TABS = ['devices', 'endpoints', 'aliases', 'oids', 'alerts', 'users'];
+const TABS = ['devices', 'endpoints', 'aliases', 'oids', 'alerts', 'discovery', 'audit', 'users'];
 
-function Admin() {
+export default function Admin() {
     const navigate = useNavigate();
     const { t } = useTranslation();
     const { locale, setLocale } = useTranslationStore();
-    const user = useAuthStore((s) => s.user);
-    const logout = useAuthStore((s) => s.logout);
-
+    const user = useAuthStore((state) => state.user);
+    const logout = useAuthStore((state) => state.logout);
     const [activeTab, setActiveTab] = useState('devices');
     const [theme, setTheme] = useState('dark');
     const [toast, setToast] = useState(null);
+    useSystemWebSocket();
+    useAlertSound();
 
-    // Toast helper
     const showToast = useCallback((message, type = 'success') => {
         setToast({ message, type });
-        setTimeout(() => setToast(null), 3000);
+        window.setTimeout(() => setToast(null), 3000);
     }, []);
 
-    // Theme toggle
-    const toggleTheme = () => {
-        setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-    };
-
-    // Language toggle
-    const toggleLang = () => {
-        setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN');
-    };
-
-    // Render active tab content
-    const renderTab = () => {
-        switch (activeTab) {
-            case 'devices':
-                return <DevicesTab t={t} showToast={showToast} />;
-            case 'endpoints':
-                return <EndpointsTab t={t} showToast={showToast} />;
-            case 'aliases':
-                return <AliasesTab t={t} showToast={showToast} />;
-            case 'oids':
-                return <OIDsTab t={t} showToast={showToast} />;
-            case 'alerts':
-                return <AlertsTab t={t} showToast={showToast} />;
-            case 'users':
-                return <UsersTab t={t} showToast={showToast} />;
-            default:
-                return null;
-        }
+    const tabProps = { t, showToast };
+    const tabContent = {
+        devices: <DevicesTab {...tabProps} />,
+        endpoints: <EndpointsTab {...tabProps} />,
+        aliases: <AliasesTab {...tabProps} />,
+        oids: <OIDsTab {...tabProps} />,
+        alerts: <AlertsTab {...tabProps} />,
+        discovery: <DiscoveryTab {...tabProps} />,
+        audit: <AuditLogsTab {...tabProps} />,
+        users: <UsersTab {...tabProps} />,
     };
 
     return (
         <div className={`admin-page ${theme}`}>
-            {/* ── Top Bar ────────────────────────── */}
             <div className="admin-topbar">
                 <div className="admin-topbar-left">
                     <button className="admin-back-btn" onClick={() => navigate('/dashboard')}>
-                        ← {t('admin.back')}
+                        {t('admin.back')}
                     </button>
                     <span className="admin-title">{t('admin.title')}</span>
                 </div>
                 <div className="admin-topbar-right">
-                    {/* Language Toggle */}
-                    <button className="admin-icon-btn" onClick={toggleLang} title="切换语言">
-                        <span className="icon">🌐</span>
+                    <SoundControl />
+                    <button
+                        className="admin-icon-btn"
+                        onClick={() => setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN')}
+                        title={t('common.switch_language')}
+                    >
+                        <Languages size={14} />
                         {locale === 'zh-CN' ? t('admin.lang.en') : t('admin.lang.zh')}
                     </button>
-                    {/* Theme Toggle */}
-                    <button className="admin-icon-btn" onClick={toggleTheme} title="切换主题">
-                        <span className="icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
+                    <button
+                        className="admin-icon-btn"
+                        onClick={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}
+                        title={t('common.switch_theme')}
+                    >
+                        {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
                         {theme === 'dark' ? t('admin.theme.light') : t('admin.theme.dark')}
                     </button>
-                    {/* User Badge */}
                     <div className="admin-user-badge">
                         <span>{user?.username}</span>
                         <span className="user-role">[{user?.role}]</span>
                     </div>
-                    <button className="admin-btn danger" onClick={() => { logout(); navigate('/login'); }}>
-                        Logout
+                    <button
+                        className="admin-btn danger"
+                        onClick={() => {
+                            logout();
+                            navigate('/login');
+                        }}
+                    >
+                        <LogOut size={14} /> {t('common.logout')}
                     </button>
                 </div>
             </div>
 
-            {/* ── Tab Bar ────────────────────────── */}
             <div className="admin-tabs">
                 {TABS.map((tab) => (
                     <button
@@ -104,19 +102,9 @@ function Admin() {
                 ))}
             </div>
 
-            {/* ── Content ────────────────────────── */}
-            <div className="admin-content">
-                {renderTab()}
-            </div>
+            <div className="admin-content">{tabContent[activeTab]}</div>
 
-            {/* ── Toast ──────────────────────────── */}
-            {toast && (
-                <div className={`admin-toast ${toast.type}`}>
-                    {toast.message}
-                </div>
-            )}
+            {toast && <div className={`admin-toast ${toast.type}`}>{toast.message}</div>}
         </div>
     );
 }
-
-export default Admin;

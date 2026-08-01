@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState } from '@xyflow/react';
+import React, { useEffect } from 'react';
+import { ReactFlow, Controls, Background, useNodesState, useEdgesState } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useStore } from '../store/mainStore';
 import EndpointNode from './EndpointNode';
@@ -37,7 +37,7 @@ const TopologyView = () => {
         if (selectedDeviceId) {
             fetchTopology(selectedDeviceId);
         }
-    }, [selectedDeviceId]);
+    }, [fetchTopology, selectedDeviceId]);
 
     useEffect(() => {
         if (topology && topology.nodes && topology.edges) {
@@ -47,8 +47,6 @@ const TopologyView = () => {
             const radius = 250;
 
             const endNodes = topology.nodes.filter(n => n.type === 'endpoint');
-            const switchNodeIndex = topology.nodes.findIndex(n => n.type === 'kvmSwitch');
-
             const laidOutNodes = topology.nodes.map((node) => {
                 if (node.type === 'kvmSwitch') {
                     return { ...node, position: { x: centerX, y: centerY } };

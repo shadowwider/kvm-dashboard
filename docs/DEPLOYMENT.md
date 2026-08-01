@@ -85,12 +85,15 @@ docker compose ps
 | `ADMIN_USERNAME` | admin | 初始管理员用户名 |
 | `ADMIN_PASSWORD` | admin123 | ⚠️ 初始管理员密码 |
 | `SNMP_DEFAULT_COMMUNITY` | public | SNMP 默认 Community |
-| `SNMP_TRAP_PORT` | 10162 | SNMP Trap 监听 UDP 端口（宿主机侧） |
-| `SNMP_POLL_INTERVAL` | 45 | SNMP 主动轮询间隔（秒） |
+| `SNMP_TRAP_HOST_PORT` | 162 | 现场设备发送到宿主机的 Trap UDP 端口 |
+| `SNMP_TRAP_LISTEN_PORT` | 10162 | 后端容器实际监听的 Trap UDP 端口 |
+| `SNMP_POLL_INTERVAL` | 45 | 旧版兼容变量，不再控制完整轮询调度入口 |
 | `SNMP_RAW_LOG_ENABLED` | true | 开启原始 SNMP 数据日志（logs/ 目录） |
 | `LOG_LEVEL` | INFO | 日志级别（DEBUG/INFO/WARNING/ERROR） |
 | `TZ` | Asia/Shanghai | 系统时区 |
 | `FRONTEND_PORT` | 80 | 前端访问端口 |
+
+完整轮询调度器每秒检查一次，实际采集周期由每台设备的 `poll_interval` 决定。
 
 ---
 
@@ -167,13 +170,15 @@ docker compose down
 docker compose down -v
 ```
 
-### 5. 数据库自动迁移 (New)
-如果您是从旧版本（v1.0 以前）升级，本次更新引入了 `devices.last_metrics` 字段。
-- **自动处理**：后端程序 `app.main.py` 在启动时会自动检测数据库。如果缺失该字段，会自动执行 `ALTER TABLE` 语句。
-- **手动补丁**：若自动迁移受阻，请进入数据库容器执行：
-  ```sql
-  ALTER TABLE devices ADD COLUMN last_metrics JSONB DEFAULT '{}';
-  ```
+### 5. 数据库自动迁移
+
+后端在数据库初始化、种子数据和调度器启动之前自动执行 `alembic upgrade head`。空数据库会创建完整结构；已有旧版 SQLite 或 PostgreSQL 数据库会先登记旧版基线，再执行多 Profile 扩展迁移。
+
+部署升级后先查看后端日志，确认出现“数据库 Alembic 迁移完成”。迁移失败时后端会停止启动，不会在旧结构上继续运行。生产环境仍保持单个 FastAPI worker，避免进程内 APScheduler 重复执行轮询和启动发现任务。
+
+### 6. Trap 端口
+
+现场设备统一向服务器 UDP 162 发送 Trap。Compose 默认使用 `162:10162/udp`：宿主机监听 162，后端容器监听非特权端口 10162。确认服务器防火墙已开放 `162/udp`，并且不要横向扩容后端服务。
 
 ---
 
@@ -238,5 +243,5 @@ frontend:
 | 数据库连接池 | `pool_size=20, max_overflow=40` |
 | SNMP 并发限流 | Semaphore 上限 20-30 |
 | 日志轮转 | 配置 logrotate 或 Docker `--log-opt max-size=50m` |
-| 轮询间隔 | 生产环境默认 45s（有 Trap 实时告警，无需过短），可通过 `SNMP_POLL_INTERVAL` 调整 |
+| 轮询间隔 | 调度器每秒检查到期设备；按设备规模分别配置 `Device.poll_interval`，避免大量设备同时执行完整 WALK |
 | TimescaleDB 压缩 | 开启 30 天以上数据自动压缩 |

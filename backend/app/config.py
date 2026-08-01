@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from pathlib import Path
@@ -33,7 +33,13 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
 
     # SNMP
-    snmp_trap_port: int = 162
+    snmp_trap_host_port: int = Field(default=162, ge=1, le=65535)
+    snmp_trap_listen_port: int = Field(
+        default=162,
+        ge=1,
+        le=65535,
+        validation_alias=AliasChoices("SNMP_TRAP_LISTEN_PORT", "SNMP_TRAP_PORT"),
+    )
     snmp_default_community: str = "public"
     # 完整指标轮询：GET/WALK、指标归档和阈值告警。不要为可达性检测降低此值。
     snmp_poll_interval: int = 45
@@ -43,9 +49,19 @@ class Settings(BaseSettings):
     snmp_health_timeout: float = Field(default=0.25, gt=0, le=10)
     snmp_health_retries: int = Field(default=1, ge=0, le=5)
     snmp_health_concurrency: int = Field(default=20, ge=1, le=200)
-    snmp_health_failure_threshold: int = Field(default=1, ge=1, le=10)
+    # Require two consecutive failed probes. At a one-second interval this
+    # still detects outages within the 2-3 second target while filtering a
+    # single transient dispatcher/network failure.
+    snmp_health_failure_threshold: int = Field(default=2, ge=1, le=10)
+    # 稳定在线心跳合并写入，避免每秒探测与完整轮询争抢数据库写锁。
+    snmp_health_heartbeat_flush_interval: float = Field(
+        default=10.0,
+        ge=1,
+        le=300,
+    )
     # 已知 CPU/CON 和物理端口的状态列；不依赖未验证的模块-端口索引映射。
     snmp_endpoint_status_poll_enabled: bool = True
+    snmp_endpoint_status_poll_interval: float = Field(default=5.0, ge=1, le=300)
 
     # 本地模拟器桥接：默认关闭，生产环境不得启用。
     simulator_bridge_enabled: bool = False
@@ -95,6 +111,11 @@ class Settings(BaseSettings):
     @property
     def is_sqlite(self) -> bool:
         return self.db_mode == "sqlite"
+
+    @property
+    def snmp_trap_port(self) -> int:
+        """One-release compatibility alias for callers using the old setting."""
+        return self.snmp_trap_listen_port
 
 
 @lru_cache

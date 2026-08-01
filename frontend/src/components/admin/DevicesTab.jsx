@@ -1,35 +1,43 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { getApiError, getDeviceSummaries } from '../../services/multiProfileApi';
 import api from '../../utils/api';
 
-function DevicesTab({ t, showToast }) {
+const emptyForm = {
+    id: '',
+    name: '',
+    host: '',
+    port: 161,
+    community: '',
+    location: '',
+    description: '',
+};
+
+export default function DevicesTab({ t, showToast }) {
     const [devices, setDevices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [editDevice, setEditDevice] = useState(null); // null=新增, object=编辑
-    const [form, setForm] = useState({
-        id: '', name: '', host: '', port: 161,
-        community: 'public', location: '', description: ''
-    });
+    const [editDevice, setEditDevice] = useState(null);
+    const [form, setForm] = useState(emptyForm);
 
-    // Fetch devices
     const fetchDevices = useCallback(async () => {
         try {
             setLoading(true);
-            const res = await api.get('/devices');
-            setDevices(res.data || []);
-        } catch (err) {
-            showToast(t('admin.common.error') + ': ' + (err.response?.data?.detail || err.message), 'error');
+            const result = await getDeviceSummaries({ page: 1, page_size: 100 });
+            setDevices(result.items);
+        } catch (error) {
+            showToast(getApiError(error).message || t('admin.common.error'), 'error');
         } finally {
             setLoading(false);
         }
     }, [showToast, t]);
 
-    useEffect(() => { fetchDevices(); }, [fetchDevices]);
+    useEffect(() => {
+        fetchDevices();
+    }, [fetchDevices]);
 
-    // Open modal
     const openAdd = () => {
         setEditDevice(null);
-        setForm({ id: '', name: '', host: '', port: 161, community: 'public', location: '', description: '' });
+        setForm(emptyForm);
         setShowModal(true);
     };
 
@@ -40,69 +48,77 @@ function DevicesTab({ t, showToast }) {
             name: device.name,
             host: device.host,
             port: device.port,
-            community: device.community,
+            community: '',
             location: device.location || '',
             description: device.description || '',
         });
         setShowModal(true);
     };
 
-    // Submit form
     const handleSubmit = async () => {
         if (!editDevice && !form.id.trim()) {
-            showToast('设备 ID 不能为空', 'error');
+            showToast(t('admin.devices.validation_id'), 'error');
             return;
         }
         if (!form.name.trim() || !form.host.trim()) {
-            showToast('名称和 IP 不能为空', 'error');
+            showToast(t('admin.devices.validation_name_host'), 'error');
             return;
         }
+        if (!editDevice && !form.community.trim()) {
+            showToast(t('admin.devices.validation_community'), 'error');
+            return;
+        }
+
+        const body = {
+            name: form.name.trim(),
+            host: form.host.trim(),
+            port: Number(form.port),
+            location: form.location.trim() || null,
+            description: form.description.trim() || null,
+        };
+        if (form.community.trim()) body.community = form.community;
+
         try {
             if (editDevice) {
-                const body = { ...form };
-                delete body.id;
-                await api.patch(`/devices/${editDevice.id}`, body);
+                await api.patch(`/devices/${encodeURIComponent(editDevice.id)}`, body);
             } else {
-                await api.post('/devices', form);
+                await api.post('/devices', { id: form.id.trim(), ...body });
             }
             showToast(t('admin.common.success'));
             setShowModal(false);
             fetchDevices();
-        } catch (err) {
-            showToast(err.response?.data?.detail || t('admin.common.error'), 'error');
+        } catch (error) {
+            showToast(getApiError(error).message || t('admin.common.error'), 'error');
         }
     };
 
-    // Delete
     const handleDelete = async (device) => {
-        if (!window.confirm(`${t('admin.devices.confirm_delete')} "${device.name}" (${device.id})?`)) return;
+        if (!window.confirm(`${t('admin.devices.confirm_delete')} "${device.name}"?`)) return;
         try {
-            await api.delete(`/devices/${device.id}`);
+            await api.delete(`/devices/${encodeURIComponent(device.id)}`);
             showToast(t('admin.common.success'));
             fetchDevices();
-        } catch (err) {
-            showToast(err.response?.data?.detail || t('admin.common.error'), 'error');
+        } catch (error) {
+            showToast(getApiError(error).message || t('admin.common.error'), 'error');
         }
     };
 
-    // Toggle active
     const handleToggle = async (device) => {
         try {
-            await api.patch(`/devices/${device.id}`, { is_active: !device.is_active });
+            await api.patch(`/devices/${encodeURIComponent(device.id)}`, { is_active: !device.is_active });
             showToast(t('admin.common.success'));
             fetchDevices();
-        } catch (err) {
-            showToast(err.response?.data?.detail || t('admin.common.error'), 'error');
+        } catch (error) {
+            showToast(getApiError(error).message || t('admin.common.error'), 'error');
         }
     };
 
-    // Manual poll
     const handlePoll = async (device) => {
         try {
-            await api.post(`/devices/${device.id}/poll`);
-            showToast(`${device.id} ${t('admin.devices.poll')}...`);
-        } catch (err) {
-            showToast(err.response?.data?.detail || t('admin.common.error'), 'error');
+            await api.post(`/devices/${encodeURIComponent(device.id)}/poll`);
+            showToast(t('admin.devices.poll_started'));
+        } catch (error) {
+            showToast(getApiError(error).message || t('admin.common.error'), 'error');
         }
     };
 
@@ -110,62 +126,63 @@ function DevicesTab({ t, showToast }) {
 
     return (
         <>
-            {/* Toolbar */}
             <div className="admin-toolbar">
                 <div className="admin-toolbar-left">
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>
-                        {t('admin.tabs.devices')} ({devices.length})
-                    </span>
+                    <strong>{t('admin.tabs.devices')} ({devices.length})</strong>
                 </div>
                 <div className="admin-toolbar-right">
                     <button className="admin-btn primary" onClick={openAdd}>
-                        + {t('admin.devices.add')}
+                        {t('admin.devices.add')}
                     </button>
                 </div>
             </div>
 
-            {/* Table */}
             <div className="admin-table-wrap">
                 <table className="admin-table">
                     <thead>
                         <tr>
                             <th>{t('admin.devices.id')}</th>
                             <th>{t('admin.devices.name')}</th>
+                            <th>{t('admin.devices.profile')}</th>
                             <th>{t('admin.devices.host')}</th>
-                            <th>{t('admin.devices.port')}</th>
-                            <th>{t('admin.devices.community')}</th>
+                            <th>{t('admin.devices.credential')}</th>
                             <th>{t('admin.devices.status')}</th>
                             <th>{t('admin.devices.actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {devices.map((d) => (
-                            <tr key={d.id}>
-                                <td style={{ fontWeight: 600 }}>{d.id}</td>
-                                <td>{d.name}</td>
-                                <td>{d.host}</td>
-                                <td>{d.port}</td>
-                                <td>{d.community}</td>
+                        {devices.map((device) => (
+                            <tr key={device.id}>
+                                <td><strong>{device.id}</strong></td>
+                                <td>{device.name}</td>
+                                <td>{t(device.profile_label_key || `profiles.${device.profile_id}`, device.profile_id)}</td>
+                                <td>{device.host}:{device.port}</td>
                                 <td>
-                                    <span className={`status-badge ${d.is_active ? (d.last_status || 'online') : 'inactive'}`}>
-                                        <span className={`status-dot ${d.is_active ? (d.last_status || 'online') : 'offline'}`}></span>
-                                        {d.is_active
-                                            ? (d.last_status === 'offline' ? t('admin.devices.offline') : t('admin.devices.online'))
+                                    <span className={`status-badge ${device.credential_configured ? 'online' : 'warning'}`}>
+                                        {device.credential_configured
+                                            ? t('admin.devices.credential_configured')
+                                            : t('admin.devices.credential_missing')}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span className={`status-badge ${device.is_active ? device.online_status : 'inactive'}`}>
+                                        {device.is_active
+                                            ? t(`status.${device.online_status}`)
                                             : t('admin.devices.disabled')}
                                     </span>
                                 </td>
                                 <td>
                                     <div className="action-btns">
-                                        <button className="action-btn" onClick={() => openEdit(d)}>
+                                        <button className="action-btn" onClick={() => openEdit(device)}>
                                             {t('admin.devices.edit')}
                                         </button>
-                                        <button className="action-btn" onClick={() => handleToggle(d)}>
-                                            {d.is_active ? t('admin.devices.disabled') : t('admin.devices.enabled')}
+                                        <button className="action-btn" onClick={() => handleToggle(device)}>
+                                            {device.is_active ? t('admin.devices.disable') : t('admin.devices.enable')}
                                         </button>
-                                        <button className="action-btn success" onClick={() => handlePoll(d)}>
+                                        <button className="action-btn success" onClick={() => handlePoll(device)}>
                                             {t('admin.devices.poll')}
                                         </button>
-                                        <button className="action-btn danger" onClick={() => handleDelete(d)}>
+                                        <button className="action-btn danger" onClick={() => handleDelete(device)}>
                                             {t('admin.devices.delete')}
                                         </button>
                                     </div>
@@ -176,35 +193,33 @@ function DevicesTab({ t, showToast }) {
                 </table>
             </div>
 
-            {/* Modal */}
             {showModal && (
                 <div className="admin-modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="admin-modal" onClick={(event) => event.stopPropagation()}>
                         <h3>{editDevice ? t('admin.devices.edit') : t('admin.devices.add')}</h3>
-
                         <div className="form-group">
                             <label>{t('admin.devices.id')}</label>
                             <input
                                 value={form.id}
-                                onChange={(e) => setForm({ ...form, id: e.target.value })}
-                                disabled={!!editDevice}
-                                placeholder="CCDC-01"
+                                onChange={(event) => setForm({ ...form, id: event.target.value })}
+                                disabled={Boolean(editDevice)}
+                                placeholder={t('admin.devices.id_placeholder')}
                             />
                         </div>
                         <div className="form-group">
                             <label>{t('admin.devices.name')}</label>
                             <input
                                 value={form.name}
-                                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                placeholder="核心机房-KVM1"
+                                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                                placeholder={t('admin.devices.name_placeholder')}
                             />
                         </div>
                         <div className="form-group">
                             <label>{t('admin.devices.host')}</label>
                             <input
                                 value={form.host}
-                                onChange={(e) => setForm({ ...form, host: e.target.value })}
-                                placeholder="192.168.1.10"
+                                onChange={(event) => setForm({ ...form, host: event.target.value })}
+                                placeholder={t('admin.devices.host_placeholder')}
                             />
                         </div>
                         <div className="form-group">
@@ -212,31 +227,35 @@ function DevicesTab({ t, showToast }) {
                             <input
                                 type="number"
                                 value={form.port}
-                                onChange={(e) => setForm({ ...form, port: parseInt(e.target.value) || 161 })}
+                                onChange={(event) => setForm({ ...form, port: event.target.value })}
                             />
                         </div>
                         <div className="form-group">
                             <label>{t('admin.devices.community')}</label>
                             <input
+                                type="password"
                                 value={form.community}
-                                onChange={(e) => setForm({ ...form, community: e.target.value })}
+                                onChange={(event) => setForm({ ...form, community: event.target.value })}
+                                placeholder={editDevice
+                                    ? t('admin.devices.community_keep')
+                                    : t('admin.devices.community_placeholder')}
+                                autoComplete="new-password"
                             />
                         </div>
                         <div className="form-group">
                             <label>{t('admin.devices.location')}</label>
                             <input
                                 value={form.location}
-                                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                                onChange={(event) => setForm({ ...form, location: event.target.value })}
                             />
                         </div>
                         <div className="form-group">
                             <label>{t('admin.devices.description')}</label>
                             <input
                                 value={form.description}
-                                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                                onChange={(event) => setForm({ ...form, description: event.target.value })}
                             />
                         </div>
-
                         <div className="form-actions">
                             <button className="admin-btn" onClick={() => setShowModal(false)}>
                                 {t('admin.common.cancel')}
@@ -251,5 +270,3 @@ function DevicesTab({ t, showToast }) {
         </>
     );
 }
-
-export default DevicesTab;

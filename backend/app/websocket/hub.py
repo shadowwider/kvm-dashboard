@@ -5,9 +5,36 @@ WebSocket 连接管理器。
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
+
+
+def event_envelope(
+    event_type: str,
+    *,
+    event_id: str,
+    data: dict,
+    timestamp: datetime | str | None = None,
+    **compatibility_fields,
+) -> dict:
+    """Build the stable authenticated WebSocket event contract."""
+    if timestamp is None:
+        rendered_timestamp = datetime.now(timezone.utc).isoformat()
+    elif isinstance(timestamp, datetime):
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        rendered_timestamp = timestamp.astimezone(timezone.utc).isoformat()
+    else:
+        rendered_timestamp = timestamp
+    return {
+        "type": event_type,
+        "event_id": event_id,
+        "timestamp": rendered_timestamp,
+        "data": data,
+        **compatibility_fields,
+    }
 
 
 class ConnectionManager:

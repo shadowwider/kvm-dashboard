@@ -1,6 +1,6 @@
 # 本地 SNMP 模拟器：可视化组网与人工测试
 
-`backend/simulator/` 是本项目的本地 G&D/KVM SNMP 测试服务器。它模拟 SNMP v2c 设备、发送 G&D Trap，并可通过本地 bridge 把模拟拓扑注册进 Dashboard。它不是生产设备代理，也不表示当前 Dashboard 已经完整支持所有 G&D MIB Profile。
+`backend/simulator/` 是本项目的本地 G&D/KVM SNMP 测试服务器。它模拟 SNMP v2c 设备、发送 G&D Trap，并可通过本地 bridge 把模拟拓扑注册进 Dashboard。Dashboard 当前支持 5 个规范 Profile：`ccdc_legacy`、`ccdm_matrix`、`dp12_mux_atc`、`visionxs_con`、`visionxs_cpu`。模拟器用于开发和验收，不是生产设备代理。
 
 ## 当前能力
 
@@ -17,24 +17,31 @@
   归一化为 disconnect，不建立第四种运行状态。
 - Trap 控制台 API：`POST /api/v1/traps`，支持单/多设备、`formal`/`legacy` layout、level/message。
 - WebSocket：`WS /api/v1/ws`，向 simulator-ui 推送 snapshot、状态事件、拓扑事件和 Trap 发送事件。
-- Profile/OID：当前 L2 typed Profile 覆盖 CCDC、CCDM、VisionXS CPU、
-  VisionXS CON、DP12 MUX。Accepted L1/L2 静态对照中 CCDM 已达到
-  20/20 张表、142/142 个可 GET 叶，缺失、多余和非法 fixture 值均为 0。
-  这仍不等于已完成 L4 的真实 UDP/ASN.1 验证；Dashboard 现阶段也仍主要按
-  CCDC legacy 形状主动轮询。
+- Profile/OID：当前 L2 typed Profile 与 Dashboard Profile runtime 共同覆盖
+  `ccdc_legacy`、`ccdm_matrix`、`dp12_mux_atc`、`visionxs_con`、
+  `visionxs_cpu`。Dashboard 会按识别出的 Profile 采集并持久化 scalar/entity
+  状态；Accepted L1/L2 静态对照和 fixture 仍用于约束对象、类型与模拟值。
+  本地 fixture 通过不等于完成了全部真机 UDP/ASN.1 兼容性验证，现场验收仍应
+  对照对应设备 MIB 和抓包证据。
 - 可视化 UI：根目录 `simulator-ui/` 是独立 React + Vite + `@xyflow/react` 项目，开发时连接模拟器 API，构建后可由模拟器 FastAPI 托管。
 
 ## 设备与 Profile
 
-启动并选择 `all-profiles` 后，Dashboard 的设备列表/管理页应出现 5 个以 `SIM /` 开头的设备：
+启动并选择 `all-profiles` 后，Dashboard 的设备列表/管理页应出现以下 5 个
+以 `SIM /` 开头的设备：
 
-| 模拟设备 | 类型 | 当前可验证范围 |
-|---|---|---|
-| `SIM / Legacy CCDC Matrix` | 历史 CCDC 风格中心矩阵 | Dashboard 端到端：SNMP 轮询、1 秒可达性、CPU/CON 状态、正式 Trap、端口和模拟路由 |
-| `SIM / CCDM Matrix` | ControlCenter-Digital 中心矩阵 | L1/L2 静态 Profile 已达 20 表/142 可 GET 叶且零 drift；L3 typed state 已实例化实际 fixture，真实 UDP/ASN.1 行为待 L4 验证 |
-| `SIM / VisionXS CPU` | 独立 CPU SNMP Agent | 对象定义层与本地设备字典快照一致；真实 UDP/fixture 行与现场设备兼容仍待 L4 验证 |
-| `SIM / VisionXS CON` | 独立 CON SNMP Agent | 对象定义层与本地设备字典快照一致；真实 UDP/fixture 行与现场设备兼容仍待 L4 验证 |
-| `SIM / DP12 MUX` | 独立 DP 小型通道切换器 | 对象定义层与本地设备字典快照一致；6 个 read-write 是字典事实，但 SNMP SET 仍拒绝且真实协议待 L4 验证 |
+| 模拟设备 | 规范 Profile | port 模式地址 | Dashboard 验证重点 |
+|---|---|---|---|
+| `SIM / Legacy CCDC Matrix` (`sim-ccdc-01`) | `ccdc_legacy` | `127.0.0.1:11161` | 矩阵、CPU/CON、轮询、Trap 和详情字段 |
+| `SIM / CCDM Matrix` (`sim-ccdm-01`) | `ccdm_matrix` | `127.0.0.1:11162` | 矩阵、模块实体、风扇/状态字段和详情 |
+| `SIM / VisionXS CPU` (`sim-vision-cpu-01`) | `visionxs_cpu` | `127.0.0.1:11163` | 独立 CPU 的 scalar/entity 与详细状态 |
+| `SIM / VisionXS CON` (`sim-vision-con-01`) | `visionxs_con` | `127.0.0.1:11164` | 独立 CON 的 scalar/entity 与详细状态 |
+| `SIM / DP12 MUX` (`sim-dp12-01`) | `dp12_mux_atc` | `127.0.0.1:11165` | MUX/ATC 通道、状态实体与详细字段 |
+
+`CC160` 与 `CCDM` 共用 `ccdm_matrix`，不建立单独的 CC160 Profile。模拟器
+transport 中的历史标识 `ccdc_legacy_unverified` 和
+`dp12_mux_atc_readonly` 会分别规范化为 `ccdc_legacy` 和
+`dp12_mux_atc`；Dashboard、API 和验收文档统一使用上表中的规范 Profile ID。
 
 ## 地址模式
 
@@ -131,12 +138,15 @@ cd H:\WORK\I\kvm-dashboard\backend
 
 ## 推荐人工测试顺序
 
-### A. 验证拓扑与设备清单
+### A. 验证五 Profile 与设备清单
 
 1. 在模拟器 UI 或 fallback 页启动 `all-profiles`。
 2. Dashboard 刷新后，在“设备”或 Admin → Devices 确认看到上述 5 个 `SIM /` 设备。
-3. 点击 `SIM / Legacy CCDC Matrix`，在矩阵/拓扑中应见到 2 个 CPU 与 2 个 CON。
-4. 其余设备代表不同厂商 Profile fixture，不应被伪装为 Legacy CCDC 端点。
+3. 逐台点击设备，详情中的 Profile、scalar、entity 和字段状态应与设备类型一致。
+4. `SIM / Legacy CCDC Matrix` 与 `SIM / CCDM Matrix` 属于矩阵 Profile，
+   可在保留的矩阵页验证 CPU/CON 或模块状态。
+5. 原 Dashboard“拓扑”tab 已替换为普通设备表格；设备列表应同时展示全部
+   5 台设备，不再要求从旧拓扑图验收设备状态。
 
 ### B. 验证整台矩阵断网/恢复
 
@@ -179,8 +189,9 @@ level        = 1.3.6.1.4.1.32828.2.1.0.2
 message      = 1.3.6.1.4.1.32828.2.1.0.3
 ```
 
-5. Dashboard 的端点矩阵、拓扑与告警流应反映其当前已支持的 CCDC 数据；
-   非 CCDC 的 Dashboard Profile 化属于 L6。
+5. Dashboard 的矩阵、设备详情和告警流应反映当前 Profile 的最新状态；
+   CCDM、DP12、VisionXS CPU/CON 与 Legacy CCDC 都必须按各自 Profile 展示，
+   不能回退为统一的 Legacy CCDC 字段集合。
 6. 将 status 改回 `1` 验证恢复。对 CON 重复同样动作。
 
 ### D. 验证 Trap 控制台
@@ -201,13 +212,45 @@ curl -X POST http://127.0.0.1:18890/api/v1/traps \
   -d '{"device_ids":["sim-ccdc-01","sim-ccdm-01"],"level":5,"message":"Display connection state changed","layout":"legacy"}'
 ```
 
-### E. 验证模拟路由
+### E. 验证 Dashboard 视图
 
-1. 对 `CPU-1-001 → CON-1-001` 执行 route patch，将 state 改为 `disconnected`。
-2. 打开 Dashboard 的拓扑视图；模拟路由状态应更新。
-3. 该区域会明确显示“模拟拓扑”。这些 CPU→CON 路由来自场景/拓扑定义，标记为 `simulation-declared`，不是 SNMP 自动发现的真实物理连线。
+1. 矩阵视图保持可用，用于查看矩阵 Profile 的 CPU/CON 或模块状态。
+2. 切换到设备列表，确认 5 台设备均以表格行展示，并可点击打开完整详情。
+3. 旧拓扑 tab 不再展示图形拓扑；当前对应入口就是设备列表。
+4. Simulator UI 内的 route/edge 仍是场景控制数据，标记为
+   `simulation-declared`，不是 SNMP 自动发现的真实物理连线，也不是当前
+   Dashboard 设备列表的验收依据。
+
+### F. 验证 SNMP v2c 自动发现
+
+现场自动发现与 Simulator bridge 是两条独立的设备加入路径。在 Admin 配置扫描
+CIDR、community 和 SNMP 端口后启动扫描，后端会使用 SNMP v2c GET
+`sysObjectID.0` 识别上述 5 个 Profile；识别成功后直接新增或更新设备，结果为
+`imported` 或 `updated`，没有预览/确认步骤。单次配置的网段最多展开 256 个
+可用主机。
+
+本机 `SIM_ADDRESS_MODE=port` 下 5 台设备共用 `127.0.0.1`、仅端口不同，因此
+五设备联调优先使用 bridge。需要验证“一个地址一台设备、统一 UDP 161”的现场
+发现流程时，使用可路由测试网段或满足本机绑定条件的 `loopback` 模式。
 
 ## 自动验证命令
+
+服务启动后先执行五设备 smoke：
+
+```powershell
+cd H:\WORK\I\kvm-dashboard\backend
+.\.venv\Scripts\python.exe -m simulator.l0_check smoke `
+  --expected-topology all-profiles `
+  --expected-agents 5 `
+  --require-bridge `
+  --require-ui
+
+Invoke-RestMethod http://127.0.0.1:18890/api/v1/status
+```
+
+`/api/v1/status` 应返回 `status=ok`、`runtime.device_count=5`、
+`agents.expected=5` 和 `agents.running=5`；5 个 agent binding 应分别对应
+`11161` 至 `11165`。smoke 非零或计数不一致时，不应进入页面验收。
 
 后端：
 
@@ -241,8 +284,8 @@ npm.cmd run lint
 |---|---|
 | Dashboard 没有模拟设备 | 确认后端与模拟器都在运行；`SIMULATOR_BRIDGE_ENABLED=true`；两端 token 一致；模拟器启动拓扑；Dashboard 刷新一次。 |
 | 只看到一台模拟矩阵 | 当前加载的是 `ccdc-regression`，启动或加载 `all-profiles`。 |
-| 非 CCDC 设备在 Dashboard 没有完整指标 | 预期现象：目标是按 L1/L2 Golden 和 Profile 逐步补齐；当前 CCDM 尚未完整，生产 Dashboard poller Profile 化也属于后续层。 |
-| Trap 不出现 | 确认 Dashboard 后端 `SNMP_TRAP_PORT` 与模拟器环境一致；默认本地为 UDP `10162`。 |
+| 某个 Profile 的详情为空或字段明显不匹配 | 检查 bridge manifest 的 Profile、SNMP agent binding、Dashboard poller 日志和对应 fixture；5 个 Profile 都应进入各自的采集与详情展示流程。 |
+| Trap 不出现 | 本地非 Docker 联调确认 Dashboard 与模拟器都使用 UDP `10162`；Docker 现场设备发送宿主机 UDP `162`，Compose 映射到容器内 `10162`。 |
 | loopback 模式无法绑定 `127.0.1.x:161` | 先改回 `SIM_ADDRESS_MODE=port`；确认系统权限、防火墙、容器网络和端口占用。 |
 | 前端连错后端 | Dashboard 前端设置 `VITE_BACKEND_TARGET=http://127.0.0.1:18002`；simulator-ui 设置 `VITE_SIMULATOR_TARGET=http://127.0.0.1:18890`。 |
 | 端口被占用 | 改 `18002`、`3001`、`18890` 或 `SIM_SNMP_PORT_BASE`，并同步更新相关 URL。 |
