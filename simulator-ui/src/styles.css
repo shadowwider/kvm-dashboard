@@ -30,6 +30,8 @@ h3 { font-size: 14px; color: #a9c5df; }
 .ws { border-radius: 999px; padding: 3px 8px; background: #17283a; color: #a9c5df; }
 .ws.online { color: #56e39f; }
 .ws.error { color: #ffb86b; }
+.ws.reconnecting { color: #ffcf70; }
+.degraded, .field-error { color: #ff9a9a; }
 .primary { background: linear-gradient(135deg, #1e88e5, #19b5a5); border-color: transparent; color: white; font-weight: 700; }
 .full { width: 100%; justify-content: center; }
 .icon { padding: 8px; border-radius: 99px; }
@@ -46,6 +48,10 @@ h3 { font-size: 14px; color: #a9c5df; }
 .palette-card { flex-direction: column; align-items: flex-start; }
 .hint { line-height: 1.5; }
 .canvas-card { position: relative; min-height: 590px; }
+.canvas-legend { position: absolute; z-index: 5; left: 12px; top: 12px; display: flex; gap: 8px; font-size: 12px; }
+.canvas-legend span { padding: 5px 8px; border-radius: 999px; background: #132338; }
+.canvas-legend .physical { border-left: 3px solid #56e39f; }
+.canvas-legend .simulation { border-left: 3px dashed #71c7ff; }
 .react-flow { background: linear-gradient(135deg, rgba(11, 26, 43, .96), rgba(8, 14, 24, .96)); }
 .react-flow__minimap { background: #0b1725; border-radius: 10px; }
 
@@ -64,6 +70,8 @@ h3 { font-size: 14px; color: #a9c5df; }
 .empty-drawer { display: grid; place-items: center; color: #8fa9c4; padding: 28px; text-align: center; }
 .drawer-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
 .field-groups { display: grid; gap: 12px; margin-top: 12px; }
+.field-search { margin-top: 12px; }
+.pending { margin-top: 12px; color: #71c7ff; font-size: 12px; }
 .field-group { border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 12px; background: rgba(255,255,255,.025); }
 .field-group h3 { margin-bottom: 10px; }
 .field-row { display: grid; grid-template-columns: 1fr 150px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.055); }

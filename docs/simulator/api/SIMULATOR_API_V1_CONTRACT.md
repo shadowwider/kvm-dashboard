@@ -1,7 +1,7 @@
 # Simulator API v1 契约
 
-> 状态：Draft for L4
-> 日期：2026-07-31
+> 状态：Draft for L4（已冻结并验证 runtime PATCH 垂直切片；其余端点仍为 Draft）
+> 日期：2026-08-01
 > 所属层：L4 后端完成层
 > 消费者：`simulator-ui`、自动化验收脚本；Dashboard 通过 Bridge/UDP/Trap 集成
 
@@ -67,6 +67,10 @@ deprecated 或迁移，不能让前端同时维护两套产品流程。
 - 当前 topology 每台设备的实际 path registry；
 - 禁止按 index range 展开不存在的 row。
 
+`GET /api/v1/profiles` 只返回稳定 schema，**不**返回特定运行场景的 row/path。
+实际已实例化的可读写路径统一由 `GET /api/v1/state.runtime_instances`
+提供；前端不得用 schema 的 index range 自行展开编辑控件。
+
 ### 3.3 Runtime snapshot
 
 一个响应中至少固定：
@@ -78,11 +82,19 @@ active_topology_id
 scenario/topology
 devices[].availability
 devices[].profile_state
+runtime_instances.devices[].device_id
+runtime_instances.devices[].path_registry.paths[]
+runtime_instances.devices[].path_registry.writable_paths[]
 recent events or event cursor
 ```
 
 snapshot 内 revision 与全部值必须来自同一 L3 capture，不得分别读取 device 和
 profile state 后拼接。
+
+`path_registry` 是 L3 `PathSpec.to_dict()` 的只读投影，仅含当前 topology 的
+真实 fixture path。每条 path 都包含 `runtime_writable`、`vendor_snmp_writable`、
+`syntax`、enum/range/optional/index 信息；不存在的 row、disabled optional group、
+identity/index/availability 都不得以可编辑路径出现。
 
 ### 3.4 Patch
 
@@ -93,7 +105,8 @@ profile state 后拼接。
   "patches": [
     {"path": "scalars.switch_temperature", "value": "66.6"}
   ],
-  "emit_trap": false
+  "emit_trap": false,
+  "expected_revision": 12
 }
 ```
 
@@ -107,7 +120,17 @@ committed_values[{path,value}]
 idempotent
 event
 lifecycle_intent
+state
+snapshot
 ```
+
+`expected_revision` 可省略以兼容本地单操作者模式；提供时必须精确等于服务器
+当前 revision，否则返回 HTTP `409`，`detail.code=revision_conflict`，并携带
+`current_revision` 与 `retryable=true`。
+
+已验证的 PATCH 响应中的 `state` 与 `snapshot` 相同，且包括
+`runtime_instances`；这样 L5 可以在一次响应中拿到 committed value、revision 和
+实际可写 path，而不必猜测或另建前端字段表。
 
 ### 3.5 Device action
 
@@ -177,6 +200,21 @@ state/snapshot 或 requires_refetch
 L4 必须固定 topology start/stop/reset、runtime patch、device action、Trap、
 Bridge degradation 和 Agent lifecycle 事件；实现断线重连、revision gap 检测和
 慢客户端策略。前端只能按 revision 顺序应用，发现 gap 立即 GET `/state`。
+
+当前已验证的 runtime PATCH 事件采用完整 snapshot：
+
+```text
+type=runtime_state_patch
+schema_version=1
+revision
+event_id
+changed_paths
+committed_values
+state/snapshot（包含 runtime_instances）
+```
+
+连接首包为 `type=snapshot` 加完整 state。topology、Trap、Bridge、重连和慢客户
+端策略尚未冻结，L5 只能把它们作为待接入能力，不能假定已经完成。
 
 ## 6. 安全与兼容
 

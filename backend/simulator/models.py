@@ -242,6 +242,7 @@ class RuntimeStatePatch(BaseModel):
 
     patches: list[RuntimeFieldPatch] = Field(min_length=1, max_length=100)
     emit_trap: bool = False
+    expected_revision: int | None = Field(default=None, ge=1)
 
 
 class RuntimeDeviceAction(str, Enum):

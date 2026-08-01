@@ -30,10 +30,11 @@ FORMAL_TRAP = {
     "message_oid": "1.3.6.1.4.1.32828.2.1.0.3",
 }
 
-# L4 owns correction of the historical notification OID.  L2 preserves the
-# transport constant while keeping it outside all vendor Profile definitions.
+# This is a project-compatibility layout, not a vendor Profile object.  Its
+# notification OID deliberately differs from the two capture varbind OIDs;
+# the independent L1 legacy Trap Golden fixes this distinction.
 LEGACY_TRAP = {
-    "notification_oid": "1.3.6.1.4.1.32828.5.1.0.4",
+    "notification_oid": "1.3.6.1.4.1.32828.5.0.4",
     "level_oid": "1.3.6.1.4.1.32828.5.1.0.2",
     "message_oid": "1.3.6.1.4.1.32828.5.1.0.3",
 }
@@ -65,16 +66,16 @@ def normalize_profile_id(profile: str | ProfileId) -> str:
 
 
 def _snmp_type(item: ScalarDef | ColumnDef) -> str:
-    if item.enum is not None or item.syntax in {
-        "Integer",
-        "Integer32",
-        "Unsigned32",
-        "Gauge32",
-        "Counter32",
-        "Counter64",
-        "TimeTicks",
-    }:
+    if item.enum is not None or item.syntax in {"Integer", "Integer32"}:
         return "integer"
+    if item.syntax in {"Unsigned32", "Gauge32"}:
+        return "gauge"
+    if item.syntax == "Counter32":
+        return "counter"
+    if item.syntax == "Counter64":
+        return "counter64"
+    if item.syntax == "TimeTicks":
+        return "timeticks"
     if item.syntax == "OBJECT IDENTIFIER":
         return "object_identifier"
     return "string"

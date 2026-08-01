@@ -22,6 +22,7 @@ from .models import (
 from .profiles import profile_metadata
 from .runtime_paths import RuntimeTransitionError
 from .scenarios import built_in_scenarios
+from .profiles import FORMAL_TRAP, LEGACY_TRAP
 from .snmp_agent import SnmpAgent, send_formal_trap
 from .state import ScenarioState, TransitionResult
 from .topology_store import TopologyStore, topology_to_scenario
@@ -80,25 +81,103 @@ def _preflight_bindings(definition) -> None:
             probe.close()
 
 
-def _start_definition(definition, topology_id: str | None = None) -> ScenarioState:
-    global state, active_topology_id
-    try:
-        _preflight_bindings(definition)
-    except OSError as exc:
-        raise RuntimeError(f"Failed to reserve SNMP bindings for {topology_id or definition.id}: {exc}") from exc
-    stop_runtime(clear_state=True)
-    runtime = ScenarioState(definition)
+def _definition_bindings(definition) -> set[tuple[str, int]]:
+    return {
+        (device.host or "127.0.0.1", device.snmp_port)
+        for device in definition.devices
+    }
+
+
+def _start_agents(runtime: ScenarioState, definition) -> dict[str, SnmpAgent]:
+    """Start a complete candidate set, cleaning partial candidates on failure."""
     started: dict[str, SnmpAgent] = {}
     try:
         for device in definition.devices:
             agent = SnmpAgent(runtime, device.id, COMMUNITY)
             agent.start()
             started[device.id] = agent
+        return started
     except Exception:
         for agent in started.values():
             agent.stop()
         raise
+
+
+def _stop_agents(items: dict[str, SnmpAgent]) -> None:
+    failed = [device_id for device_id, agent in items.items() if not agent.stop()]
+    if failed:
+        raise RuntimeError(
+            "Failed to stop SNMP Agent thread(s): " + ", ".join(sorted(failed))
+        )
+
+
+def _start_definition(definition, topology_id: str | None = None) -> ScenarioState:
+    global state, active_topology_id
+    try:
+        _preflight_bindings(definition)
+    except OSError as exc:
+        raise RuntimeError(f"Failed to reserve SNMP bindings for {topology_id or definition.id}: {exc}") from exc
+    previous_state = state
+    previous_topology_id = active_topology_id
+    previous_agents = dict(agents)
+    runtime = ScenarioState(definition)
+    candidate_bindings = _definition_bindings(definition)
+    overlapping = bool(candidate_bindings & _current_bindings())
+
+    # Different UDP bindings can be prepared while the old topology remains
+    # live.  Matching bindings require a short handover; a failed candidate is
+    # compensated by re-starting the old runtime before returning an error.
+    if not overlapping:
+        started = _start_agents(runtime, definition)
+        try:
+            _stop_agents(previous_agents)
+        except Exception as handover_error:
+            _stop_agents(started)
+            restored: dict[str, SnmpAgent] = {}
+            if previous_state is not None:
+                try:
+                    restored = _start_agents(
+                        previous_state, previous_state.definition
+                    )
+                except Exception as restore_error:
+                    agents.clear()
+                    agents.update(restored)
+                    raise RuntimeError(
+                        "Previous SNMP topology failed to stop and could not be restored"
+                    ) from restore_error
+            agents.clear()
+            agents.update(restored)
+            state = previous_state
+            active_topology_id = previous_topology_id
+            raise RuntimeError(
+                "Candidate topology was not committed because the previous topology failed to stop"
+            ) from handover_error
+    else:
+        _stop_agents(previous_agents)
+        try:
+            started = _start_agents(runtime, definition)
+        except Exception as candidate_error:
+            restored: dict[str, SnmpAgent] = {}
+            if previous_state is not None:
+                try:
+                    restored = _start_agents(
+                        previous_state, previous_state.definition
+                    )
+                except Exception as restore_error:
+                    agents.clear()
+                    agents.update(restored)
+                    raise RuntimeError(
+                        "Candidate SNMP topology failed and old topology could not be restored"
+                    ) from restore_error
+            agents.clear()
+            agents.update(restored)
+            state = previous_state
+            active_topology_id = previous_topology_id
+            raise RuntimeError(
+                f"Failed to start candidate topology {topology_id or definition.id}; old topology restored"
+            ) from candidate_error
     state = runtime
+    agents.clear()
     agents.update(started)
     active_topology_id = topology_id or definition.id
     bridge_result = bridge.reconcile(runtime)
@@ -132,8 +211,7 @@ def start_topology(topology_id: str) -> ScenarioState:
 
 def stop_runtime(clear_state: bool = True) -> None:
     global state, active_topology_id
-    for agent in agents.values():
-        agent.stop()
+    _stop_agents(agents)
     agents.clear()
     active_topology_id = None
     if clear_state:
@@ -195,11 +273,15 @@ def _after_change(result: TransitionResult, event_type: str) -> dict:
         else bridge.reconcile(runtime)
     )
     snapshot = runtime.snapshot()
+    snapshot["active_topology_id"] = active_topology_id
+    snapshot["runtime_instances"] = runtime.runtime_instances_metadata()
     payload = {
         "type": event_type,
+        "schema_version": snapshot["schema_version"],
         "revision": result.revision,
         "device_id": result.device_id,
         "event": result.event,
+        "event_id": result.event["event_id"] if result.event else None,
         "changed_paths": list(result.changed_paths),
         "committed_values": [
             {"path": path, "value": value}
@@ -216,6 +298,7 @@ def _after_change(result: TransitionResult, event_type: str) -> dict:
     return {
         "revision": result.revision,
         "device_id": result.device_id,
+        "event": result.event,
         "changed_paths": list(result.changed_paths),
         "committed_values": [
             {"path": path, "value": value}
@@ -225,6 +308,8 @@ def _after_change(result: TransitionResult, event_type: str) -> dict:
         "lifecycle_intent": result.lifecycle_intent,
         "trap_sent": trap_sent,
         "bridge": {"reconcile": reconcile},
+        "state": snapshot,
+        "snapshot": snapshot,
     }
 
 
@@ -369,6 +454,8 @@ def update_topology(topology_id: str, topology: TopologyDefinition):
 
 @app.delete("/api/v1/topologies/{topology_id}", status_code=204)
 def delete_topology(topology_id: str):
+    if topology_id == active_topology_id:
+        raise HTTPException(409, "Cannot delete the active topology; stop it first")
     store.delete(topology_id)
     _schedule_broadcast({"type": "topology_deleted", "topology_id": topology_id})
     return None
@@ -393,8 +480,22 @@ def api_stop_topology(topology_id: str):
 
 @app.patch("/api/v1/runtime/devices/{device_id}/state")
 def patch_runtime_device_state(device_id: str, patch: RuntimeStatePatch):
+    runtime = current_state()
+    if (
+        patch.expected_revision is not None
+        and patch.expected_revision != runtime.revision
+    ):
+        raise HTTPException(
+            409,
+            {
+                "code": "revision_conflict",
+                "message": "Runtime revision has changed; refetch state before retrying",
+                "current_revision": runtime.revision,
+                "retryable": True,
+            },
+        )
     try:
-        result = current_state().patch_device_state(device_id, patch)
+        result = runtime.patch_device_state(device_id, patch)
     except KeyError as exc:
         raise HTTPException(404, f"Unknown runtime path target: {exc.args[0]}") from exc
     except ValueError as exc:
@@ -443,7 +544,11 @@ def load_scenario(scenario_id: str):
 
 @app.get("/api/v1/state")
 def get_state():
-    return current_state().snapshot()
+    runtime = current_state()
+    snapshot = runtime.snapshot()
+    snapshot["active_topology_id"] = active_topology_id
+    snapshot["runtime_instances"] = runtime.runtime_instances_metadata()
+    return snapshot
 
 
 @app.post("/api/v1/devices/{device_id}/reachability")
@@ -506,7 +611,11 @@ def send_trap(request: TrapRequest):
             layout=request.layout,
         )
         _schedule_broadcast({"type": "trap_sent", "device_id": device_id, "level": request.level, "message": message, "layout": request.layout, "revision": runtime.revision})
-    notification_oid = "1.3.6.1.4.1.32828.5.1.0.4" if request.layout == "legacy" else "1.3.6.1.4.1.32828.2.1.0.4"
+    notification_oid = (
+        LEGACY_TRAP["notification_oid"]
+        if request.layout == "legacy"
+        else FORMAL_TRAP["notification_oid"]
+    )
     return {"sent": True, "count": len(unique_device_ids), "notification_oid": notification_oid}
 
 

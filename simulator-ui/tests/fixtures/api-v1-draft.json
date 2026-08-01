@@ -1,0 +1,26 @@
+{
+  "status": {
+    "status": "ok",
+    "runtime": { "running": true, "topology_id": "all-profiles", "revision": 7, "device_count": 1 },
+    "agents": { "expected": 1, "running": 1, "bindings": [] },
+    "bridge": { "enabled": false }
+  },
+  "state": {
+    "schema_version": 1,
+    "revision": 7,
+    "active_topology_id": "all-profiles",
+    "scenario": {
+      "devices": [{
+        "id": "device-1",
+        "profile": "ccdm_matrix",
+        "availability": "connected",
+        "profile_state": { "scalars": { "switch_temperature": 42 }, "tables": { "fan_table": { "1,2": { "fan_speed": 3400 } } } },
+        "path_registry": { "paths": [
+          { "path": "scalars.switch_temperature", "kind": "scalar", "runtime_writable": true, "vendor_snmp_writable": false, "syntax": "Integer32", "minimum": -40, "maximum": 125 },
+          { "path": "tables.fan_table[1,2].fan_speed", "kind": "column", "table_id": "fan_table", "runtime_writable": true, "vendor_snmp_writable": false, "syntax": "Gauge32", "minimum": 0, "maximum": 4294967295 }
+        ] }
+      }],
+      "edges": []
+    }
+  }
+}

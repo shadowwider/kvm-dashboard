@@ -84,6 +84,7 @@ class ScenarioState:
             paused, powered_off = self._availability_sets(renderable)
             return copy.deepcopy(
                 {
+                    "schema_version": 1,
                     "scenario": scenario,
                     "topology": scenario,
                     "revision": renderable["revision"],
@@ -132,6 +133,28 @@ class ScenarioState:
             self._device_ref(device_id)
             runtime = self._runtime.renderable_snapshot(device_id)["device"]
             return copy.deepcopy(self._canonical_profile_state(runtime))
+
+    def runtime_instances_metadata(self) -> dict[str, Any]:
+        """Expose only actual L3 path instances for the active topology.
+
+        Schema metadata remains available from ``/profiles``.  This companion
+        view is deliberately scenario-specific: it never expands index ranges
+        into paths that are absent from the accepted L2 fixture.
+        """
+        with self._lock:
+            return {
+                "schema_version": 1,
+                "revision": self._runtime.revision,
+                "devices": [
+                    {
+                        "device_id": device_id,
+                        "path_registry": self._runtime.path_registry(
+                            device_id
+                        ).to_dict(),
+                    }
+                    for device_id in self._runtime.device_ids
+                ],
+            }
 
     def is_paused(self, device_id: str) -> bool:
         with self._lock:

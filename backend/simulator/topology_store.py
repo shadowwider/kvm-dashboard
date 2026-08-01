@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import uuid
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -98,58 +100,77 @@ class TopologyStore:
     def __init__(self, directory: Path = TOPOLOGY_DIR):
         self.directory = directory
         self.directory.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
+        self._invalid_documents: dict[str, str] = {}
 
     def presets(self) -> dict[str, TopologyDefinition]:
         return {key: scenario_to_topology(value) for key, value in built_in_scenarios().items()}
 
     def list(self) -> list[TopologyDefinition]:
-        items = list(self.presets().values())
-        for path in sorted(self.directory.glob("*.json")):
-            try:
-                items.append(TopologyDefinition.model_validate_json(path.read_text(encoding="utf-8")))
-            except Exception:
-                continue
-        return items
+        with self._lock:
+            items = list(self.presets().values())
+            self._invalid_documents = {}
+            for path in sorted(self.directory.glob("*.json")):
+                try:
+                    items.append(TopologyDefinition.model_validate_json(path.read_text(encoding="utf-8")))
+                except Exception as exc:
+                    self._invalid_documents[path.name] = type(exc).__name__
+            return items
+
+    def invalid_documents(self) -> dict[str, str]:
+        with self._lock:
+            # Refresh before reporting, so a corruption is never silently
+            # ignored just because no list operation happened first.
+            self.list()
+            return dict(self._invalid_documents)
 
     def get(self, topology_id: str) -> TopologyDefinition:
-        if topology_id in self.presets():
-            return self.presets()[topology_id]
-        path = self._path(topology_id)
-        if not path.exists():
-            raise HTTPException(404, f"Unknown topology: {topology_id}")
-        return TopologyDefinition.model_validate_json(path.read_text(encoding="utf-8"))
+        with self._lock:
+            if topology_id in self.presets():
+                return self.presets()[topology_id]
+            path = self._path(topology_id)
+            if not path.exists():
+                raise HTTPException(404, f"Unknown topology: {topology_id}")
+            try:
+                return TopologyDefinition.model_validate_json(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                self._invalid_documents[path.name] = type(exc).__name__
+                raise HTTPException(500, f"Topology document is invalid: {topology_id}") from exc
 
     def create(self, topology: TopologyDefinition) -> TopologyDefinition:
-        if topology.id in self.presets():
-            raise HTTPException(409, "Cannot overwrite a read-only preset topology")
-        path = self._path(topology.id)
-        if path.exists():
-            raise HTTPException(409, f"Topology already exists: {topology.id}")
-        topology.read_only = False
-        topology.source = "user"
-        self._write(path, topology)
-        return topology
+        with self._lock:
+            if topology.id in self.presets():
+                raise HTTPException(409, "Cannot overwrite a read-only preset topology")
+            path = self._path(topology.id)
+            if path.exists():
+                raise HTTPException(409, f"Topology already exists: {topology.id}")
+            topology.read_only = False
+            topology.source = "user"
+            self._write(path, topology)
+            return topology
 
     def update(self, topology_id: str, topology: TopologyDefinition) -> TopologyDefinition:
-        if topology_id in self.presets():
-            raise HTTPException(403, "Preset topologies are read-only")
-        if topology.id != topology_id:
-            raise HTTPException(400, "Topology ID in body must match path")
-        path = self._path(topology_id)
-        if not path.exists():
-            raise HTTPException(404, f"Unknown topology: {topology_id}")
-        topology.read_only = False
-        topology.source = "user"
-        self._write(path, topology)
-        return topology
+        with self._lock:
+            if topology_id in self.presets():
+                raise HTTPException(403, "Preset topologies are read-only")
+            if topology.id != topology_id:
+                raise HTTPException(400, "Topology ID in body must match path")
+            path = self._path(topology_id)
+            if not path.exists():
+                raise HTTPException(404, f"Unknown topology: {topology_id}")
+            topology.read_only = False
+            topology.source = "user"
+            self._write(path, topology)
+            return topology
 
     def delete(self, topology_id: str) -> None:
-        if topology_id in self.presets():
-            raise HTTPException(403, "Preset topologies are read-only")
-        path = self._path(topology_id)
-        if not path.exists():
-            raise HTTPException(404, f"Unknown topology: {topology_id}")
-        path.unlink()
+        with self._lock:
+            if topology_id in self.presets():
+                raise HTTPException(403, "Preset topologies are read-only")
+            path = self._path(topology_id)
+            if not path.exists():
+                raise HTTPException(404, f"Unknown topology: {topology_id}")
+            path.unlink()
 
     def _path(self, topology_id: str) -> Path:
         safe = TopologyDefinition(id=topology_id, title="validation", devices=[]).id
@@ -157,4 +178,13 @@ class TopologyStore:
 
     @staticmethod
     def _write(path: Path, topology: TopologyDefinition) -> None:
-        path.write_text(json.dumps(topology.model_dump(mode="json"), indent=2, ensure_ascii=False), encoding="utf-8")
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with temporary.open("w", encoding="utf-8") as handle:
+                json.dump(topology.model_dump(mode="json"), handle, indent=2, ensure_ascii=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        finally:
+            if temporary.exists():
+                temporary.unlink(missing_ok=True)

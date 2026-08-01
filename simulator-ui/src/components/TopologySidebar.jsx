@@ -1,7 +1,6 @@
 import { Database, Plus, Save } from 'lucide-react';
-import { DEVICE_PALETTE } from '../profileFields.js';
 
-export default function TopologySidebar({ topologies, activeTopologyId, onLoad, onSave, onSaveAs, onAddDevice, loading, isPreset }) {
+export default function TopologySidebar({ topologies, activeTopologyId, onLoad, onSave, onSaveAs, onAddDevice, palette, loading, isPreset }) {
   return (
     <aside className="sidebar">
       <section className="panel">
@@ -31,14 +30,15 @@ export default function TopologySidebar({ topologies, activeTopologyId, onLoad, 
       <section className="panel">
         <div className="panel-title"><Plus size={16} /> Device Palette</div>
         <div className="palette">
-          {DEVICE_PALETTE.map(device => (
-            <button key={device.type} className="palette-card" onClick={() => onAddDevice(device)}>
+          {palette.map(device => (
+            <button key={device.id} className="palette-card" onClick={() => onAddDevice(device)}>
               <strong>{device.label}</strong>
-              <span>{device.category} / {device.ports} ports</span>
+              <span>{device.category}</span>
             </button>
           ))}
+          {!palette.length && <div className="empty">等待服务器 metadata 提供可建模的 Profile。</div>}
         </div>
-        <p className="hint">Click to add nodes. Use the React Flow handles to draw endpoint, port, or simulation-declared route links.</p>
+        <p className="hint">设备类型来自服务器 metadata。端口和物理连线语义由 L4 topology 契约冻结后接入，当前新增连线均标识为 simulation route。</p>
       </section>
     </aside>
   );

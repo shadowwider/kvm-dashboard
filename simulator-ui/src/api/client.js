@@ -8,6 +8,18 @@ const api = axios.create({
 
 const unwrap = response => response.data;
 
+export function apiError(error) {
+  const body = error?.response?.data;
+  return {
+    status: error?.response?.status || 0,
+    code: body?.code || body?.detail?.code || 'request_failed',
+    message: body?.message || body?.detail?.message || (typeof body?.detail === 'string' ? body.detail : error?.message || 'Request failed'),
+    details: body?.details || body?.detail?.details || {},
+    revision: body?.revision ?? body?.current_revision,
+    retryable: Boolean(body?.retryable),
+  };
+}
+
 export async function listTopologies() {
   try {
     return unwrap(await api.get('/topologies'));
@@ -57,6 +69,10 @@ export async function getRuntimeState() {
   return unwrap(await api.get('/state'));
 }
 
+export async function getStatus() {
+  return unwrap(await api.get('/status'));
+}
+
 export async function getProfiles() {
   try {
     return unwrap(await api.get('/profiles'));
@@ -73,6 +89,7 @@ export async function patchDeviceState(deviceId, patches, options = {}) {
     return unwrap(await api.patch(`/runtime/devices/${encodeURIComponent(deviceId)}/state`, {
       patches: patchList,
       emit_trap: Boolean(options.emitTrap),
+      ...(options.expectedRevision === undefined ? {} : { expected_revision: options.expectedRevision }),
     }));
   } catch (error) {
     if (error.response && ![404, 405].includes(error.response.status)) throw error;

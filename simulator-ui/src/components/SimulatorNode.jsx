@@ -1,6 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
 import { Cpu, Network, Router, Server } from 'lucide-react';
-import { PROFILE_LABELS } from '../profileFields.js';
 
 const iconByCategory = {
   matrix: Server,
@@ -17,7 +16,7 @@ function countPorts(ports, fallback) {
 
 export default function SimulatorNode({ data, selected }) {
   const Icon = iconByCategory[data.category] || Server;
-  const status = data.paused ? 'offline' : data.status || 'online';
+  const status = data.paused || data.status === 0 ? 'offline' : data.status === 1 || data.status === 2 ? 'online' : data.status || 'online';
   const portCount = countPorts(data.ports, data.port_count || data.endpoints?.length);
 
   return (
@@ -27,7 +26,7 @@ export default function SimulatorNode({ data, selected }) {
         <Icon size={18} />
         <span>{data.name || data.label}</span>
       </div>
-      <div className="node-profile">{PROFILE_LABELS[data.profile] || data.profile || data.type}</div>
+      <div className="node-profile">{data.profile || data.identity?.profile_id || data.type}</div>
       <div className="node-meta">
         <span>{data.host || '127.0.0.1'}:{data.snmp_port || data.port || 161}</span>
         <span>{portCount} ports</span>
