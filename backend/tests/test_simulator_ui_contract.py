@@ -13,13 +13,16 @@ def test_ui_topology_payload_matches_backend_schema():
                 "host": "127.0.0.1",
                 "snmp_port": 11161,
                 "ports": [{"index": 1, "status": "up"}],
-                "endpoints": [],
+                "endpoints": [
+                    {"id": "CPU-1", "module_type": "cpu", "row": 1, "port_index": 1},
+                    {"id": "CON-1", "module_type": "con", "row": 1, "port_index": 2},
+                ],
                 "routes": [],
                 "profile_state": {},
                 "position": {"x": 10, "y": 20},
             }
         ],
-        "edges": [{"id": "edge-1", "source": "ccdc-1", "target": "ccdc-1", "kind": "route", "label": "simulation-declared"}],
+        "edges": [{"id": "edge-1", "source": "CPU-1", "target": "CON-1", "kind": "route", "label": "simulation-declared"}],
     }
 
     topology = TopologyDefinition.model_validate(payload)

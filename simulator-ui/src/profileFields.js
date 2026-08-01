@@ -6,9 +6,18 @@
 export function normalizeRuntimeSnapshot(snapshot) {
   const source = snapshot?.state || snapshot?.snapshot || snapshot || {};
   const scenario = source.scenario || source.topology || source;
+  const instances = source.runtime_instances?.devices || [];
+  const instancesByDeviceId = new Map(instances.map(instance => [instance.device_id, instance]));
+  const devices = (scenario?.devices || source.devices || []).map(device => {
+    const deviceId = device.id || device.identity?.device_id;
+    const instance = instancesByDeviceId.get(deviceId);
+    // The scenario carries values/availability; L4 keeps instance-only path
+    // metadata separately so it never expands non-existent fixture rows.
+    return instance ? { ...device, path_registry: instance.path_registry } : device;
+  });
   return {
     scenario,
-    devices: scenario?.devices || source.devices || [],
+    devices,
     edges: scenario?.edges || source.edges || [],
     revision: source.revision ?? snapshot?.revision ?? 0,
     pausedDevices: source.paused_devices || [],

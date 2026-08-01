@@ -88,3 +88,18 @@ LF→CRLF 工作树提示）。
 结论：本报告不是 L4 Accepted 证据。它将可运行底座推进为可由 L5 使用的 API
 切片，但只有完整 UDP/Trap/lifecycle/Bridge/API/WS/Security Gate 与干净全回归
 完成后，才允许把 L4 状态改为 Accepted。
+
+## 6. 后续收口增量（2026-08-01）
+
+- Bridge 正常停止改为使用受 `session_id + session_epoch` 保护的清理端点；Dashboard
+  增加租约、heartbeat 与过期 run 回收，旧进程不能清理新进程的记录；
+- port 模式每个设备使用独立 `127.0.1.x` Trap 源地址，manifest 持久化该 identity，
+  接收端只在唯一匹配时归属设备，缺失或冲突时不猜测；
+- REST 与 WS 使用同一个含 `active_topology_id`/`runtime_instances` 的 snapshot，
+  HTTP 错误统一为 `code/message/details/current_revision/retryable`；
+- topology 保存拥有 revision 冲突控制；物理边必须连接未占用的 fixture port，route
+  只能连接 endpoint；默认拒绝非 loopback host，WS 默认同源。
+
+根验收在上述变更后执行后端全回归，结果为 `202 passed, 6 warnings in 16.58s`。
+这些实现仍需要在已启用 Dashboard Bridge 的真实本地组合中完成 lease reaper 和 Trap
+receiver 的端到端验证，故 L4 继续保持 Candidate。

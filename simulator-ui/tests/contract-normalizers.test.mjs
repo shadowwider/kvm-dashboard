@@ -8,10 +8,11 @@ test('L4 Draft state fixture keeps server topology and revision authoritative', 
   assert.equal(snapshot.revision, 7);
   assert.equal(snapshot.activeTopologyId, 'all-profiles');
   assert.equal(snapshot.devices[0].id, 'device-1');
+  assert.equal(snapshot.devices[0].path_registry.paths.length, 2);
 });
 
 test('actual L3 registry drives scalar and composite-index field rendering', () => {
-  const device = fixture.state.scenario.devices[0];
+  const device = normalizeRuntimeSnapshot(fixture.state).devices[0];
   const groups = groupRegistryFields(device, {});
   assert.deepEqual(groups.map(group => group.group), ['scalars', 'tables.fan_table']);
   assert.equal(readPathValue(device, 'scalars.switch_temperature'), 42);

@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # 本地模拟器桥接：默认关闭，生产环境不得启用。
     simulator_bridge_enabled: bool = False
     simulator_bridge_token: str = "change_me_simulator_token"
+    simulator_bridge_lease_seconds: int = Field(default=30, ge=10, le=3600)
 
     # 原始 SNMP 数据日志（Trap + 轮询，写入 logs/ 目录，可通过 SNMP_RAW_LOG_ENABLED=false 关闭）
     snmp_raw_log_enabled: bool = True

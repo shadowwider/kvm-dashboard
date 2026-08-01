@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import secrets
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +38,14 @@ class SimulatorSessionRequest(BaseModel):
     session_started_at: int = Field(ge=1)
 
 
+class SimulatorSessionProof(BaseModel):
+    """Proof required for a simulator-owned cleanup operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    session_epoch: str = Field(min_length=1, max_length=64)
+
+
 def _ensure_enabled(x_simulator_token: str | None) -> None:
     if not settings.simulator_bridge_enabled:
         raise HTTPException(404, "本地模拟器桥接未启用")
@@ -47,6 +55,18 @@ def _ensure_enabled(x_simulator_token: str | None) -> None:
 
 def _device_id(run_id: str, simulator_id: str) -> str:
     return f"sim_{run_id}_{simulator_id}"[:64]
+
+
+def _lease_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(seconds=settings.simulator_bridge_lease_seconds)
+
+
+async def _remove_run_resources(db: AsyncSession, run: SimulatorRun) -> None:
+    """Delete a run and exactly the Dashboard records namespaced by that run."""
+    prefix = f"sim_{run.id}_%"
+    await db.execute(delete(Endpoint).where(Endpoint.device_id.like(prefix)))
+    await db.execute(delete(Device).where(Device.id.like(prefix)))
+    await db.delete(run)
 
 
 @router.post("/runs/{run_id}/sessions")
@@ -66,6 +86,7 @@ async def start_session(
             session_id=body.session_id,
             session_epoch=secrets.token_urlsafe(24),
             session_started_at=body.session_started_at,
+            lease_expires_at=_lease_expiry(),
             revision=0,
             manifest={},
         )
@@ -88,17 +109,22 @@ async def start_session(
             }
 
     # A delayed session-start from an older process may not supersede the active run.
+    now = datetime.now(timezone.utc)
     epoch = secrets.token_urlsafe(24)
     claimed = await db.execute(
         update(SimulatorRun).where(
             SimulatorRun.id == run_id,
-            SimulatorRun.session_started_at <= body.session_started_at,
+            or_(
+                SimulatorRun.session_started_at <= body.session_started_at,
+                SimulatorRun.lease_expires_at < now,
+            ),
         ).values(
             session_id=body.session_id,
             session_epoch=epoch,
             session_started_at=body.session_started_at,
             revision=0,
             manifest={},
+            lease_expires_at=_lease_expiry(),
             updated_at=datetime.now(timezone.utc),
         )
     )
@@ -148,6 +174,7 @@ async def reconcile_manifest(
             scenario_id=body.scenario_id,
             revision=body.revision,
             manifest=body.model_dump(),
+            lease_expires_at=_lease_expiry(),
             updated_at=datetime.now(timezone.utc),
         )
     )
@@ -246,6 +273,53 @@ async def reconcile_manifest(
     return {"run_id": run_id, "revision": body.revision, "bindings": bindings}
 
 
+@router.post("/runs/{run_id}/sessions/{session_id}/heartbeat")
+async def heartbeat_owned_session(
+    run_id: str,
+    session_id: str,
+    body: SimulatorSessionProof,
+    x_simulator_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Renew a session lease without accepting a manifest from an old process."""
+    _ensure_enabled(x_simulator_token)
+    claimed = await db.execute(
+        update(SimulatorRun).where(
+            SimulatorRun.id == run_id,
+            SimulatorRun.session_id == session_id,
+            SimulatorRun.session_epoch == body.session_epoch,
+        ).values(lease_expires_at=_lease_expiry(), updated_at=datetime.now(timezone.utc))
+    )
+    if not claimed.rowcount:
+        raise HTTPException(409, "模拟器会话已失效或已被新进程接管")
+    await db.commit()
+    return {"run_id": run_id, "session_id": session_id, "lease_seconds": settings.simulator_bridge_lease_seconds}
+
+
+async def cleanup_expired_runs(db: AsyncSession, now: datetime | None = None) -> int:
+    """Remove stale simulator-owned resources after a missed lease heartbeat."""
+    now = now or datetime.now(timezone.utc)
+    expired = (await db.execute(
+        select(SimulatorRun).where(
+            SimulatorRun.lease_expires_at.is_not(None),
+            SimulatorRun.lease_expires_at < now,
+        )
+    )).scalars().all()
+    for run in expired:
+        await _remove_run_resources(db, run)
+    if expired:
+        await db.commit()
+    return len(expired)
+
+
+async def reap_expired_simulator_runs() -> int:
+    """Scheduler entry point for crash cleanup; no-op when bridge is disabled."""
+    if not settings.simulator_bridge_enabled:
+        return 0
+    async with AsyncSessionLocal() as db:
+        return await cleanup_expired_runs(db)
+
+
 @router.post("/runs/{run_id}/sync")
 async def sync_manifest(
     run_id: str,
@@ -317,6 +391,32 @@ async def run_status(
     }
 
 
+@router.delete("/runs/{run_id}/sessions/{session_id}", status_code=204)
+async def cleanup_owned_session(
+    run_id: str,
+    session_id: str,
+    body: SimulatorSessionProof,
+    x_simulator_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Idempotently clean only the session that created this simulator run.
+
+    This is intentionally bridge-token authenticated instead of admin-JWT
+    authenticated.  A normal simulator shutdown has no interactive user, but
+    it must not be able to delete a run that was superseded by another
+    simulator process.
+    """
+    _ensure_enabled(x_simulator_token)
+    run = await db.get(SimulatorRun, run_id)
+    if not run:
+        return None
+    if run.session_id != session_id or run.session_epoch != body.session_epoch:
+        raise HTTPException(409, "模拟器会话已被新的进程接管，拒绝清理")
+    await _remove_run_resources(db, run)
+    await db.commit()
+    return None
+
+
 @router.delete("/runs/{run_id}", status_code=204)
 async def cleanup_run(
     run_id: str,
@@ -328,7 +428,5 @@ async def cleanup_run(
     run = await db.get(SimulatorRun, run_id)
     if not run:
         raise HTTPException(404, "模拟器运行不存在")
-    await db.execute(delete(Endpoint).where(Endpoint.device_id.like(f"sim_{run_id}_%")))
-    await db.execute(delete(Device).where(Device.id.like(f"sim_{run_id}_%")))
-    await db.delete(run)
+    await _remove_run_resources(db, run)
     await db.commit()

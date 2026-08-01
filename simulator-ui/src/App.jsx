@@ -31,6 +31,8 @@ function toFlow(snapshot) {
     edges: routes.map((edge, index) => ({
       id: edge.id || `edge-${index}`, source: edge.source || edge.source_device_id || edge.source_endpoint_id,
       target: edge.target || edge.target_device_id || edge.target_endpoint_id,
+      sourceHandle: edge.source_port ? `port:${edge.source_port}` : undefined,
+      targetHandle: edge.target_port ? `port:${edge.target_port}` : undefined,
       label: edge.kind === 'port-link' ? 'physical edge' : edge.label || 'simulation route',
       className: edge.kind === 'port-link' ? 'physical-edge' : 'simulation-edge',
       style: edge.kind === 'port-link' ? undefined : { strokeDasharray: '7 5' },
@@ -39,10 +41,10 @@ function toFlow(snapshot) {
   };
 }
 
-function topologyPayload(activeTopologyId, nodes, edges, forceNew) {
+function topologyPayload(activeTopologyId, nodes, edges, forceNew, revision) {
   const id = forceNew || !activeTopologyId ? `topology-${Date.now()}` : activeTopologyId;
   return {
-    id, title: forceNew || !activeTopologyId ? `Simulator topology ${new Date().toLocaleString()}` : id,
+    id, title: forceNew || !activeTopologyId ? `Simulator topology ${new Date().toLocaleString()}` : id, revision: forceNew ? 1 : (revision || 1),
     devices: nodes.filter(node => node.data.node_kind !== 'endpoint').map((node, index) => ({
       id: node.id, name: node.data.name || node.id, profile: node.data.profile,
       host: node.data.host || null, snmp_port: node.data.snmp_port || 11161 + index,
@@ -50,7 +52,7 @@ function topologyPayload(activeTopologyId, nodes, edges, forceNew) {
       profile_state: node.data.profile_state || {}, position: node.position,
     })),
     // Never drop endpoint-to-endpoint routes. Server decides semantic validity.
-    edges: edges.map(edge => ({ id: edge.id, source: edge.source, target: edge.target, kind: edge.data?.kind || 'route', label: typeof edge.label === 'string' ? edge.label : undefined, metadata: edge.data?.metadata || {} })),
+    edges: edges.map(edge => ({ id: edge.id, source: edge.source, target: edge.target, kind: edge.data?.kind || 'route', source_port: edge.data?.source_port, target_port: edge.data?.target_port, label: typeof edge.label === 'string' ? edge.label : undefined, metadata: edge.data?.metadata || {} })),
   };
 }
 
@@ -88,19 +90,23 @@ export default function App() {
           if (incoming && incoming > revisionRef.current + 1) { push({ type: 'ws-gap', message: `revision gap ${revisionRef.current} → ${incoming}; refetching` }); refreshRuntime('WS gap refetch').catch(error => push({ type: 'refresh-failed', message: apiError(error).message })); return; }
           if (incoming && incoming < revisionRef.current) return;
           if (message.state || message.snapshot) applySnapshot(message.state || message.snapshot, message.type || 'WS snapshot');
-          else if (message.requires_refetch) refreshRuntime('WS requested refetch').catch(error => push({ type: 'refresh-failed', message: apiError(error).message }));
+          else if (message.type === 'topology_stopped') {
+            setRuntime(null); setNodes([]); setEdges([]); setSelectedNodeId(null);
+            refreshStatus().catch(error => push({ type: 'refresh-failed', message: apiError(error).message }));
+            refreshTopologies().catch(error => push({ type: 'refresh-failed', message: apiError(error).message }));
+          } else if (message.requires_refetch) refreshAll().catch(error => push({ type: 'refresh-failed', message: apiError(error).message }));
           push({ type: message.type || 'ws-event', message: message.message, payload: message });
         },
       });
     }; connect(); return () => { disposed = true; clearTimeout(retryRef.current); socket?.close(); };
-  }, [applySnapshot, push, refreshRuntime]);
+  }, [applySnapshot, push, refreshAll, refreshRuntime, refreshStatus, refreshTopologies, setEdges, setNodes]);
 
   const normalized = normalizeRuntimeSnapshot(runtime); const runtimeDevices = normalized.devices;
   const activeTopology = topologies.find(item => item.id === activeTopologyId); const activeIsPreset = Boolean(activeTopology?.read_only || activeTopology?.readonly || activeTopology?.preset);
   const selectedDevice = runtimeDevices.find(item => (item.id || item.identity?.device_id) === selectedNodeId) || null;
   const running = Boolean(status?.runtime?.running); const palette = profilePalette(metadata);
 
-  const save = async forceNew => { const saved = await saveTopology(topologyPayload(activeTopologyId, nodes, edges, forceNew), { forceCreate: forceNew || activeIsPreset }); setActiveTopologyId(saved.id); await refreshTopologies(); push({ type: 'topology-saved', message: saved.id }); };
+  const save = async forceNew => { const saved = await saveTopology(topologyPayload(activeTopologyId, nodes, edges, forceNew, activeTopology?.revision), { forceCreate: forceNew || activeIsPreset }); setActiveTopologyId(saved.id); await refreshTopologies(); push({ type: 'topology-saved', message: saved.id }); };
   const guard = async (name, action) => { setLoading(true); try { await action(); } catch (error) { const failure = apiError(error); push({ type: `${name}-failed`, message: failure.message, payload: failure }); } finally { setLoading(false); } };
   const onLoad = id => guard('topology-load', async () => { applySnapshot(await loadTopology(id), 'topology loaded'); setActiveTopologyId(id); });
   const onStart = () => guard('topology-start', async () => { const id = activeTopologyId || topologies[0]?.id; if (!id) throw new Error('没有可启动的拓扑，请先从服务器加载或保存。'); applySnapshot(await startTopology(id), 'topology started'); await refreshStatus(); });
@@ -115,7 +121,16 @@ export default function App() {
   const onAction = action => guard(`device-${action}`, async () => { if (!selectedDevice) throw new Error('请选择运行设备。'); applySnapshot(await deviceAction(selectedDevice.id || selectedDevice.identity?.device_id, action), `device ${action}`); await refreshStatus(); });
   const onTrap = payload => guard('trap', async () => { const result = await sendTrap(payload); setTrapHistory(current => [{ id: `${Date.now()}`, ...payload, result }, ...current].slice(0, 20)); push({ type: 'trap-sent', message: payload.message, payload: result }); });
   const onAdd = profile => setNodes(current => current.concat({ id: `${profile.id}-${current.length + 1}`, type: 'simulator', position: { x: 120 + current.length * 36, y: 80 + current.length * 36 }, data: { id: `${profile.id}-${current.length + 1}`, name: profile.label, profile: profile.id, node_kind: 'device', ports: [] } }));
-  const onConnect = connection => { if (connection.source === connection.target) { push({ type: 'invalid-connection', message: '不允许自环；保存时仍由服务器执行最终校验。' }); return; } setEdges(current => addEdge({ ...connection, label: 'simulation route', className: 'simulation-edge', style: { strokeDasharray: '7 5' }, data: { kind: 'route', metadata: { evidence: 'simulation-declared' } } }, current)); };
+  const onConnect = connection => {
+    if (connection.source === connection.target) { push({ type: 'invalid-connection', message: '不允许自环；保存时仍由服务器执行最终校验。' }); return; }
+    const source = nodes.find(node => node.id === connection.source); const target = nodes.find(node => node.id === connection.target);
+    const sourcePort = Number(String(connection.sourceHandle || '').replace('port:', ''));
+    const targetPort = Number(String(connection.targetHandle || '').replace('port:', ''));
+    const physical = source?.data.node_kind === 'device' && target?.data.node_kind === 'device' && Number.isInteger(sourcePort) && sourcePort > 0 && Number.isInteger(targetPort) && targetPort > 0;
+    const route = source?.data.node_kind === 'endpoint' && target?.data.node_kind === 'endpoint';
+    if (!physical && !route) { push({ type: 'invalid-connection', message: '物理连线必须连接设备实际端口；模拟路由必须连接 endpoint。' }); return; }
+    setEdges(current => addEdge({ ...connection, label: physical ? `port ${sourcePort} ↔ ${targetPort}` : 'simulation route', className: physical ? 'physical-edge' : 'simulation-edge', style: physical ? undefined : { strokeDasharray: '7 5' }, data: physical ? { kind: 'port-link', source_port: sourcePort, target_port: targetPort } : { kind: 'route', metadata: { evidence: 'simulation-declared' } } }, current));
+  };
 
   return <div className="app-shell">
     <RuntimeToolbar status={status} running={running} wsState={wsState} revision={normalized.revision} selectedDevice={selectedDevice} loading={loading} onStart={onStart} onStop={onStop} onRefresh={() => guard('refresh', refreshAll)} onAction={onAction} />

@@ -6,8 +6,9 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .bridge import DashboardBridge
@@ -43,12 +44,43 @@ bridge = DashboardBridge()
 store = TopologyStore()
 _ws_clients: set[WebSocket] = set()
 _event_loop: asyncio.AbstractEventLoop | None = None
+_bridge_lease_task: asyncio.Task | None = None
+
+
+def _websocket_origin_allowed(websocket: WebSocket) -> bool:
+    """Accept only same-origin UI connections unless an explicit dev origin is set."""
+    origin = websocket.headers.get("origin")
+    if not origin:
+        return False
+    host = websocket.headers.get("host")
+    same_origin = {f"http://{host}", f"https://{host}"} if host else set()
+    configured = {
+        item.strip().rstrip("/")
+        for item in os.environ.get("SIM_ALLOWED_ORIGINS", "").split(",")
+        if item.strip()
+    }
+    return origin.rstrip("/") in same_origin | configured
 
 
 def current_state() -> ScenarioState:
     if state is None:
         raise HTTPException(409, "No simulator topology is running")
     return state
+
+
+def runtime_snapshot(runtime: ScenarioState | None = None) -> dict:
+    """Return the one public snapshot shape used by REST and WebSocket.
+
+    L3's raw snapshot intentionally has no control-plane ownership or UI-only
+    instance registry.  L4 must add those fields once, rather than allowing
+    REST and WebSocket consumers to observe different versions of the same
+    runtime.
+    """
+    selected = runtime or current_state()
+    snapshot = selected.snapshot()
+    snapshot["active_topology_id"] = active_topology_id
+    snapshot["runtime_instances"] = selected.runtime_instances_metadata()
+    return snapshot
 
 
 def _current_bindings() -> set[tuple[str, int]]:
@@ -213,6 +245,13 @@ def stop_runtime(clear_state: bool = True) -> None:
     global state, active_topology_id
     _stop_agents(agents)
     agents.clear()
+    cleanup = bridge.cleanup()
+    if cleanup.get("enabled") and not cleanup.get("ok"):
+        logger.error(
+            "simulator_bridge_cleanup_failed topology_id=%s detail=%s",
+            active_topology_id,
+            cleanup.get("detail", "unknown error"),
+        )
     active_topology_id = None
     if clear_state:
         state = None
@@ -229,6 +268,18 @@ async def _broadcast(message: dict) -> None:
         _ws_clients.discard(ws)
 
 
+async def _bridge_lease_loop() -> None:
+    """Keep the Dashboard run alive; its server reaps it after a crash."""
+    interval = max(1.0, float(os.environ.get("SIM_BRIDGE_HEARTBEAT_SECONDS", "10")))
+    while True:
+        await asyncio.sleep(interval)
+        if state is None or not bridge.enabled or not bridge.session_id:
+            continue
+        result = await asyncio.to_thread(bridge.heartbeat)
+        if not result.get("ok"):
+            logger.error("simulator_bridge_heartbeat_failed detail=%s", result.get("detail", "unknown error"))
+
+
 def _schedule_broadcast(message: dict) -> None:
     if _event_loop and _event_loop.is_running():
         asyncio.run_coroutine_threadsafe(_broadcast(message), _event_loop)
@@ -242,6 +293,16 @@ def _schedule_broadcast(message: dict) -> None:
 
 def _device_host(device_id: str | None) -> str | None:
     if not device_id or state is None:
+        return None
+
+
+def _device_trap_source_host(device_id: str | None) -> str | None:
+    if not device_id or state is None:
+        return None
+    try:
+        device = state.device(device_id)
+        return device.get("trap_source_host") or device.get("host")
+    except KeyError:
         return None
     try:
         return state.device(device_id).get("host")
@@ -258,7 +319,7 @@ def _send_result_trap(result: TransitionResult) -> bool:
         TRAP_HOST,
         TRAP_PORT,
         COMMUNITY,
-        source_host=_device_host(result.device_id),
+        source_host=_device_trap_source_host(result.device_id),
         layout=result.trap.layout,
     )
     return True
@@ -272,9 +333,7 @@ def _after_change(result: TransitionResult, event_type: str) -> dict:
         if result.idempotent
         else bridge.reconcile(runtime)
     )
-    snapshot = runtime.snapshot()
-    snapshot["active_topology_id"] = active_topology_id
-    snapshot["runtime_instances"] = runtime.runtime_instances_metadata()
+    snapshot = runtime_snapshot(runtime)
     payload = {
         "type": event_type,
         "schema_version": snapshot["schema_version"],
@@ -331,15 +390,60 @@ def _apply_agent_lifecycle(
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global _event_loop
+    global _event_loop, _bridge_lease_task
     _event_loop = asyncio.get_running_loop()
     start_topology(os.environ.get("SIM_TOPOLOGY", os.environ.get("SIM_SCENARIO", "ccdc-regression")))
+    _bridge_lease_task = asyncio.create_task(_bridge_lease_loop())
     yield
+    if _bridge_lease_task is not None:
+        _bridge_lease_task.cancel()
+        try:
+            await _bridge_lease_task
+        except asyncio.CancelledError:
+            pass
+        _bridge_lease_task = None
     stop_runtime()
     _event_loop = None
 
 
 app = FastAPI(title="KVM Simulator", version="3.0", lifespan=lifespan)
+
+
+@app.exception_handler(HTTPException)
+async def simulator_http_error(_: Request, exc: HTTPException):
+    """Freeze one machine-readable error envelope for every control route."""
+    detail = exc.detail if isinstance(exc.detail, dict) else {}
+    default_codes = {
+        400: "validation_error",
+        403: "forbidden",
+        404: "unknown_resource",
+        409: "lifecycle_failed",
+        422: "validation_error",
+        503: "bridge_failed",
+    }
+    body = {
+        "code": detail.get("code", default_codes.get(exc.status_code, "request_failed")),
+        "message": detail.get("message", str(exc.detail) if not detail else "Request failed"),
+        "details": detail.get("details", {}),
+        "current_revision": detail.get("current_revision", state.revision if state else None),
+        "retryable": bool(detail.get("retryable", exc.status_code in {409, 503})),
+    }
+    return JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
+
+
+@app.exception_handler(RequestValidationError)
+async def simulator_validation_error(_: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "code": "validation_error",
+            "message": "Request validation failed",
+            "details": {"fields": exc.errors()},
+            "current_revision": state.revision if state else None,
+            "retryable": False,
+        },
+    )
+
 if UI_DIST.exists():
     app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="simulator-ui-assets")
 
@@ -464,8 +568,15 @@ def delete_topology(topology_id: str):
 @app.post("/api/v1/topologies/{topology_id}/start")
 def api_start_topology(topology_id: str):
     runtime = start_topology(topology_id)
-    snapshot = runtime.snapshot()
-    _schedule_broadcast({"type": "topology_started", "topology_id": topology_id, "revision": snapshot["revision"]})
+    snapshot = runtime_snapshot(runtime)
+    _schedule_broadcast({
+        "type": "topology_started",
+        "schema_version": snapshot["schema_version"],
+        "topology_id": topology_id,
+        "revision": snapshot["revision"],
+        "state": snapshot,
+        "snapshot": snapshot,
+    })
     return snapshot
 
 
@@ -473,8 +584,15 @@ def api_start_topology(topology_id: str):
 def api_stop_topology(topology_id: str):
     if active_topology_id and active_topology_id != topology_id:
         raise HTTPException(409, f"Running topology is {active_topology_id}")
+    last_revision = state.revision if state is not None else None
     stop_runtime()
-    _schedule_broadcast({"type": "topology_stopped", "topology_id": topology_id})
+    _schedule_broadcast({
+        "type": "topology_stopped",
+        "schema_version": 1,
+        "topology_id": topology_id,
+        "revision": last_revision,
+        "requires_refetch": True,
+    })
     return {"stopped": True, "topology_id": topology_id}
 
 
@@ -518,10 +636,17 @@ def runtime_device_action(device_id: str, request: RuntimeDeviceActionRequest):
 
 @app.websocket("/api/v1/ws")
 async def websocket_events(websocket: WebSocket):
+    if not _websocket_origin_allowed(websocket):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     _ws_clients.add(websocket)
     try:
-        await websocket.send_json({"type": "snapshot", "state": current_state().snapshot() if state else None})
+        await websocket.send_json({
+            "type": "snapshot",
+            "schema_version": 1,
+            "state": runtime_snapshot() if state else None,
+        })
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
@@ -530,28 +655,32 @@ async def websocket_events(websocket: WebSocket):
         _ws_clients.discard(websocket)
 
 
-@app.get("/api/v1/scenarios")
+@app.get("/api/v1/scenarios", deprecated=True)
 def list_scenarios():
     return [{"id": item.id, "title": item.title, "devices": len(item.devices)} for item in built_in_scenarios().values()]
 
 
-@app.post("/api/v1/scenarios/{scenario_id}/load")
+@app.post("/api/v1/scenarios/{scenario_id}/load", deprecated=True)
 def load_scenario(scenario_id: str):
     runtime = start_scenario(scenario_id)
-    _schedule_broadcast({"type": "topology_started", "topology_id": scenario_id, "revision": runtime.revision})
-    return runtime.snapshot()
+    snapshot = runtime_snapshot(runtime)
+    _schedule_broadcast({
+        "type": "topology_started",
+        "schema_version": snapshot["schema_version"],
+        "topology_id": scenario_id,
+        "revision": snapshot["revision"],
+        "state": snapshot,
+        "snapshot": snapshot,
+    })
+    return snapshot
 
 
 @app.get("/api/v1/state")
 def get_state():
-    runtime = current_state()
-    snapshot = runtime.snapshot()
-    snapshot["active_topology_id"] = active_topology_id
-    snapshot["runtime_instances"] = runtime.runtime_instances_metadata()
-    return snapshot
+    return runtime_snapshot()
 
 
-@app.post("/api/v1/devices/{device_id}/reachability")
+@app.post("/api/v1/devices/{device_id}/reachability", deprecated=True)
 def set_reachability(device_id: str, paused: bool):
     runtime = current_state()
     try:
@@ -566,7 +695,7 @@ def set_reachability(device_id: str, paused: bool):
     return response
 
 
-@app.patch("/api/v1/devices/{device_id}/endpoints/{endpoint_id}")
+@app.patch("/api/v1/devices/{device_id}/endpoints/{endpoint_id}", deprecated=True)
 def update_endpoint(device_id: str, endpoint_id: str, patch: EndpointStatePatch):
     try:
         result = current_state().patch_endpoint(device_id, endpoint_id, patch)
@@ -575,7 +704,7 @@ def update_endpoint(device_id: str, endpoint_id: str, patch: EndpointStatePatch)
     return _after_change(result, "endpoint_state")
 
 
-@app.patch("/api/v1/devices/{device_id}/routes/{route_id}")
+@app.patch("/api/v1/devices/{device_id}/routes/{route_id}", deprecated=True)
 def update_route(device_id: str, route_id: str, patch: RouteStatePatch):
     try:
         result = current_state().patch_route(device_id, route_id, patch)
@@ -607,7 +736,7 @@ def send_trap(request: TrapRequest):
             TRAP_HOST,
             TRAP_PORT,
             COMMUNITY,
-            source_host=_device_host(device_id),
+            source_host=_device_trap_source_host(device_id),
             layout=request.layout,
         )
         _schedule_broadcast({"type": "trap_sent", "device_id": device_id, "level": request.level, "message": message, "layout": request.layout, "revision": runtime.revision})
@@ -628,7 +757,7 @@ def reset_scenario():
         if result.idempotent
         else bridge.reconcile(runtime)
     )
-    snapshot = runtime.snapshot()
+    snapshot = runtime_snapshot(runtime)
     if not result.idempotent:
         _schedule_broadcast(
             {

@@ -92,6 +92,10 @@ class ScenarioDevice(BaseModel):
     profile: ProfileId
     host: str = Field(default="127.0.0.1", min_length=1, max_length=255)
     snmp_port: int = Field(ge=1, le=65535)
+    # Port mode shares one SNMP host across devices.  Trap source identity is
+    # deliberately separate so passive receivers can still attribute a
+    # simulator-generated notification without changing its vendor varbinds.
+    trap_source_host: str | None = Field(default=None, min_length=1, max_length=255)
     system_oid: str
     evidence: EvidenceStatus
     endpoints: list[ScenarioEndpoint] = Field(default_factory=list)
@@ -156,6 +160,7 @@ class TopologyDevice(BaseModel):
     profile: ProfileId
     host: str | None = None
     snmp_port: int | None = Field(default=None, ge=1, le=65535)
+    trap_source_host: str | None = Field(default=None, min_length=1, max_length=255)
     system_oid: str | None = None
     evidence: EvidenceStatus | None = None
     position: TopologyNodePosition = Field(default_factory=TopologyNodePosition)
@@ -172,6 +177,8 @@ class TopologyEdge(BaseModel):
     source: str = Field(min_length=1, max_length=128)
     target: str = Field(min_length=1, max_length=128)
     kind: Literal["port-link", "route"] = "port-link"
+    source_port: int | None = Field(default=None, ge=1, le=4096)
+    target_port: int | None = Field(default=None, ge=1, le=4096)
     label: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -181,6 +188,7 @@ class TopologyDefinition(BaseModel):
 
     id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     title: str = Field(min_length=1, max_length=128)
+    revision: int = Field(default=1, ge=1)
     devices: list[TopologyDevice]
     edges: list[TopologyEdge] = Field(default_factory=list)
     read_only: bool = False
@@ -195,13 +203,35 @@ class TopologyDefinition(BaseModel):
         edge_ids = {edge.id for edge in self.edges}
         if len(edge_ids) != len(self.edges):
             raise ValueError("edge IDs must be unique")
-        refs = set(device_ids)
+        endpoint_owner: dict[str, str] = {}
+        ports_by_device: dict[str, set[int]] = {}
         for device in self.devices:
-            refs.update(endpoint.id for endpoint in device.endpoints)
-            refs.update(route.id for route in device.routes)
+            for endpoint in device.endpoints:
+                if endpoint.id in endpoint_owner:
+                    raise ValueError(f"endpoint ID must be globally unique: {endpoint.id}")
+                endpoint_owner[endpoint.id] = device.id
+            ports_by_device[device.id] = {port.index for port in device.ports}
+        occupied_ports: set[tuple[str, int]] = set()
         for edge in self.edges:
-            if edge.source not in refs or edge.target not in refs:
-                raise ValueError(f"edge {edge.id} references an unknown node")
+            if edge.source == edge.target:
+                raise ValueError(f"edge {edge.id} must not be a self-loop")
+            if edge.kind == "route":
+                if edge.source not in endpoint_owner or edge.target not in endpoint_owner:
+                    raise ValueError(f"route edge {edge.id} must connect existing endpoint IDs")
+                if edge.source_port is not None or edge.target_port is not None:
+                    raise ValueError(f"route edge {edge.id} must not declare physical ports")
+            else:
+                if edge.source not in device_ids or edge.target not in device_ids:
+                    raise ValueError(f"physical edge {edge.id} must connect device IDs")
+                if edge.source_port is None or edge.target_port is None:
+                    raise ValueError(f"physical edge {edge.id} requires source_port and target_port")
+                source = (edge.source, edge.source_port)
+                target = (edge.target, edge.target_port)
+                if edge.source_port not in ports_by_device[edge.source] or edge.target_port not in ports_by_device[edge.target]:
+                    raise ValueError(f"physical edge {edge.id} references a missing fixture port")
+                if source in occupied_ports or target in occupied_ports:
+                    raise ValueError(f"physical edge {edge.id} reuses an occupied fixture port")
+                occupied_ports.update((source, target))
         addresses = [(device.host, device.snmp_port) for device in self.devices if device.host and device.snmp_port]
         if len(set(addresses)) != len(addresses):
             raise ValueError("SNMP host/port bindings must be unique")

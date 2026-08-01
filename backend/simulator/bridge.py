@@ -8,7 +8,7 @@ import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
 from urllib import request
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from .state import ScenarioState
 
@@ -127,6 +127,39 @@ class DashboardBridge:
     def sync(self) -> dict:
         return self._request("POST", f"/simulator/runs/{self.run_id}/sync", {})
 
+    def heartbeat(self) -> dict:
+        if not self.enabled:
+            return self._remember({"enabled": False, "detail": "SIMULATOR_BRIDGE_TOKEN is not configured"})
+        if not self.session_id or not self.session_epoch:
+            return self._remember({"enabled": True, "ok": False, "detail": "bridge session is not established"})
+        return self._request(
+            "POST",
+            f"/simulator/runs/{quote(self.run_id, safe='')}/sessions/{quote(self.session_id, safe='')}/heartbeat",
+            {"session_epoch": self.session_epoch},
+        )
+
+    def cleanup(self) -> dict:
+        """Release only the run owned by this exact bridge session.
+
+        A simulator process must never use the Dashboard admin API (or an
+        unscoped run delete) during shutdown: a delayed old process could
+        otherwise erase a newer process's manifest.  The Dashboard endpoint
+        checks both session id and epoch before it removes any resources.
+        """
+        if not self.enabled:
+            return self._remember({"enabled": False, "detail": "SIMULATOR_BRIDGE_TOKEN is not configured"})
+        if not self.session_id or not self.session_epoch:
+            return self._remember({"enabled": True, "ok": True, "detail": "no bridge session to clean"})
+        result = self._request(
+            "DELETE",
+            f"/simulator/runs/{quote(self.run_id, safe='')}/sessions/{quote(self.session_id, safe='')}",
+            {"session_epoch": self.session_epoch},
+        )
+        if result.get("ok"):
+            self.session_id = None
+            self.session_epoch = None
+        return result
+
     def _manifest(self, state: ScenarioState) -> dict:
         snapshot = state.snapshot()
         scenario = snapshot["scenario"]
@@ -157,10 +190,11 @@ class DashboardBridge:
             )
             try:
                 with request.urlopen(req, timeout=10) as response:
+                    raw_response = response.read()
                     return self._remember({
                         "enabled": True,
                         "ok": True,
-                        "response": json.loads(response.read()),
+                        "response": json.loads(raw_response) if raw_response else {},
                     })
             except Exception as exc:
                 return self._remember({

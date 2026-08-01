@@ -21,28 +21,11 @@ export function apiError(error) {
 }
 
 export async function listTopologies() {
-  try {
-    return unwrap(await api.get('/topologies'));
-  } catch {
-    const scenarios = unwrap(await api.get('/scenarios'));
-    return scenarios.map(item => ({
-      ...item,
-      name: item.name || item.title,
-      title: item.title || item.name,
-      read_only: true,
-      preset: true,
-      source: 'legacy-scenario',
-    }));
-  }
+  return unwrap(await api.get('/topologies'));
 }
 
 export async function loadTopology(id) {
-  try {
-    return unwrap(await api.get(`/topologies/${encodeURIComponent(id)}`));
-  } catch (error) {
-    if (error.response && error.response.status !== 404) throw error;
-    return unwrap(await api.post(`/scenarios/${encodeURIComponent(id)}/load`));
-  }
+  return unwrap(await api.get(`/topologies/${encodeURIComponent(id)}`));
 }
 
 export async function saveTopology(topology, { forceCreate = false } = {}) {
@@ -53,12 +36,7 @@ export async function saveTopology(topology, { forceCreate = false } = {}) {
 }
 
 export async function startTopology(id) {
-  try {
-    return unwrap(await api.post(`/topologies/${encodeURIComponent(id)}/start`));
-  } catch (error) {
-    if (error.response && error.response.status !== 404) throw error;
-    return unwrap(await api.post(`/scenarios/${encodeURIComponent(id)}/load`));
-  }
+  return unwrap(await api.post(`/topologies/${encodeURIComponent(id)}/start`));
 }
 
 export async function stopTopology(id) {
@@ -85,34 +63,15 @@ export async function patchDeviceState(deviceId, patches, options = {}) {
   const patchList = Array.isArray(patches)
     ? patches
     : Object.entries(patches || {}).map(([path, value]) => ({ path, value }));
-  try {
-    return unwrap(await api.patch(`/runtime/devices/${encodeURIComponent(deviceId)}/state`, {
-      patches: patchList,
-      emit_trap: Boolean(options.emitTrap),
-      ...(options.expectedRevision === undefined ? {} : { expected_revision: options.expectedRevision }),
-    }));
-  } catch (error) {
-    if (error.response && ![404, 405].includes(error.response.status)) throw error;
-    const endpointPatch = patchList.find(item => item.path.startsWith('endpoints['));
-    if (!endpointPatch) throw new Error('Simulator backend does not expose generic runtime state PATCH yet.');
-    const [, endpointId, field] = endpointPatch.path.match(/^endpoints\[([^\]]+)\]\.(.+)$/) || [];
-    if (!endpointId || field !== 'status') throw new Error('Legacy API only supports endpoint status patches.');
-    return unwrap(await api.patch(`/devices/${encodeURIComponent(deviceId)}/endpoints/${encodeURIComponent(endpointId)}`, { status: endpointPatch.value }));
-  }
+  return unwrap(await api.patch(`/runtime/devices/${encodeURIComponent(deviceId)}/state`, {
+    patches: patchList,
+    emit_trap: Boolean(options.emitTrap),
+    ...(options.expectedRevision === undefined ? {} : { expected_revision: options.expectedRevision }),
+  }));
 }
 
 export async function deviceAction(deviceId, action) {
-  try {
-    return unwrap(await api.post(`/runtime/devices/${encodeURIComponent(deviceId)}/actions`, { action }));
-  } catch (error) {
-    if (error.response && ![404, 405].includes(error.response.status)) throw error;
-    if (action === 'disconnect' || action === 'restore') {
-      return unwrap(await api.post(`/devices/${encodeURIComponent(deviceId)}/reachability`, null, {
-        params: { paused: action === 'disconnect' },
-      }));
-    }
-    throw new Error('Device power actions require the new simulator runtime API.');
-  }
+  return unwrap(await api.post(`/runtime/devices/${encodeURIComponent(deviceId)}/actions`, { action }));
 }
 
 export async function sendTrap(payload) {

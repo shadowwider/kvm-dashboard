@@ -13,6 +13,7 @@ class SimulatorRun(Base):
     session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     session_epoch: Mapped[str | None] = mapped_column(String(64), nullable=True)
     session_started_at: Mapped[int] = mapped_column(default=0)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     revision: Mapped[int] = mapped_column(default=1)
     manifest: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

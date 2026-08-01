@@ -21,6 +21,21 @@ def test_stop_runtime_clears_active_state():
         simulator_main.current_state()
 
 
+def test_stop_runtime_attempts_session_scoped_bridge_cleanup(monkeypatch):
+    simulator_main.start_scenario("ccdc-regression")
+    calls = []
+    monkeypatch.setattr(
+        simulator_main.bridge,
+        "cleanup",
+        lambda: calls.append(True) or {"enabled": True, "ok": True},
+    )
+    try:
+        simulator_main.stop_runtime()
+        assert calls == [True]
+    finally:
+        simulator_main.stop_runtime()
+
+
 def test_topology_start_rolls_back_when_agent_bind_fails():
     scenario = built_in_scenarios()["ccdc-regression"]
     device = scenario.devices[0].model_copy(update={"host": "203.0.113.254", "snmp_port": 16161})

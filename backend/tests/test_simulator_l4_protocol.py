@@ -294,10 +294,11 @@ def test_rest_websocket_and_udp_observe_one_patch_revision(monkeypatch):
     monkeypatch.setattr(simulator_main.bridge, "reconcile", lambda _runtime: {"enabled": False})
     try:
         with TestClient(simulator_main.app) as client:
-            with client.websocket_connect("/api/v1/ws") as websocket:
+            with client.websocket_connect("/api/v1/ws", headers={"origin": "http://testserver"}) as websocket:
                 initial = websocket.receive_json()
                 assert initial["type"] == "snapshot"
                 assert initial["state"]["revision"] == runtime.revision
+                assert initial["state"]["runtime_instances"]["devices"]
                 response = client.patch(
                     f"/api/v1/runtime/devices/{device.id}/state",
                     json={
@@ -336,6 +337,7 @@ def test_rest_websocket_and_udp_observe_one_patch_revision(monkeypatch):
                     },
                 )
                 assert conflict.status_code == 409
-                assert conflict.json()["detail"]["code"] == "revision_conflict"
+                assert conflict.json()["code"] == "revision_conflict"
+                assert conflict.json()["current_revision"] == runtime.revision
     finally:
         assert agent.stop()

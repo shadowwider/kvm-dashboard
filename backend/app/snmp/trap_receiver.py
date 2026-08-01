@@ -148,6 +148,38 @@ def parse_trap_varbinds(var_binds) -> tuple[list[dict], int | None, str | None]:
     return raw_binds, trap_level, trap_message
 
 
+def simulator_device_from_trap_source(runs, source_ip: str) -> str | None:
+    """Resolve a simulator Trap using the explicit manifest source identity.
+
+    Port mode deliberately keeps all SNMP polling endpoints on 127.0.0.1 with
+    different ports, but a passive UDP Trap exposes only its source IP.  The
+    bridge manifest therefore records an independent loopback trap source per
+    device.  Ambiguous or legacy manifests return ``None`` rather than
+    arbitrarily attributing an alert to the first device.
+    """
+    matches: list[str] = []
+    for run in runs:
+        manifest = getattr(run, "manifest", {}) or {}
+        for device in manifest.get("scenario", {}).get("devices", []):
+            if device.get("trap_source_host") == source_ip:
+                matches.append(f"sim_{run.id}_{device.get('id', '')}"[:64])
+    return matches[0] if len(matches) == 1 else None
+
+
+async def _device_for_trap_source(db, source_ip: str):
+    """Find one Dashboard device without allowing same-host ambiguity."""
+    from app.models.device import Device
+    from app.models.simulator_run import SimulatorRun
+    from sqlalchemy import select
+
+    runs = (await db.execute(select(SimulatorRun))).scalars().all()
+    simulator_id = simulator_device_from_trap_source(runs, source_ip)
+    if simulator_id:
+        return await db.get(Device, simulator_id)
+    devices = (await db.execute(select(Device).where(Device.host == source_ip))).scalars().all()
+    return devices[0] if len(devices) == 1 else None
+
+
 def _start_trap_receiver(
     main_loop: asyncio.AbstractEventLoop,
     ready_event: threading.Event | None = None,
@@ -343,10 +375,7 @@ async def _save_trap(
                 enhanced_message = f"{device_name}/{endpoint_name} {action}"
             else:
                 # 找不到端点：尝试仅用 source_ip 查设备（兼容非 Docker 部署）
-                dev_result = await db.execute(
-                    select(Device).where(Device.host == source_ip)
-                )
-                device = dev_result.scalar_one_or_none()
+                device = await _device_for_trap_source(db, source_ip)
                 if device:
                     device_id = device.id
                     device_name = device.name
@@ -359,10 +388,7 @@ async def _save_trap(
                 enhanced_message = f"{device_name}: {message}"
         else:
             # 消息格式无法解析（非 G&D 标准格式）：尝试 source_ip 查设备
-            dev_result = await db.execute(
-                select(Device).where(Device.host == source_ip)
-            )
-            device = dev_result.scalar_one_or_none()
+            device = await _device_for_trap_source(db, source_ip)
             if device:
                 device_id = device.id
                 device_name = device.name

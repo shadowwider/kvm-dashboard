@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.database import engine, AsyncSessionLocal, Base
 from app.models import *  # noqa: 注册所有模型到 Base
 from app.api.router import api_router
+from app.api.simulator import reap_expired_simulator_runs
 from app.snmp.poller import health_monitor_state, run_health_probe_cycle, run_poll_cycle
 from app.snmp.trap_receiver import start_trap_receiver, trap_receiver_status
 from app.auth.jwt import hash_password
@@ -51,6 +52,7 @@ async def _migrate_columns():
         ("simulator_runs", "session_id",    "ALTER TABLE simulator_runs ADD COLUMN session_id VARCHAR(64)"),
         ("simulator_runs", "session_started_at", "ALTER TABLE simulator_runs ADD COLUMN session_started_at BIGINT DEFAULT 0"),
         ("simulator_runs", "session_epoch", "ALTER TABLE simulator_runs ADD COLUMN session_epoch VARCHAR(64)"),
+        ("simulator_runs", "lease_expires_at", "ALTER TABLE simulator_runs ADD COLUMN lease_expires_at TIMESTAMP WITH TIME ZONE"),
     ]
     async with engine.begin() as conn:
         if settings.is_sqlite:
@@ -195,6 +197,15 @@ async def lifespan(app: FastAPI):
             max_instances=1,
             coalesce=True,
         )
+    if settings.simulator_bridge_enabled:
+        scheduler.add_job(
+            reap_expired_simulator_runs,
+            trigger="interval",
+            seconds=max(5, settings.simulator_bridge_lease_seconds // 2),
+            id="simulator_bridge_lease_cleanup",
+            max_instances=1,
+            coalesce=True,
+        )
     scheduler.start()
     logger.info(f"SNMP 完整轮询调度器已启动（间隔 {settings.snmp_poll_interval}s）")
     if settings.snmp_health_poll_enabled:
@@ -210,6 +221,8 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(run_poll_cycle())
     if settings.snmp_health_poll_enabled:
         asyncio.create_task(run_health_probe_cycle())
+    if settings.simulator_bridge_enabled:
+        asyncio.create_task(reap_expired_simulator_runs())
 
     yield
 

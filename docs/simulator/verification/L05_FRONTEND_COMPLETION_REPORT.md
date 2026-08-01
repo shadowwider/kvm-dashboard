@@ -76,3 +76,15 @@ cd backend
 
 本报告不是 L5 Accepted 结论。当前 UI shell 的 P0=0；上列 P1 均是 L4 未冻结
 公共契约造成的明确阻塞，不以 mock 或本地字段 fallback 掩盖。
+
+## 5. 后续收口增量（2026-08-01）
+
+前端已改为将 L4 `runtime_instances.devices[].path_registry` 合并到对应 runtime
+device；不再因 registry 位于独立实例区而显示空参数抽屉。根验收通过 Chrome CDP
+真实点击 CCDM 节点，抽屉渲染 162 个服务器实例字段，并在页面修改
+`scalars.switch_temperature` 后从 `/state` 验证 committed 值为 `67.7`。
+
+页面也已移除到 legacy `scenarios/reachability/endpoints` 写接口的 fallback；物理边
+只能从设备实际 port Handle 建立、route 只能在 endpoint 间建立，保存含 topology
+revision 以拒绝并发静默覆盖。仍须完成双浏览器冲突、Trap Dashboard 回执、端口拖拽
+round trip、窄屏/i18n/可访问性与完整发布 Gate，故 L5 继续保持 Candidate。

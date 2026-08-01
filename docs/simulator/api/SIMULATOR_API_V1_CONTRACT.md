@@ -225,6 +225,11 @@ state/snapshot（包含 runtime_instances）
 - 写入频率、batch 大小、消息长度和 topology 大小有上限；
 - compatibility endpoint 必须在 OpenAPI 标记 deprecated，不能静默长期存在。
 
+当前收口约束：Topology host 默认只允许 loopback；额外 host 必须在
+`SIM_ALLOWED_HOSTS` 精确列出。WebSocket 默认只接受浏览器同源，Vite 等开发源必须
+通过 `SIM_ALLOWED_ORIGINS` 显式列出。Topology 用户文档带 revision，PUT 的旧 revision
+返回 `revision_conflict`，不得覆盖较新的保存。
+
 ## 7. 从 Draft 到 Accepted 的条件
 
 - 每个端点有 request/response/error Golden fixture；
