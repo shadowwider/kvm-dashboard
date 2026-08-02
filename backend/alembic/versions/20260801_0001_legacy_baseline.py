@@ -142,6 +142,17 @@ UNIQUE_COLUMN_SETS = {
     "oid_registry": {("oid",), ("name",)},
 }
 
+# ``backend/init.sql`` was the supported pre-Alembic PostgreSQL bootstrap.
+# It made ``status_metrics`` Timescale-ready without an ``id`` primary key and
+# omitted the OID unique index.  The baseline can safely adopt that shape and
+# add the OID index below; other schema deviations remain a hard failure.
+POSTGRES_PRIMARY_KEY_EXCEPTIONS = {
+    "status_metrics": {()},
+}
+ADOPTABLE_UNIQUE_OMISSIONS = {
+    "oid_registry": {("oid",)},
+}
+
 
 def _column_names(inspector: sa.Inspector, table_name: str) -> set[str]:
     return {column["name"] for column in inspector.get_columns(table_name)}
@@ -179,7 +190,12 @@ def _validate_existing_table(
         inspector.get_pk_constraint(table_name).get("constrained_columns") or ()
     )
     expected_pk = PRIMARY_KEYS[table_name]
-    if actual_pk != expected_pk:
+    accepted_primary_keys = {expected_pk}
+    if inspector.bind.dialect.name == "postgresql":
+        accepted_primary_keys.update(
+            POSTGRES_PRIMARY_KEY_EXCEPTIONS.get(table_name, set())
+        )
+    if actual_pk not in accepted_primary_keys:
         raise RuntimeError(
             f"Cannot adopt legacy table '{table_name}': primary key is "
             f"{actual_pk or '<none>'}, expected {expected_pk}."
@@ -187,6 +203,8 @@ def _validate_existing_table(
 
     required_unique = UNIQUE_COLUMN_SETS.get(table_name, set())
     missing_unique = required_unique - _unique_column_sets(inspector, table_name)
+    if inspector.bind.dialect.name == "postgresql":
+        missing_unique -= ADOPTABLE_UNIQUE_OMISSIONS.get(table_name, set())
     if missing_unique:
         formatted = ", ".join(str(columns) for columns in sorted(missing_unique))
         raise RuntimeError(
@@ -214,6 +232,28 @@ def _ensure_index(
         ):
             return
     op.create_index(index_name, table_name, list(expected_columns), unique=unique)
+
+
+def _ensure_unique_constraint(
+    table_name: str,
+    constraint_name: str,
+    columns: Iterable[str],
+) -> None:
+    """Add a PostgreSQL unique constraint only when the old bootstrap lacks it."""
+    inspector = sa.inspect(op.get_bind())
+    expected_columns = tuple(columns)
+    existing = {
+        tuple(item["column_names"])
+        for item in inspector.get_unique_constraints(table_name)
+        if item.get("column_names")
+    }
+    existing.update(
+        tuple(item["column_names"])
+        for item in inspector.get_indexes(table_name)
+        if item.get("unique") and item.get("column_names")
+    )
+    if expected_columns not in existing:
+        op.create_unique_constraint(constraint_name, table_name, list(columns))
 
 
 def _create_users() -> None:
@@ -476,6 +516,10 @@ def upgrade() -> None:
         inspector = sa.inspect(bind)
 
     _ensure_index("users", "ix_users_username", ("username",), unique=True)
+    if bind.dialect.name == "postgresql":
+        _ensure_unique_constraint(
+            "oid_registry", "uq_oid_registry_oid", ("oid",)
+        )
     _ensure_index("endpoints", "ix_endpoints_device_id", ("device_id",))
     _ensure_index("status_metrics", "ix_status_metrics_time", ("time",))
     _ensure_index(

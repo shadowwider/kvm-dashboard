@@ -1,0 +1,19 @@
+# Local credentials and generated runtime data must never enter a production image.
+.env
+.env.*
+.venv/
+__pycache__/
+.pytest_cache/
+tmp/
+logs/
+*.log
+*.db
+*.db-*
+kvm_status.json
+
+# Development-only helpers and test fixtures are not required at runtime.
+tests/
+debug_snmp.py
+demo_live.py
+test_walk.py
+run_simulators_large.py

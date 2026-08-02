@@ -70,6 +70,15 @@ class Settings(BaseSettings):
 
     # 原始 SNMP 数据日志（Trap + 轮询，写入 logs/ 目录，可通过 SNMP_RAW_LOG_ENABLED=false 关闭）
     snmp_raw_log_enabled: bool = True
+    snmp_raw_log_max_mb: int = Field(default=10, ge=1, le=1024)
+    snmp_raw_log_backup_count: int = Field(default=5, ge=1, le=100)
+
+    # 数据保留与容量预警。清理作业仅处理超过保留期的数据，不会在启动时立即删除历史记录。
+    data_retention_cleanup_enabled: bool = True
+    metrics_retention_days: int = Field(default=90, ge=1, le=3650)
+    trap_event_retention_days: int = Field(default=180, ge=1, le=3650)
+    audit_log_retention_days: int = Field(default=365, ge=1, le=3650)
+    database_size_warning_mb: int = Field(default=10 * 1024, ge=128)
 
     # 服务
     backend_host: str = "0.0.0.0"

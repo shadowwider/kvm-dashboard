@@ -88,8 +88,8 @@ def _init_poll_raw_logger():
     os.makedirs(log_dir, exist_ok=True)
     handler = _SafeRotatingFileHandler(
         os.path.join(log_dir, 'poll_raw.log'),
-        maxBytes=20 * 1024 * 1024,   # 20 MB per file
-        backupCount=10,
+        maxBytes=_poll_settings.snmp_raw_log_max_mb * 1024 * 1024,
+        backupCount=_poll_settings.snmp_raw_log_backup_count,
         encoding='utf-8',
     )
     handler.setFormatter(logging.Formatter('%(asctime)s | %(message)s'))

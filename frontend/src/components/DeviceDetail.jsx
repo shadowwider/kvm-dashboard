@@ -101,6 +101,7 @@ function FieldRow({ field, locale, t }) {
 }
 
 function EntityBlock({ entity, locale, t }) {
+    const fields = Array.isArray(entity.fields) ? entity.fields : [];
     return (
         <div className="detail-entity">
             <div className="detail-entity-header">
@@ -121,7 +122,7 @@ function EntityBlock({ entity, locale, t }) {
                 </div>
             )}
             <div className="detail-fields">
-                {entity.fields.map((field, index) => (
+                {fields.map((field, index) => (
                     <FieldRow
                         key={`${entity.entity_key}:${field.key}:${index}`}
                         field={field}
@@ -142,19 +143,21 @@ export default function DeviceDetail({
     onRefresh,
 }) {
     const { t, locale } = useTranslation();
+    const sections = Array.isArray(detail?.sections) ? detail.sections : [];
+    const device = detail?.device;
 
     return (
         <div className="device-detail-panel">
             <div className="device-detail-header">
                 <div>
                     <span className="device-detail-eyebrow">
-                        {detail?.device?.profile_label_key
-                            ? t(detail.device.profile_label_key)
+                        {device?.profile_label_key
+                            ? t(device.profile_label_key)
                             : t('detail.device')}
                     </span>
-                    <h2>{detail?.device?.name || t('detail.device')}</h2>
-                    {detail?.device && (
-                        <span>{detail.device.host}:{detail.device.port}</span>
+                    <h2>{device?.name || t('detail.device')}</h2>
+                    {device && (
+                        <span>{device.host}:{device.port}</span>
                     )}
                 </div>
                 <div className="device-detail-actions">
@@ -178,20 +181,27 @@ export default function DeviceDetail({
             </div>
 
             <div className="device-detail-body">
+                {device && (
+                    <div className="detail-device-overview">
+                        <StatusBadge status={device.online_status} t={t} />
+                        <StatusBadge status={device.freshness_status} t={t} />
+                        <StatusBadge status={device.health_status} t={t} />
+                    </div>
+                )}
                 {loading && <div className="detail-empty">{t('common.loading')}</div>}
                 {error && <div className="detail-error">{t('detail.load_failed')}: {error}</div>}
-                {!loading && !error && detail?.sections?.length === 0 && (
+                {!loading && !error && sections.length === 0 && (
                     <div className="detail-empty">{t('detail.no_sections')}</div>
                 )}
 
-                {detail?.sections?.map((section) => (
+                {sections.map((section) => (
                     <section key={section.key} className="detail-section">
                         <div className="detail-section-header">
                             <h3>{t(section.label_key, section.label || section.key)}</h3>
                             <StatusBadge status={section.status} t={t} />
                         </div>
                         <div className="detail-fields">
-                            {section.fields.map((field, index) => (
+                            {(section.fields || []).map((field, index) => (
                                 <FieldRow
                                     key={`${section.key}:${field.key}:${index}`}
                                     field={field}
@@ -200,9 +210,9 @@ export default function DeviceDetail({
                                 />
                             ))}
                         </div>
-                        {section.entities.length > 0 && (
+                        {(section.entities || []).length > 0 && (
                             <div className="detail-entities">
-                                {section.entities.map((entity) => (
+                                {(section.entities || []).map((entity) => (
                                     <EntityBlock
                                         key={entity.entity_key}
                                         entity={entity}

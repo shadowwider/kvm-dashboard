@@ -1,13 +1,16 @@
 services:
   # ── PostgreSQL + TimescaleDB ──────────────────────────────────
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    # Pin the exact image that passed the fresh-schema migration acceptance.
+    # Upgrade this digest only through an explicit compatibility test.
+    image: timescale/timescaledb@sha256:95a7997408e3295935e4afe8af8c09aae22bd51732131d1e7351c63d6198a71c
     container_name: kvm_postgres
     restart: unless-stopped
+    # env_file values are injected into the container. Do not mirror secrets
+    # through ${...} here: Compose interpolation does not read service env_file.
+    env_file:
+      - ${KVM_ENV_FILE:-.env.production}
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-kvm_monitor}
-      POSTGRES_USER: ${POSTGRES_USER:-kvm_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -15,10 +18,18 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"    # 仅开发时暴露，生产可注释掉
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kvm_user} -d ${POSTGRES_DB:-kvm_monitor}"]
+      # TCP is deliberately required: during the entrypoint bootstrap,
+      # PostgreSQL accepts only its Unix socket while init.sql still runs.
+      # A socket-only probe would start the backend too early.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: &bounded-json-logs
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   # ── FastAPI 后端 ───────────────────────────────────────────────
   backend:
@@ -31,21 +42,20 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - .env.production
+      - ${KVM_ENV_FILE:-.env.production}
     environment:
       DB_MODE: postgres
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-kvm_monitor}
-      POSTGRES_USER: ${POSTGRES_USER:-kvm_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       # 容器内使用非特权端口；旧 SNMP_TRAP_PORT 仍由后端兼容读取一版。
       SNMP_TRAP_LISTEN_PORT: ${SNMP_TRAP_LISTEN_PORT:-10162}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      # The detailed probe performs a real database check; the root endpoint
+      # only reports that the HTTP server itself is alive.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -53,6 +63,7 @@ services:
     # 现场设备统一发送到宿主机 UDP 162，再映射到容器内非特权端口。
     ports:
       - "${SNMP_TRAP_HOST_PORT:-162}:${SNMP_TRAP_LISTEN_PORT:-10162}/udp"
+    logging: *bounded-json-logs
 
   # ── Nginx + 前端静态文件 ────────────────────────────────────────
   frontend:
@@ -69,10 +80,12 @@ services:
     ports:
       - "${FRONTEND_PORT:-80}:80"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      # nginx listens on IPv4 in nginx.conf; localhost may resolve to ::1.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/"]
       interval: 30s
       timeout: 3s
       retries: 3
+    logging: *bounded-json-logs
 
 volumes:
   postgres_data:

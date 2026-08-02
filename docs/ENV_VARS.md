@@ -1,8 +1,29 @@
 # KVM Dashboard — 环境变量参考
 
-所有环境变量均通过 `.env.production`（Docker 部署）或 shell 环境变量注入，对应 `backend/app/config.py` 中的 `Settings` 类。
+所有后端环境变量均通过 Docker 服务 `env_file`、`.env.production`（Docker 部署）或 shell 环境变量注入，对应 `backend/app/config.py` 中的 `Settings` 类。
 
 变量名不区分大小写（pydantic-settings 默认行为）。
+
+## Docker Compose 环境文件与插值
+
+本项目在 `postgres` 与 `backend` 服务中使用：
+
+```yaml
+env_file:
+  - ${KVM_ENV_FILE:-.env.production}
+```
+
+`KVM_ENV_FILE` 是 Compose 客户端解析的文件路径变量，默认 `.env.production`，本身不会传给后端配置。`env_file` 的内容会在容器创建时注入服务；`environment` 中显式声明的值优先级更高，例如后端强制使用 `DB_MODE=postgres`、`POSTGRES_HOST=postgres` 和容器内 `POSTGRES_PORT=5432`。
+
+这与 Compose `${VARIABLE:-default}` 插值不同：插值发生在容器创建前，只读取调用进程环境、Compose 项目 `.env` 或 CLI `--env-file`，**不会读取服务的 `env_file`**。因此，若在私有文件中配置 `FRONTEND_PORT`、`SNMP_TRAP_HOST_PORT`、`SNMP_TRAP_LISTEN_PORT` 或 `TZ`，生产命令必须同时指定服务文件和插值文件：
+
+```powershell
+$env:KVM_ENV_FILE = '.\kvm.production.env'
+docker compose --env-file $env:KVM_ENV_FILE config --quiet
+docker compose --env-file $env:KVM_ENV_FILE up --detach --build
+```
+
+`config --quiet` 可验证配置而不打印机密。不要将无 `--quiet` 的 `docker compose config`、`docker compose config --environment` 或 `docker inspect` 的输出放入日志、工单或聊天记录。
 
 ---
 
@@ -88,7 +109,14 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 
 | 变量 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `SNMP_RAW_LOG_ENABLED` | bool | `true` | 是否将原始 SNMP 数据写入独立日志文件 |
+| `SNMP_RAW_LOG_ENABLED` | bool | `true` | 是否将原始 SNMP 数据写入独立日志文件；生产建议默认关闭，仅排障时开启。 |
+| `SNMP_RAW_LOG_MAX_MB` | int | `10` | 单个原始 SNMP 日志文件的最大 MiB 数。 |
+| `SNMP_RAW_LOG_BACKUP_COUNT` | int | `5` | 每类原始 SNMP 日志保留的轮转备份数；总量约为 `(1 + count) × max`。 |
+| `DATA_RETENTION_CLEANUP_ENABLED` | bool | `true` | 是否每天执行一次过期运行数据清理。首次运行在成功启动约 24 小时后，不会在启动时立即删除历史记录。设为 `false` 不会撤销已有 TimescaleDB 指标保留策略。 |
+| `METRICS_RETENTION_DAYS` | int | `90` | 状态指标的保留天数。PostgreSQL/TimescaleDB 与应用清理任务均使用该期限；配置变更在后端下次启动时重建 TimescaleDB 保留策略。 |
+| `TRAP_EVENT_RETENTION_DAYS` | int | `180` | Trap 原始事件的保留天数。 |
+| `AUDIT_LOG_RETENTION_DAYS` | int | `365` | 审计记录和已解决告警的保留天数；未解决告警不会被自动删除。 |
+| `DATABASE_SIZE_WARNING_MB` | int | `10240` | 数据库容量预警阈值；超过后 `/api/v1/health` 标示 `database_capacity.warning=true`。 |
 
 启用后，日志文件写入容器内 `/app/logs/`（Docker Compose 已挂载到宿主机 `./logs/`）：
 
@@ -97,7 +125,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 | `logs/trap_raw.log` | 每条收到的 Trap：源 IP、level、message、完整 varbind 列表 |
 | `logs/poll_raw.log` | 每次轮询的 GET/WALK 原始返回值（OID 名称、pysnmp 类型、原始值） |
 
-两个文件均采用轮转策略：单文件上限 20 MB，保留最近 10 个文件（最大占用约 200 MB）。
+两个文件均采用轮转策略。默认单文件上限 10 MiB、保留 5 个备份，因此每类文件最多约 60 MiB、两类合计约 120 MiB；这包含当前文件和 `.1` 至 `.5` 备份，可由上述变量调整。该上限只覆盖原始 SNMP 文件，不覆盖 Docker stdout/stderr 日志或 PostgreSQL 数据卷。
 
 **关闭日志**（数据已入库，仅用于调试）：
 ```bash
@@ -119,7 +147,7 @@ SNMP_RAW_LOG_ENABLED=false
 
 ## Docker Compose 专用变量
 
-以下变量仅在 `docker-compose.yml` 中引用，不传入后端 `config.py`：
+以下变量用于 Compose 插值或容器环境。除 `FRONTEND_PORT` 和 `KVM_ENV_FILE` 外，部分变量也会传入后端；请按本页开头的 `--env-file` 规则提供插值值。
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
@@ -128,6 +156,13 @@ SNMP_RAW_LOG_ENABLED=false
 | `SNMP_TRAP_HOST_PORT` | `162` | 宿主机 SNMP Trap UDP 端口。 |
 | `SNMP_TRAP_LISTEN_PORT` | `10162` | 后端容器监听的 SNMP Trap UDP 端口。 |
 | `TZ` | `Asia/Shanghai` | 容器时区（同时注入到所有服务容器） |
+| `KVM_ENV_FILE` | `.env.production` | `postgres`、`backend` 服务使用的运行时 `env_file` 路径。应由调用 Compose 的 shell 设置，并与 CLI `--env-file` 指向同一私有文件。 |
+
+### Docker 日志与存储边界
+
+三个服务的 Docker `local` 日志驱动均配置 `max-size=20m`、`max-file=5`，每容器 stdout/stderr 日志名义上最多约 100 MiB。该限制不作用于挂载的 `./logs/` 原始 SNMP 文件，也不作用于 `postgres_data` 命名卷。
+
+`postgres_data` 使用 Docker `local` 命名卷，没有可在所有 Docker 平台和存储驱动上一致生效的 Compose 硬配额。`DATABASE_SIZE_WARNING_MB` 仅令 `/api/v1/health` 返回 `database_capacity.warning=true`，并不阻止写入或限制主机磁盘；应由宿主机/云存储的监控与已验证的配额能力承担硬限制。
 
 ---
 
@@ -145,7 +180,7 @@ POSTGRES_PASSWORD=CHANGE_ME_TO_A_STRONG_PASSWORD   # ← 必须修改
 # ── 认证 ────────────────────────────────────────────
 SECRET_KEY=CHANGE_ME_TO_A_64_CHAR_RANDOM_STRING    # ← 必须修改
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin123                              # ← 建议修改
+ADMIN_PASSWORD=CHANGE_ME_TO_A_STRONG_ADMIN_PASSWORD  # ← 必须修改
 
 # ── SNMP ────────────────────────────────────────────
 SNMP_DEFAULT_COMMUNITY=public
@@ -160,7 +195,16 @@ SNMP_HEALTH_RETRIES=1
 SNMP_HEALTH_CONCURRENCY=20
 SNMP_HEALTH_FAILURE_THRESHOLD=1
 SNMP_ENDPOINT_STATUS_POLL_ENABLED=true
-SNMP_RAW_LOG_ENABLED=true
+SNMP_RAW_LOG_ENABLED=false
+SNMP_RAW_LOG_MAX_MB=10
+SNMP_RAW_LOG_BACKUP_COUNT=5
+
+# ── 数据保留与容量预警 ─────────────────────────────
+DATA_RETENTION_CLEANUP_ENABLED=true
+METRICS_RETENTION_DAYS=90
+TRAP_EVENT_RETENTION_DAYS=180
+AUDIT_LOG_RETENTION_DAYS=365
+DATABASE_SIZE_WARNING_MB=10240
 
 # ── 日志 ────────────────────────────────────────────
 LOG_LEVEL=INFO

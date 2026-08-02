@@ -77,8 +77,11 @@ export default function SoundControl() {
                     <button className="sound-preview-button" onClick={preview}>
                         <Play size={13} /> {t('sound.preview')}
                     </button>
+                    {audioStatus === 'ready' && (
+                        <div className="sound-help" role="status">{t('sound.ready')}</div>
+                    )}
                     {audioStatus === 'blocked' && (
-                        <div className="sound-help">{t('sound.blocked')}</div>
+                        <div className="sound-help" role="alert">{t('sound.blocked')}</div>
                     )}
                 </div>
             )}

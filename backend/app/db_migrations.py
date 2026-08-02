@@ -12,7 +12,7 @@ from app.config import get_settings
 
 
 BASELINE_REVISION = "20260801_0001"
-HEAD_REVISION = "20260801_0002"
+HEAD_REVISION = "20260802_0003"
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 logger = logging.getLogger(__name__)
 
@@ -165,6 +165,18 @@ LEGACY_UNIQUE_COLUMN_SETS = {
     "oid_registry": {("oid",), ("name",)},
 }
 
+# The original PostgreSQL bootstrap script predates Alembic.  It created the
+# metric table as a TimescaleDB hypertable candidate (therefore without an
+# ``id`` primary key) and did not add the later ``oid_registry.oid`` unique
+# index.  Both differences can be reconciled additively by the baseline
+# migration; they must not make a supported bootstrap database unstartable.
+_POSTGRES_LEGACY_PRIMARY_KEY_EXCEPTIONS = {
+    "status_metrics": {()},
+}
+_LEGACY_UNIQUE_KEY_ADOPTIONS = {
+    "oid_registry": {("oid",)},
+}
+
 NEW_TABLE_COLUMNS = {
     "device_entities": {
         "id",
@@ -312,6 +324,7 @@ def _unique_column_sets(db_inspector, table_name: str) -> set[tuple[str, ...]]:
 
 
 def _validate_legacy_tables(db_inspector, table_names: set[str]) -> None:
+    dialect_name = db_inspector.bind.dialect.name
     for table_name in sorted(table_names & LEGACY_TABLE_COLUMNS.keys()):
         actual_columns = {
             column["name"] for column in db_inspector.get_columns(table_name)
@@ -331,7 +344,14 @@ def _validate_legacy_tables(db_inspector, table_names: set[str]) -> None:
             or ()
         )
         expected_pk = LEGACY_PRIMARY_KEYS[table_name]
-        if actual_pk != expected_pk:
+        accepted_primary_keys = {expected_pk}
+        if dialect_name == "postgresql":
+            accepted_primary_keys.update(
+                _POSTGRES_LEGACY_PRIMARY_KEY_EXCEPTIONS.get(
+                    table_name, set()
+                )
+            )
+        if actual_pk not in accepted_primary_keys:
             raise MigrationSchemaError(
                 f"Legacy table '{table_name}' is incompatible: primary key "
                 f"is {actual_pk or '<none>'}, expected {expected_pk}. "
@@ -342,6 +362,10 @@ def _validate_legacy_tables(db_inspector, table_names: set[str]) -> None:
         missing_unique = expected_unique - _unique_column_sets(
             db_inspector, table_name
         )
+        if dialect_name == "postgresql":
+            missing_unique -= _LEGACY_UNIQUE_KEY_ADOPTIONS.get(
+                table_name, set()
+            )
         if missing_unique:
             formatted = ", ".join(
                 str(columns) for columns in sorted(missing_unique)

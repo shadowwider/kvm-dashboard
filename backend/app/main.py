@@ -8,7 +8,7 @@ FastAPI 应用入口。
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +22,7 @@ from app.models import *  # noqa: 注册所有模型到 Base
 from app.api.router import api_router
 from app.api.simulator import reap_expired_simulator_runs
 from app.services.discovery import DiscoveryAlreadyRunning, discovery_service
+from app.services.data_retention import database_capacity_status, run_retention_cleanup
 from app.snmp.poller import (
     flush_health_heartbeats,
     health_monitor_state,
@@ -97,6 +98,17 @@ def _register_scheduler_jobs(target_scheduler, first_run_at: datetime) -> None:
             coalesce=True,
             next_run_time=first_run_at,
         )
+    if settings.data_retention_cleanup_enabled:
+        target_scheduler.add_job(
+            run_retention_cleanup,
+            trigger="interval",
+            hours=24,
+            id="data_retention_cleanup",
+            max_instances=1,
+            coalesce=True,
+            # Do not delete data as an incidental side effect of an upgrade.
+            next_run_time=first_run_at + timedelta(days=1),
+        )
 
 
 def _restore_application_logging() -> None:
@@ -138,9 +150,17 @@ async def _init_database():
                     "SELECT add_compression_policy('status_metrics', "
                     "INTERVAL '7 days', if_not_exists => TRUE);"
                 ))
+                # init.sql establishes the safe 90-day default for a brand-new
+                # cluster. Reconcile it here so a configured retention period
+                # takes effect on later application restarts as well.
+                await conn.execute(text(
+                    "SELECT remove_retention_policy('status_metrics', "
+                    "if_exists => TRUE);"
+                ))
                 await conn.execute(text(
                     "SELECT add_retention_policy('status_metrics', "
-                    "INTERVAL '90 days', if_not_exists => TRUE);"
+                    f"INTERVAL '{settings.metrics_retention_days} days', "
+                    "if_not_exists => TRUE);"
                 ))
                 logger.info("TimescaleDB 超表配置完成")
             except Exception as e:
@@ -300,15 +320,18 @@ def create_app() -> FastAPI:
     async def health_detailed():
         """带数据库连通性校验的健康检查"""
         db_ok = False
+        database_capacity = None
         try:
             async with AsyncSessionLocal() as db:
                 await db.execute(text("SELECT 1"))
+                database_capacity = await database_capacity_status(db)
                 db_ok = True
         except Exception:
             pass
         return {
             "status": "ok" if db_ok else "degraded",
             "database": "connected" if db_ok else "disconnected",
+            "database_capacity": database_capacity,
             "scheduler": scheduler.running,
             "trap_receiver": trap_receiver_status(),
             "health_probe": {

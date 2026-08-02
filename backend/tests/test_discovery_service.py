@@ -62,6 +62,85 @@ def test_ipv4_cidr_is_limited_to_256_usable_hosts():
         validate_ipv4_cidr("2001:db8::/120")
 
 
+def test_loopback_cidrs_scan_usable_hosts_and_allow_single_host_probe():
+    network, hosts = validate_ipv4_cidr("127.0.0.0/24")
+
+    assert network.with_prefixlen == "127.0.0.0/24"
+    assert len(hosts) == 254
+    assert hosts[0] == "127.0.0.1"
+    assert hosts[-1] == "127.0.0.254"
+    assert "127.0.0.0" not in hosts
+    assert "127.0.0.255" not in hosts
+
+    single_network, single_hosts = validate_ipv4_cidr("127.0.0.2/32")
+    assert single_network.with_prefixlen == "127.0.0.2/32"
+    assert single_hosts == ("127.0.0.2",)
+
+
+@pytest.mark.asyncio
+async def test_loopback_single_host_discovery_imports_mocked_snmp_agent(
+    discovery_session_factory,
+):
+    profile = PROFILE_CATALOG["visionxs_con"]
+    probe_calls = []
+
+    async def fake_probe(host, port, community, **kwargs):
+        probe_calls.append((host, port, community, kwargs))
+        if host == "127.0.0.2":
+            return DiscoveryProbeResult(
+                sys_object_id=profile.sys_object_id,
+                identity={"serial_number": "LOOPBACK-CON-01"},
+            )
+        return None
+
+    service = DiscoveryService(
+        discovery_session_factory,
+        fake_probe,
+        _noop_initial_poll,
+    )
+    async with discovery_session_factory() as db:
+        await service.update_config(
+            db,
+            {
+                "cidr": "127.0.0.2/32",
+                "community": "loopback-private-value",
+                "snmp_port": 161,
+                "timeout_seconds": 0.2,
+                "retries": 0,
+                "concurrency": 1,
+                "enabled": True,
+                "scan_on_startup": False,
+            },
+        )
+        job = await service.create_scan_job(db, requested_by=4)
+        job_id = job.id
+
+    await service.run_job(job_id)
+
+    async with discovery_session_factory() as db:
+        completed = await db.get(DiscoveryJob, job_id)
+        devices = list((await db.execute(select(Device))).scalars())
+
+    assert probe_calls == [
+        (
+            "127.0.0.2",
+            161,
+            "loopback-private-value",
+            {"timeout": 0.2, "retries": 0},
+        )
+    ]
+    assert completed.status == "completed"
+    assert completed.total_hosts == 1
+    assert completed.recognized_hosts == 1
+    assert completed.imported_devices == 1
+    assert completed.results["hosts"][0]["host"] == "127.0.0.2"
+    assert completed.results["hosts"][0]["initial_poll"] == "completed"
+    assert "loopback-private-value" not in json.dumps(completed.results["hosts"])
+    assert len(devices) == 1
+    assert devices[0].host == "127.0.0.2"
+    assert devices[0].port == 161
+
+
 def test_identification_matches_exactly_the_five_catalog_profiles():
     identified = {
         identify_profile(profile.sys_object_id).profile_id

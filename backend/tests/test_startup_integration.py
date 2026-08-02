@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -63,6 +63,7 @@ def test_immediate_scheduler_jobs_are_tracked_by_max_instances(monkeypatch):
     main._register_scheduler_jobs(scheduler, first_run_at)
 
     assert {kwargs["id"] for _, kwargs in jobs} == {
+        "data_retention_cleanup",
         "snmp_poll",
         "snmp_health_probe",
         "snmp_health_heartbeat_flush",
@@ -71,7 +72,15 @@ def test_immediate_scheduler_jobs_are_tracked_by_max_instances(monkeypatch):
     }
     assert all(kwargs["max_instances"] == 1 for _, kwargs in jobs)
     assert all(kwargs["coalesce"] is True for _, kwargs in jobs)
-    assert all(kwargs["next_run_time"] is first_run_at for _, kwargs in jobs)
+    jobs_by_id = {kwargs["id"]: kwargs for _, kwargs in jobs}
+    assert jobs_by_id["data_retention_cleanup"]["next_run_time"] == (
+        first_run_at + timedelta(days=1)
+    )
+    assert all(
+        kwargs["next_run_time"] is first_run_at
+        for job_id, kwargs in jobs_by_id.items()
+        if job_id != "data_retention_cleanup"
+    )
 
 
 def test_application_logging_is_restored_after_alembic():

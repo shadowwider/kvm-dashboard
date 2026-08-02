@@ -68,41 +68,58 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 服务启动后，访问 **[http://localhost:8000/api/docs](http://localhost:8000/api/docs)** 即可查看所有活体 API 接口。
 
+## 检测snmp模拟器测试 
+backend 目录下
+.venv\Scripts\python.exe run_simulators_large.py 
+
+ .venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 18002  启动监控后端  后端目录下
+
+前端目录下启动页面
+  npm.cmd run dev -- --host 127.0.0.1 --port 3001 --strictPort
+
+
+大型模拟器
+终端 1，启动 Dashboard 后端：
+cd H:\WORK\I\kvm-dashboard\backend
+
+$env:DB_MODE = "sqlite"
+$env:SQLITE_PATH = "simulator_local.db"
+$env:SNMP_TRAP_PORT = "10162"
+$env:SNMP_DEFAULT_COMMUNITY = "public"
+
+Remove-Item Env:SIMULATOR_BRIDGE_ENABLED -ErrorAction SilentlyContinue
+Remove-Item Env:SIMULATOR_BRIDGE_TOKEN -ErrorAction SilentlyContinue
+
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 18002
+终端 2，启动模拟器：
+cd H:\WORK\I\kvm-dashboard\backend
+
+$env:SIM_TOPOLOGY = "all-profiles"
+$env:SIM_ADDRESS_MODE = "loopback"
+$env:SIM_WEB_PORT = "18890"
+$env:SNMP_COMMUNITY = "public"
+
+$env:TRAP_TARGET_HOST = "127.0.0.1"
+$env:SNMP_TRAP_PORT = "10162"
+
+Remove-Item Env:SIMULATOR_BRIDGE_TOKEN -ErrorAction SilentlyContinue
+Remove-Item Env:SIM_DASHBOARD_URL -ErrorAction SilentlyContinue
+
+.\.venv\Scripts\python.exe -m simulator
+然后在 Dashboard 的“管理后台 → 自动发现”中配置：
+CIDR：127.0.1.0/29
+SNMP 端口：161
+community：public
+启动扫描
+扫描应识别并加入 5 台设备。之后后台会按正常轮询周期拉取数据；模拟器里触发 Trap 后，Dashboard 的 Trap Receiver 会收到 UDP 10162 通知，并对对应源 IP 的设备触发即时轮询。
+验证成功的标准是：
+自动发现结果为 5 台已识别/导入设备；
+设备地址是 127.0.1.1:161 至 127.0.1.5:161；
+Dashboard 设备详情中的 last_health_check、last_poll 持续更新；
+修改模拟器状态后，下一轮轮询数据变化；
+发送 Trap 后，Dashboard 出现 Trap/告警或相应实时更新。
 ---
 
-## GPT 图像生成工作流
-
-安装 Python 依赖后，可直接在项目根目录运行 `image_gen.py` 调用 OpenAI 图像 API：
-
-```bash
-pip install -r backend/requirements.txt
-```
-
-先设置 API Key：
-
-```bash
-# Windows PowerShell
-$env:OPENAI_API_KEY="your_api_key"
-```
-
-示例：
-
-```bash
-python image_gen.py generate \
-  --model gpt-image-1 \
-  --prompt "Native 4K photorealistic aerial drone photo of red desert sand dunes at sunrise, high oblique view, wind-carved sand ripples, sharp realistic texture, no text, no watermark." \
-  --size 1536x1024 \
-  --quality high \
-  --output-format png \
-  --out ~/example.png
-```
-
-说明：
-- `--model` 可替换为你账户当前可用的 GPT 图像模型。
-- `--out` 支持相对路径和 `~`。
-- 脚本会把接口返回的 base64 图像解码后写入本地文件。
-
----
 
 ## 🐳 Docker 生产部署 (一键起飞)
 

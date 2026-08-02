@@ -67,4 +67,24 @@ export function getToneSpec(severity) {
     return specs[severity] || specs.info;
 }
 
+export async function playToneWithContext(context, severity = 'info') {
+    if (!context) throw new Error('audio_unsupported');
+    if (context.state === 'suspended') await context.resume();
+
+    const { duration, frequency, gain } = getToneSpec(severity);
+    const oscillator = context.createOscillator();
+    const volume = context.createGain();
+    const start = context.currentTime;
+
+    oscillator.type = severity === 'critical' || severity === 'offline' ? 'square' : 'sine';
+    oscillator.frequency.setValueAtTime(frequency, start);
+    volume.gain.setValueAtTime(0.0001, start);
+    volume.gain.exponentialRampToValueAtTime(gain, start + 0.015);
+    volume.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    oscillator.connect(volume);
+    volume.connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration + 0.02);
+}
+
 export const liveAlertSoundGate = createAlertSoundGate();

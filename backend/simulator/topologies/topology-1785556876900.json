@@ -1,0 +1,129 @@
+{
+  "id": "topology-1785556876900",
+  "title": "topology-1785556876900",
+  "revision": 2,
+  "devices": [
+    {
+      "id": "sim-ccdc-01",
+      "name": "SIM / Legacy CCDC Matrix",
+      "profile": "ccdc_legacy_unverified",
+      "host": "127.0.0.1",
+      "snmp_port": 11161,
+      "trap_source_host": null,
+      "system_oid": null,
+      "evidence": null,
+      "position": {
+        "x": 651.2799070847852,
+        "y": 139.82810685249711
+      },
+      "endpoints": [
+        {
+          "id": "CPU-1-001",
+          "module_type": "cpu",
+          "row": 1,
+          "port_index": 1,
+          "status": 1,
+          "display_name": null,
+          "video_connected": true,
+          "display_connected": true,
+          "frozen": false
+        },
+        {
+          "id": "CPU-1-002",
+          "module_type": "cpu",
+          "row": 2,
+          "port_index": 2,
+          "status": 1,
+          "display_name": null,
+          "video_connected": true,
+          "display_connected": true,
+          "frozen": false
+        },
+        {
+          "id": "CON-1-001",
+          "module_type": "con",
+          "row": 1,
+          "port_index": 13,
+          "status": 1,
+          "display_name": null,
+          "video_connected": true,
+          "display_connected": true,
+          "frozen": false
+        },
+        {
+          "id": "CON-1-002",
+          "module_type": "con",
+          "row": 2,
+          "port_index": 14,
+          "status": 1,
+          "display_name": null,
+          "video_connected": true,
+          "display_connected": true,
+          "frozen": false
+        }
+      ],
+      "ports": [
+        {
+          "index": 1,
+          "status": "up"
+        },
+        {
+          "index": 2,
+          "status": "up"
+        },
+        {
+          "index": 13,
+          "status": "up"
+        },
+        {
+          "index": 14,
+          "status": "up"
+        }
+      ],
+      "routes": [
+        {
+          "id": "route-1",
+          "source_endpoint_id": "CPU-1-001",
+          "target_endpoint_id": "CON-1-001",
+          "state": "active",
+          "evidence": "simulation-declared",
+          "label": null
+        },
+        {
+          "id": "route-2",
+          "source_endpoint_id": "CPU-1-002",
+          "target_endpoint_id": "CON-1-002",
+          "state": "active",
+          "evidence": "simulation-declared",
+          "label": null
+        }
+      ],
+      "profile_state": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "sim-ccdc-01-route-1",
+      "source": "CPU-1-001",
+      "target": "CON-1-001",
+      "kind": "route",
+      "source_port": null,
+      "target_port": null,
+      "label": "simulation route",
+      "metadata": {}
+    },
+    {
+      "id": "sim-ccdc-01-route-2",
+      "source": "CPU-1-002",
+      "target": "CON-1-002",
+      "kind": "route",
+      "source_port": null,
+      "target_port": null,
+      "label": "simulation route",
+      "metadata": {}
+    }
+  ],
+  "read_only": false,
+  "source": "user",
+  "description": null
+}

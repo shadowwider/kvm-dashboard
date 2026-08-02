@@ -193,3 +193,29 @@ async def test_discovery_api_returns_structured_validation_and_not_found_errors(
     )
     assert missing_response.status_code == 404
     assert missing_response.json()["detail"]["code"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_discovery_api_accepts_loopback_single_host_without_exposing_community(
+    discovery_api_client,
+):
+    secret = "loopback-api-private-value"
+    response = await discovery_api_client.put(
+        "/api/v1/discovery/config",
+        json={
+            "cidr": "127.0.0.2/32",
+            "community": secret,
+            "snmp_port": 161,
+            "timeout_seconds": 0.2,
+            "retries": 0,
+            "concurrency": 1,
+            "enabled": True,
+            "scan_on_startup": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["cidr"] == "127.0.0.2/32"
+    assert response.json()["snmp_port"] == 161
+    assert "community" not in response.text
+    assert secret not in response.text

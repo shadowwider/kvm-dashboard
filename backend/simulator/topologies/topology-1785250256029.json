@@ -1,6 +1,7 @@
 {
   "id": "topology-1785250256029",
-  "title": "Simulator topology 2026/7/28 22:50:56",
+  "title": "topology-1785250256029",
+  "revision": 3,
   "devices": [
     {
       "id": "ccdc-legacy-1",
@@ -8,6 +9,7 @@
       "profile": "ccdc_legacy_unverified",
       "host": "127.0.0.1",
       "snmp_port": 11161,
+      "trap_source_host": null,
       "system_oid": null,
       "evidence": null,
       "position": {
@@ -97,6 +99,24 @@
           "status": "up"
         }
       ],
+      "routes": [],
+      "profile_state": {}
+    },
+    {
+      "id": "dp12_mux_atc-2",
+      "name": "DP1.2-MUX-ATC",
+      "profile": "dp12_mux_atc_readonly",
+      "host": null,
+      "snmp_port": 11162,
+      "trap_source_host": null,
+      "system_oid": null,
+      "evidence": null,
+      "position": {
+        "x": 156.0,
+        "y": 116.0
+      },
+      "endpoints": [],
+      "ports": [],
       "routes": [],
       "profile_state": {}
     }

@@ -1,0 +1,134 @@
+.device-inventory {
+    isolation: isolate;
+}
+
+.device-type-tabs {
+    display: flex;
+    min-width: 0;
+    gap: 6px;
+    padding: 9px 12px 0;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    background: rgba(4, 12, 24, 0.64);
+    scrollbar-width: thin;
+}
+
+.device-type-tab {
+    display: inline-flex;
+    min-height: 31px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font: inherit;
+    font-size: 9px;
+}
+
+.device-type-tab:hover,
+.device-type-tab:focus-visible {
+    color: var(--text-main);
+    background: rgba(0, 212, 255, 0.055);
+    outline: 0;
+}
+
+.device-type-tab.active {
+    position: relative;
+    margin-bottom: -1px;
+    border-color: var(--border);
+    border-bottom-color: var(--bg-deep);
+    background: var(--bg-deep);
+    color: var(--cyan);
+}
+
+.device-type-tab b {
+    min-width: 17px;
+    padding: 1px 4px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.07);
+    color: inherit;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.device-inventory .device-table-toolbar {
+    border-top: 0;
+}
+
+.device-table-row {
+    cursor: pointer;
+}
+
+.device-table-row:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 1px solid var(--cyan);
+    outline-offset: -1px;
+}
+
+.device-profile-cell {
+    display: flex;
+    min-width: 120px;
+    max-width: 200px;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.device-profile-cell span,
+.device-profile-cell small,
+.device-extension-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.device-profile-cell span {
+    color: var(--text-main);
+}
+
+.device-profile-cell small {
+    color: var(--text-dim);
+    font-size: 8px;
+}
+
+.device-extension-heading {
+    max-width: 148px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-extension-value {
+    max-width: 185px;
+    color: var(--text-main);
+}
+
+.detail-device-overview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0, 212, 255, 0.025);
+}
+
+@media (max-width: 720px) {
+    .device-type-tabs {
+        padding-inline: 8px;
+    }
+
+    .device-type-tab {
+        padding-inline: 8px;
+    }
+
+    .device-inventory .device-table {
+        min-width: 1080px;
+    }
+}

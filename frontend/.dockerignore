@@ -1,0 +1,10 @@
+# The builder installs its own dependency tree from the lockfile.
+node_modules/
+dist/
+coverage/
+
+# Do not bake local browser state, logs, or environment files into the image.
+.env
+.env.*
+*.log
+tests/

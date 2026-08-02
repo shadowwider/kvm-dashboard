@@ -7,6 +7,7 @@ import DeviceCard from '../components/DeviceCard';
 import DeviceTable from '../components/DeviceTable';
 import MatrixView from '../components/MatrixView';
 import SoundControl from '../components/SoundControl';
+import ClientOverview from '../components/ClientOverview';
 import useAlertSound from '../hooks/useAlertSound';
 import useSystemWebSocket from '../hooks/useSystemWebSocket';
 import { useTranslation } from '../i18n';
@@ -35,6 +36,11 @@ export default function Dashboard() {
 
     const [clock, setClock] = useState('');
     const [filterDeviceId, setFilterDeviceId] = useState('all');
+    const [dashboardPresentation, setDashboardPresentation] = useState(() => (
+        window.localStorage.getItem('dashboard-presentation') === 'overview'
+            ? 'overview'
+            : 'classic'
+    ));
 
     useEffect(() => {
         const tick = () => {
@@ -91,8 +97,23 @@ export default function Dashboard() {
         }
     };
 
+    const handlePresentationChange = (presentation) => {
+        window.localStorage.setItem('dashboard-presentation', presentation);
+        setDashboardPresentation(presentation);
+    };
+
+    const openClassicView = (mode = 'devices') => {
+        handleViewChange(mode);
+        handlePresentationChange('classic');
+    };
+
+    const openDeviceFromOverview = (device) => {
+        handleFilter(device.id);
+        openClassicView('devices');
+    };
+
     return (
-        <div className="dashboard-app">
+        <div className={`dashboard-app ${dashboardPresentation === 'overview' ? 'client-dashboard' : ''}`}>
             <header className="topbar">
                 <div className="sys-title">
                     <div className="lbl">{t('dashboard.system_code')}</div>
@@ -133,6 +154,20 @@ export default function Dashboard() {
                         </div>
                     </div>
                     <div className="user-actions">
+                        <div className="client-view-switch" role="group" aria-label={t('dashboard.client_view_switch')}>
+                            <button
+                                className={dashboardPresentation === 'classic' ? 'active' : ''}
+                                onClick={() => handlePresentationChange('classic')}
+                            >
+                                {t('dashboard.client_classic_view')}
+                            </button>
+                            <button
+                                className={dashboardPresentation === 'overview' ? 'active' : ''}
+                                onClick={() => handlePresentationChange('overview')}
+                            >
+                                {t('dashboard.client_overview')}
+                            </button>
+                        </div>
                         <SoundControl />
                         <button
                             className="ua-btn"
@@ -167,6 +202,18 @@ export default function Dashboard() {
                 </div>
             </header>
 
+            {dashboardPresentation === 'overview' ? (
+                <ClientOverview
+                    devices={devices}
+                    endpoints={endpoints}
+                    alerts={alerts}
+                    stats={stats}
+                    readyState={readyState}
+                    onOpenDevice={openDeviceFromOverview}
+                    onOpenClassic={openClassicView}
+                />
+            ) : (
+                <>
             <div className="dashboard-main">
                 <aside className="panel">
                     <div className="panel-hdr">
@@ -265,6 +312,8 @@ export default function Dashboard() {
                     endpoints={endpoints}
                 />
             </footer>
+                </>
+            )}
         </div>
     );
 }
